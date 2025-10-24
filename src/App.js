@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import LandingPage from './components/LandingPage';
 import HomePage from './pages/HomePage';
+import PartsPage from './pages/PartsPage'
 
 const theme = createTheme({
   palette: {
@@ -62,6 +63,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/home" element={<HomePage />} />
+          <Route path='/parts' element={<PartsPage/>}/>
         </Routes>
       </Router>
     </ThemeProvider>

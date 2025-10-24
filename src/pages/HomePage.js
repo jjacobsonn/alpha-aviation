@@ -34,6 +34,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import RequestPageIcon from '@mui/icons-material/RequestPage';
+import { useNavigate } from 'react-router-dom';
 
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
@@ -42,6 +43,7 @@ function HomePage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedTab, setSelectedTab] = useState('dashboard');
   const [anchorEl, setAnchorEl] = useState(null);
+  const navigate = useNavigate();
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -129,14 +131,14 @@ function HomePage() {
         {/* Header Section */}
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 64 }}>
           {sidebarOpen && (
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+            <Stack direction="row" alignItems="center" spacing={1.5} onClick={() => navigate('/')}>
+              <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main' }}/>
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main' }}>
                 AIMS Next
               </Typography>
             </Stack>
           )}
-          {!sidebarOpen && <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main'}} />}
+          {!sidebarOpen && <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main'}}  onClick={() => navigate('/')}/>}
 
           <IconButton onClick={toggleSidebar} size="small">
             {sidebarOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
@@ -149,7 +151,9 @@ function HomePage() {
         <List sx={{ flexGrow: 1, px: 1, pt: 2 }}>
           {menuItems.map((item) => (
             <Tooltip key={item.id} title={!sidebarOpen ? item.title : ''} placement="right">
-              <ListItem disablePadding sx={{ mb: 1 }}>
+              <ListItem disablePadding sx={{ mb: 1 }}
+                onClick={() => navigate(`/${item.title.toLowerCase()}`)}
+              >
                 <ListItemButton
                   selected={selectedTab === item.id}
                   onClick={() => setSelectedTab(item.id)}
