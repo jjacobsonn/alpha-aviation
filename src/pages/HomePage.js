@@ -29,10 +29,11 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
+import RequestPageIcon from '@mui/icons-material/RequestPage';
 
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
@@ -135,8 +136,10 @@ function HomePage() {
               </Typography>
             </Stack>
           )}
+          {!sidebarOpen && <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main'}} />}
+
           <IconButton onClick={toggleSidebar} size="small">
-            {sidebarOpen ? <ChevronLeftIcon /> : <MenuIcon />}
+            {sidebarOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
           </IconButton>
         </Box>
 
@@ -452,6 +455,26 @@ function HomePage() {
                       1 day ago
                     </Typography>
                   </Stack>
+
+                  <Divider />
+
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar sx={{ bgcolor: '#f32f21ff' }}>
+                      <RequestPageIcon />
+                    </Avatar>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        Requests
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Shipment #7821 - 45 parts added to inventory
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      5 hours ago
+                    </Typography>
+                  </Stack>
+
                 </Stack>
               </CardContent>
             </Card>
