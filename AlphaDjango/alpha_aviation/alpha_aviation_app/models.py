@@ -9,5 +9,5 @@ class Aircraft(models.Model):
     manufacturer = models.CharField(max_length=200)
     year_built = models.IntegerField(validators=[MaxValueValidator(9999),MinValueValidator(1903)])
     def __str__(self):
-        return self.objects.all()
+        return f"{self.registration_number} ({self.model})"
 
