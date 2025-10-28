@@ -63,7 +63,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/home" element={<HomePage />} />
-          <Route path='/parts' element={<PartsPage/>}/>
+          <Route path='/inventory' element={<PartsPage/>}/>
         </Routes>
       </Router>
     </ThemeProvider>
