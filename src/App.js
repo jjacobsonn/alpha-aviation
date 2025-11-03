@@ -62,8 +62,8 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/home" element={<HomePage />} />
-          <Route path='/inventory' element={<PartsPage/>}/>
+          <Route path="/management" element={<HomePage />} />
+          <Route path='/parts' element={<PartsPage/>}/>
         </Routes>
       </Router>
     </ThemeProvider>

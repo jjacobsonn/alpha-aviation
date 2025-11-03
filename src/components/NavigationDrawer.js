@@ -56,13 +56,13 @@ function NavigationDrawer() {
 
   const menuItems = [
     {
-      id: "dashboard",
+      id: "management",
       title: "Management",
       icon: <DashboardIcon />,
       color: "#273469",
     },
     {
-      id: "inventory",
+      id: "parts",
       title: "Parts",
       icon: <InventoryIcon />,
       color: "#2196F3",
