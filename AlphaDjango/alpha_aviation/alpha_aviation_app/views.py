@@ -1,6 +1,7 @@
+from django.shortcuts import render
 from rest_framework import viewsets
-from .models import Aircraft, Part
-from .serializers import AircraftSerializer, PartSerializer
+from .models import Aircraft, Part, Company, Worker
+from .serializers import AircraftSerializer, PartSerializer, CompanySerializer, WorkerSerializer
 
 # Create your views here.
 """
@@ -17,6 +18,8 @@ def aircraft_specs(request):
     context = {"airplanes": airplanes}
     return render(request, "aircraft_specs.html", context)
 """
+def home(request):
+    return render(request, "home.html")
 
 class AircraftViewSet(viewsets.ModelViewSet):
     queryset = Aircraft.objects.all()
@@ -25,3 +28,11 @@ class AircraftViewSet(viewsets.ModelViewSet):
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
     serializer_class = PartSerializer
+
+class CompanyViewSet(viewsets.ModelViewSet):
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+
+class WorkerViewSet(viewsets.ModelViewSet):
+    queryset = Worker.objects.all()
+    serialzier_class = WorkerSerializer

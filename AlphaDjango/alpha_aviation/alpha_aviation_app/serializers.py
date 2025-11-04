@@ -23,7 +23,9 @@ class PartSerializer(serializers.ModelSerializer):
 class CompanySerializer(serializers.ModelSerializer):
     class meta:
         model = Company
-        fields =['name']
+        fields =['name',
+                 'workers'
+                 'aircraft']
 
 class WorkerSerializer(serializers.ModelSerializer):
     class meta:
