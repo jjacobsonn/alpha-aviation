@@ -35,6 +35,6 @@ class Worker(models.Model):
                    ("mechanic", "Mechanic"),
                    ("pilot", "Pilot")]
     first_name = models.CharField(max_length=200)
-    last_name = models.CharField(max_lenght=200)
+    last_name = models.CharField(max_length=200)
     employee_ID = models.IntegerField(max_length=200)
     role = models.CharField(max_length= 200, choices=Job_choices)
