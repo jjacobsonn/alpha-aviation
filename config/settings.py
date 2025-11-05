@@ -31,6 +31,7 @@ SECRET_KEY = env('SECRET_KEY', default='dev-secret-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG', default=False)
+AUTH_USER_MODEL = 'api.Profile'
 
 ALLOWED_HOSTS = []
 
