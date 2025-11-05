@@ -1,0 +1,20 @@
+[project]
+name = "aviation-backend"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Evan Cortez",email = "evanvcortez@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4"
+dependencies = [
+    "django (>=5.2.8,<6.0.0)",
+    "djangorestframework (>=3.16.1,<4.0.0)",
+    "psycopg[binary] (>=3.2.12,<4.0.0)",
+    "django-environ (>=0.12.0,<0.13.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class AlphaAviationAppConfig(AppConfig):
+class ApiConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'alpha_aviation_app'
+    name = 'api'

@@ -1,5 +1,5 @@
 """
-URL configuration for alpha_aviation project.
+URL configuration for config project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.2/topics/http/urls/
@@ -19,5 +19,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("", include("alpha_aviation_app.urls"))
+    path('api/', include('api.urls')),
 ]
