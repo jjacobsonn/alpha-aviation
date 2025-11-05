@@ -1,9 +1,7 @@
 import _checkPropTypes from 'prop-types/checkPropTypes';
 import React, { createContext, useReducer, useEffect } from 'react';
 import { PropTypes } from 'prop-types';
-
-import { getCurrentUser } from '../../shared/Api';
-import LoadingContainer from '../../shared/containers/Loading';
+import { makeApiRequest } from '../shared/Api';
 
 const AppContext = createContext(null);
 
@@ -152,36 +150,36 @@ const AppProvider = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const value = { state, dispatch };
 
-  useEffect(() => {
-    if (state.accessToken) {
-      dispatch({
-        type: ACTION_TYPES.INITIALIZING
-      });
-      getCurrentUser(dispatch)
-        .then(() => {
-          dispatch({
-            type: ACTION_TYPES.LOGGED_IN,
-            payload: {
-              accessToken: state.accessToken,
-              refreshToken: state.refreshToken
-            }
-          });
-        })
-        .catch(() => {
-          dispatch({
-            type: ACTION_TYPES.LOGIN_ERROR
-          });
-        })
-        .finally(() => {
-          dispatch({
-            type: ACTION_TYPES.INIT_COMPLETE
-          });
-        });
-    }
-  });
+  // useEffect(() => {
+  //   if (state.accessToken) {
+  //     dispatch({
+  //       type: ACTION_TYPES.INITIALIZING
+  //     });
+  //     makeApiRequest('GET', '/users/me/')
+  //       .then(() => {
+  //         dispatch({
+  //           type: ACTION_TYPES.LOGGED_IN,
+  //           payload: {
+  //             accessToken: state.accessToken,
+  //             refreshToken: state.refreshToken
+  //           }
+  //         });
+  //       })
+  //       .catch(() => {
+  //         dispatch({
+  //           type: ACTION_TYPES.LOGIN_ERROR
+  //         });
+  //       })
+  //       .finally(() => {
+  //         dispatch({
+  //           type: ACTION_TYPES.INIT_COMPLETE
+  //         });
+  //       });
+  //   }
+  // }, []);
 
   if (state.isInitializing) {
-    return <LoadingContainer />;
+    return <div>Loading...</div>;
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
