@@ -48,7 +48,7 @@ const Login = () => {
     try {
       await loginUser(formData, dispatch);
       // Redirect to home page after successful login
-      navigate('/home');
+      navigate('/management');
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed. Please check your credentials.');

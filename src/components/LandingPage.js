@@ -78,7 +78,7 @@ const LandingPage = () => {
 						<Button
 							variant="contained"
 							sx={{ textTransform: 'none', px: 3 }}
-							onClick={() => navigate('/home')}
+							onClick={() => navigate('/management')}
 						>
 							Get a Demo
 						</Button>
@@ -145,7 +145,7 @@ const LandingPage = () => {
 								<Button
 									variant="contained"
 									size="large"
-									onClick={() => navigate('/home')}
+									onClick={() => navigate('/management')}
 									sx={{
 										bgcolor: 'white',
 										color: 'primary.main',
@@ -567,7 +567,7 @@ const LandingPage = () => {
 						<Button
 							variant="contained"
 							size="large"
-							onClick={() => navigate('/home')}
+							onClick={() => navigate('/management')}
 							sx={{
 								px: 4,
 								py: 1.5,
@@ -581,7 +581,7 @@ const LandingPage = () => {
 						<Button
 							variant="outlined"
 							size="large"
-							onClick={() => navigate('/home')}
+							onClick={() => navigate('/management')}
 							sx={{
 								px: 4,
 								py: 1.5,
