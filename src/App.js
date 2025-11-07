@@ -4,9 +4,12 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { AppProvider } from './context/AppContext';
 import CssBaseline from '@mui/material/CssBaseline';
 import LandingPage from './components/LandingPage';
-import HomePage from './pages/HomePage';
+import Management from './pages/Management';
 import PartsPage from './pages/PartsPage';
 import Login from './pages/Login';
+import NotFound from './pages/NotFound';
+import ProtectedRoute from './components/ProtectedRoute';
+import Layout from './components/Layout';
 
 const theme = createTheme({
 	palette: {
@@ -64,10 +67,34 @@ function App() {
 			<AppProvider>
 				<Router>
 					<Routes>
+						{/* Public routes */}
 						<Route path="/login" element={<Login />} />
 						<Route path="/" element={<LandingPage />} />
-						<Route path="/management" element={<HomePage />} />
-						<Route path="/parts" element={<PartsPage />} />
+						
+						{/* Protected routes */}
+						<Route
+							path="/management"
+							element={
+								<ProtectedRoute>
+									<Layout>
+										<Management />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/parts"
+							element={
+								<ProtectedRoute>
+									<Layout>
+										<PartsPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						
+						{/* 404 - Must be last */}
+						<Route path="*" element={<NotFound />} />
 					</Routes>
 				</Router>
 			</AppProvider>

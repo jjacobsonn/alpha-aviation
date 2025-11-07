@@ -1,5 +1,5 @@
 import _checkPropTypes from 'prop-types/checkPropTypes';
-import React, { createContext, useReducer, useEffect } from 'react';
+import React, { createContext, useReducer, useEffect, useContext } from 'react';
 import { PropTypes } from 'prop-types';
 import { makeApiRequest } from '../shared/Api';
 
@@ -11,7 +11,7 @@ const initialState = {
   isLoggingIn: false,
   accessToken: localStorage.getItem('accessToken'),
   refreshToken: localStorage.getItem('refreshToken'),
-  isAuthenticated: false,
+  isAuthenticated: !!localStorage.getItem('accessToken'),
   pageTitle: '',
   siteAlerts: [],
   user: {},
@@ -79,7 +79,13 @@ const reducer = (state, action) => {
         refreshToken: null,
         pageTitle: '',
         siteAlerts: [],
-        user: {}
+        user: {},
+        monthStats: {
+          jobsCompletedMonth: 0,
+          revisionCountMonth: 0,
+          previousShiftHours: 0.0,
+          currentShiftStart: null
+        }
       };
     case ACTION_TYPES.SET_PAGE_TITLE:
       return {
@@ -98,6 +104,7 @@ const reducer = (state, action) => {
         user: {
           id: userObject.id || state.user.id,
           email: userObject.email,
+          username: userObject.username,
           firstName: userObject.first_name,
           lastName: userObject.last_name,
           verifiedEmail: userObject.verified_email || state.user.verifiedEmail,
@@ -150,39 +157,58 @@ const AppProvider = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const value = { state, dispatch };
 
-  // useEffect(() => {
-  //   if (state.accessToken) {
-  //     dispatch({
-  //       type: ACTION_TYPES.INITIALIZING
-  //     });
-  //     makeApiRequest('GET', '/users/me/')
-  //       .then(() => {
-  //         dispatch({
-  //           type: ACTION_TYPES.LOGGED_IN,
-  //           payload: {
-  //             accessToken: state.accessToken,
-  //             refreshToken: state.refreshToken
-  //           }
-  //         });
-  //       })
-  //       .catch(() => {
-  //         dispatch({
-  //           type: ACTION_TYPES.LOGIN_ERROR
-  //         });
-  //       })
-  //       .finally(() => {
-  //         dispatch({
-  //           type: ACTION_TYPES.INIT_COMPLETE
-  //         });
-  //       });
-  //   }
-  // }, []);
-
-  if (state.isInitializing) {
-    return <div>Loading...</div>;
-  }
+  useEffect(() => {
+    const accessToken = localStorage.getItem('accessToken');
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    if (accessToken && refreshToken) {
+      dispatch({
+        type: ACTION_TYPES.INITIALIZING
+      });
+      
+      makeApiRequest('GET', '/users/me/')
+        .then((userData) => {
+          dispatch({
+            type: ACTION_TYPES.UPDATE_USER,
+            payload: userData
+          });
+          dispatch({
+            type: ACTION_TYPES.LOGGED_IN,
+            payload: {
+              accessToken,
+              refreshToken
+            }
+          });
+        })
+        .catch((error) => {
+          console.error('Failed to validate token:', error);
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          dispatch({
+            type: ACTION_TYPES.LOGIN_ERROR
+          });
+        })
+        .finally(() => {
+          dispatch({
+            type: ACTION_TYPES.INIT_COMPLETE
+          });
+        });
+    } else {
+      dispatch({
+        type: ACTION_TYPES.INIT_COMPLETE
+      });
+    }
+  }, []);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+};
+
+export const useAppContext = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useAppContext must be used within an AppProvider');
+  }
+  return context;
 };
 
 export { AppContext, AppProvider };

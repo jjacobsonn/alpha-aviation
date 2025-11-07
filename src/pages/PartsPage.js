@@ -1,14 +1,16 @@
-import NavigationDrawer from "../components/NavigationDrawer";
 import {
   Box
 } from '@mui/material'
+import { Typography, Container } from '@mui/material';
 
-
-function PartsPage() {
+const PartsPage = () => {
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
-        {/* Sidebar */}
-        <NavigationDrawer/>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Container maxWidth="lg">
+        <Typography variant="h1" gutterBottom>
+          Parts
+        </Typography>
+      </Container>
     </Box>
   )
 }
