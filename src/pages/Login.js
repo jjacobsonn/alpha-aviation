@@ -11,8 +11,7 @@ import {
 	Alert,
 	Stack,
 	InputAdornment,
-	IconButton,
-  FormControl
+	IconButton
 } from '@mui/material';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import Visibility from '@mui/icons-material/Visibility';
@@ -118,8 +117,6 @@ const Login = () => {
 								{error}
 							</Alert>
 						)}
-
-						<FormControl onSubmit={handleSubmit}>
 							<Stack spacing={3}>
 								<TextField
 									fullWidth
@@ -164,6 +161,7 @@ const Login = () => {
 									variant="contained"
 									size="large"
 									disabled={isLoading}
+									onClick={handleSubmit}
 									sx={{
 										bgcolor: '#273469',
 										py: 1.5,
@@ -175,7 +173,6 @@ const Login = () => {
 									{isLoading ? 'Signing in...' : 'Sign In'}
 								</Button>
 							</Stack>
-						</FormControl>
 
 						{/* Footer */}
 						<Box sx={{ mt: 3, textAlign: 'center' }}>
