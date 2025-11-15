@@ -1,23 +1,65 @@
 from django.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
+from django.utils import timezone
+
 
 class Company(models.Model):
     name = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
 
     def __str__(self):
         return self.name
 
 class Profile(AbstractUser):
-  roleChoices = [
-      ('owner', 'Owner'),
-      ('mechanic', 'Mechanic'),
-      ('pilot', 'Pilot'),
-  ]
-  company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="Users", null=True, blank=True)
-  companyRole = models.CharField(max_length= 255, choices=roleChoices, default='pilot' )
+    roleChoices = [
+        ('owner', 'Owner'),
+        ('mechanic', 'Mechanic'),
+        ('pilot', 'Pilot'),
+    ]
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="Users", null=True, blank=True)
+    company_role = models.CharField(max_length= 255, choices=roleChoices, default='pilot' )
+    middle_name = models.CharField(max_length=150, blank=True, null=True)
+    employee_id = models.PositiveIntegerField(null=True, blank=True)
+    phone_number = models.CharField(max_length=10, blank=True, null=True, help_text="Numbers only, do not add \"(\", \")\" or \"-\" ")
+
+    #Pilot only
+    medically_cleared_until = models.DateField(null=True, blank=True)
+    certificates = [
+        ('none', 'None'),
+        ('student', 'Student'),
+        ('private', 'Private'),
+        ('commercial', 'Commercial'),
+        ('airline', 'Airline'),
+    ]
+    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')
+
+    #Mechanic only
+    AP_certificate_number = models.PositiveIntegerField(blank=True, null=True)
+
+
+
+    def clean(self):
+        super().clean()
+        if self.company and self.employee_id:
+            exists = Profile.objects.filter(company = self.company, employee_id = self.employee_id).exclude(pk=self.pk).exists()
+            
+            if exists:
+                raise ValidationError({
+                    'employee_id': f"Employee ID {self.employee_id} is already taken for this company."
+                })
+    
+    def save(self, *args, **kwargs):
+        if self.medically_cleared_until and self.medically_cleared_until < timezone.now().date():
+            self.medically_cleared_until = None
+        super().save(*args, **kwargs)
+
+    
+    
+
   
 
 
