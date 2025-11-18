@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
-from .models import Profile, Company, Aircraft, Part
+from .models import Profile, Company, Aircraft, Part, pilot_info, mechanic_info
 from django.utils.html import format_html
 # Register your models here.
 
@@ -9,16 +9,13 @@ class AircraftInline(admin.TabularInline):
     model = Aircraft
     extra = 1
 
-class ProfileInline(admin.TabularInline):
-      model = Profile
-      fields  =('company', 'company_role', 'username', 'first_name', 'last_name', 'employee_id') 
-      extra = 1
-      show_change_link = True
 
 class CompanyAdmin(admin.ModelAdmin):
-        inlines = [AircraftInline, ProfileInline]
+        inlines = [AircraftInline]
 
 class CustomUserAdmin(UserAdmin):
+      
+      inlines = []
       readonly_fields = ("profile_img_preview",)
       fieldsets = (
             ('Personal info', {'fields': ('first_name', 'middle_name', 'last_name', 'profile_img', 'profile_img_preview')}),
@@ -34,7 +31,23 @@ class CustomUserAdmin(UserAdmin):
             }
             ),
       )
+      """def get_fieldsets(self, request, obj = None):
+            fieldsets = super().get_fieldsets(request, obj)
+            fieldsets = list(fieldsets)
 
+            if obj and obj.company_role == "pilot":
+                  fieldsets.insert(2, ("Pilot Info", {"fields":()}))
+            elif obj and obj.company_role == "mechanic_info":
+                  fieldsets.insert(2, ("Mechanic Info", {"fields": ()}))
+            return fieldsets"""
+      def get_inlines(self, request, obj):
+            if not obj:
+                  return []
+            if obj.company_role == "pilot":
+                  return [PilotInfoInline]
+            if obj.company_role == "mechanic":
+                  return[MechanicInfoInline]
+            return []
       def profile_img_preview(self, obj):
             if obj.profile_img:
                   return format_html(
@@ -42,38 +55,19 @@ class CustomUserAdmin(UserAdmin):
                         obj.profile_img.url
                   )
             return "(No image uploaded)"
+      def get_inline_instances(self, request, obj = ...):
+            return [inline(self.model, self.admin_site) for inline in self.get_inlines(request, obj)]
 
-      def get_fieldsets(self, request, obj=None):
-            fieldsets = super().get_fieldsets(request, obj)
-            fieldsets = list(fieldsets)
-            
-            #pilot additionals
-            if obj and obj.company_role == 'pilot':
-                  fields = list(fieldsets[1][1]['fields'])
-                  fields.append('medically_cleared_until')
-                  fields.append('pilot_certificate')
-                  fieldsets[1] = ('Additional Info', {'fields': tuple(fields)})
-            
-            #mechanic additionals
-            if obj and obj.company_role == 'mechanic':
-                  fields = list(fieldsets[1][1]['fields'])
-                  fields.append('AP_certificate_number')
-                  if obj.AP_certificate_number:
-                        fields.append('mechanic_certificate_img')
-                  fields.append('inspector_authentication')
-                  if obj.inspector_authentication:
-                        fields.append('authentication_img')
-                  fieldsets[1] = ('Additional Info', {'fields': tuple(fields)})
-            
-            
 
-            return fieldsets
-      
-      def save_model(self, request, obj, form, change):
-            if obj.company_role == 'pilot' and not obj.medically_cleared_until:
-                  messages.warning(request, "Pilot does not have medically cleared date!")
-            super().save_model(request, obj, form, change)
+class PilotInfoInline(admin.StackedInline):
+    model = pilot_info
+    extra = 0
+    can_delete = False
 
+class MechanicInfoInline(admin.StackedInline):
+    model = mechanic_info
+    extra = 0
+    can_delete = False
 def clear_expired_medical_dates():
       Profile.objects.filter(medically_cleared_until__lt = timezone.now().date()).update(medically_cleared_until=None)
 

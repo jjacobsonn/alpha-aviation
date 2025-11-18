@@ -36,22 +36,6 @@ class Profile(AbstractUser):
     trainings?
     add photos to certificates/medical certificates
     """
-    #Pilot only
-    medically_cleared_until = models.DateField(null=True, blank=True)
-    certificates = [
-        ('none', 'None'), #0
-        ('student', 'Student'),#1
-        ('private', 'Private'),#2
-        ('commercial', 'Commercial'),#3
-        ('airline', 'Airline'),#4
-    ]
-    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')
-
-    #Mechanic only
-    AP_certificate_number = models.PositiveIntegerField(blank=True, null=True)
-    mechanic_certificate_img = models.ImageField(upload_to='mechanic_cert/', blank= True, null=True)
-    inspector_authentication = models.BooleanField(default= False)
-    authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
 
 
 
@@ -80,8 +64,8 @@ class Profile(AbstractUser):
     
     def is_cleared_to_fly(self):
         if self.company_role == 'pilot':
-            if self.medically_cleared_until and self.medically_cleared_until > timezone.now().date():
-                if self.pilot_certificate != 'none':
+            if self.pilot_info.medically_cleared_until and self.pilot_info.medically_cleared_until > timezone.now().date():
+                if self.pilot_info.pilot_certificate != 'none':
                     return True
                 else:
                     return False #pilot certificate failed
@@ -120,7 +104,11 @@ class Profile(AbstractUser):
     
     
 class pilot_info(models.Model):
-    #Pilot only
+    profile = models.OneToOneField(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="pilot_info"
+        )
     medically_cleared_until = models.DateField(null=True, blank=True)
     certificates = [
         ('none', 'None'), #0
@@ -132,6 +120,11 @@ class pilot_info(models.Model):
     pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')  
 
 class mechanic_info(models.Model):
+    profile = models.OneToOneField(
+    Profile,
+    on_delete=models.CASCADE,
+    related_name="mechanic_info"
+    )
     AP_certificate_number = models.PositiveIntegerField(blank=True, null=True)
     mechanic_certificate_img = models.ImageField(upload_to='mechanic_cert/', blank= True, null=True)
     inspector_authentication = models.BooleanField(default= False)
