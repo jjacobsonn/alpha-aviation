@@ -19,6 +19,7 @@ class Profile(AbstractUser):
         ('owner', 'Owner'),
         ('mechanic', 'Mechanic'),
         ('pilot', 'Pilot'),
+        ('manager', 'Manager'),
     ]
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="Users", null=True, blank=True)
     company_role = models.CharField(max_length= 255, choices=roleChoices, default='pilot' )
@@ -56,7 +57,52 @@ class Profile(AbstractUser):
         if self.medically_cleared_until and self.medically_cleared_until < timezone.now().date():
             self.medically_cleared_until = None
         super().save(*args, **kwargs)
+    #Helper functions
+    #mechanic
+    def is_mechanic(self):
+        return self.company_role == "mechanic"
+    
+    #Pilot
+    def is_pilot(self):
+        return self.company_role == "pilot"
+    
+    def is_cleared_to_fly(self):
+        if self.company_role == 'pilot':
+            if self.medically_cleared_until and self.medically_cleared_until > timezone.now().date():
+                if self.pilot_certificate != 'none':
+                    return True
+                else:
+                    return False #pilot certificate failed
+            else:
+                return False #medically cleared failed
+        else:
+            return False
+    
+    def get_cert_num(role):
+        if role == 'none':
+            return 0
+        elif role == 'student':
+            return 1
+        elif role == 'private':
+            return 2
+        elif role == 'commercial':
+            return 3
+        elif role == 'airline':
+            return 4
+        
+    def is_certified(self, reqRole):
+        pilotNum = self.get_cert_num(self.pilot_certificate)
+        reqNum = self.get_cert_num(reqRole)
+        return pilotNum >= reqNum
 
+
+    #owner
+    def is_owner(self):
+        return self.company_role == "owner"
+    
+    #manager
+    def is_manager(self):
+        return self.company_role == 'manager'
     
     
 
