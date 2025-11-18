@@ -42,10 +42,19 @@ class CustomUserAdmin(UserAdmin):
                   fields.append('medically_cleared_until')
                   fields.append('pilot_certificate')
                   fieldsets[1] = ('Additional Info', {'fields': tuple(fields)})
+            #mechanic additionals
             if obj and obj.company_role == 'mechanic':
                   fields = list(fieldsets[1][1]['fields'])
                   fields.append('AP_certificate_number')
+                  if obj.AP_certificate_number:
+                        #fields.append('mechanic-certificate_img')
+                        pass
+                  fields.append('inspector_authentication')
+                  if obj.inspector_authentication:
+                        #fields.append('authentication_img')
+                        pass
                   fieldsets[1] = ('Additional Info', {'fields': tuple(fields)})
+            
             
 
             return fieldsets

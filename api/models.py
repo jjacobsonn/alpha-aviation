@@ -26,20 +26,30 @@ class Profile(AbstractUser):
     middle_name = models.CharField(max_length=150, blank=True, null=True)
     employee_id = models.PositiveIntegerField(null=True, blank=True)
     phone_number = models.CharField(max_length=10, blank=True, null=True, help_text="Numbers only, do not add \"(\", \")\" or \"-\" ")
+    #profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
+    """Need to add:
+    Profile picture
+    Locations -- should be added to companies pilots can change locations mechanic has set location
 
+    certifications
+    trainings?
+    add photos to certificates/medical certificates
+    """
     #Pilot only
     medically_cleared_until = models.DateField(null=True, blank=True)
     certificates = [
-        ('none', 'None'),
-        ('student', 'Student'),
-        ('private', 'Private'),
-        ('commercial', 'Commercial'),
-        ('airline', 'Airline'),
+        ('none', 'None'), #0
+        ('student', 'Student'),#1
+        ('private', 'Private'),#2
+        ('commercial', 'Commercial'),#3
+        ('airline', 'Airline'),#4
     ]
     pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')
 
     #Mechanic only
     AP_certificate_number = models.PositiveIntegerField(blank=True, null=True)
+
+    inspector_authentication = models.BooleanField(default= False)
 
 
 
@@ -77,22 +87,24 @@ class Profile(AbstractUser):
                 return False #medically cleared failed
         else:
             return False
-    
-    def get_cert_num(role):
-        if role == 'none':
-            return 0
-        elif role == 'student':
-            return 1
-        elif role == 'private':
-            return 2
-        elif role == 'commercial':
-            return 3
-        elif role == 'airline':
-            return 4
         
     def is_certified(self, reqRole):
+        def get_cert_num(role):
+            if role == 'none':
+                return 0
+            elif role == 'student':
+                return 1
+            elif role == 'private':
+                return 2
+            elif role == 'commercial':
+                return 3
+            elif role == 'airline':
+                return 4
         pilotNum = self.get_cert_num(self.pilot_certificate)
-        reqNum = self.get_cert_num(reqRole)
+        if type(reqRole) == int:
+            reqNum = reqRole
+        else:
+            reqNum = self.get_cert_num(reqRole)
         return pilotNum >= reqNum
 
 
