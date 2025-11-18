@@ -26,7 +26,8 @@ class Profile(AbstractUser):
     middle_name = models.CharField(max_length=150, blank=True, null=True)
     employee_id = models.PositiveIntegerField(null=True, blank=True)
     phone_number = models.CharField(max_length=10, blank=True, null=True, help_text="Numbers only, do not add \"(\", \")\" or \"-\" ")
-    #profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
+    profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
+    
     """Need to add:
     Profile picture
     Locations -- should be added to companies pilots can change locations mechanic has set location
@@ -48,8 +49,9 @@ class Profile(AbstractUser):
 
     #Mechanic only
     AP_certificate_number = models.PositiveIntegerField(blank=True, null=True)
-
+    mechanic_certificate_img = models.ImageField(upload_to='mechanic_cert/', blank= True, null=True)
     inspector_authentication = models.BooleanField(default= False)
+    authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
 
 
 
@@ -117,8 +119,23 @@ class Profile(AbstractUser):
         return self.company_role == 'manager'
     
     
+class pilot_info(models.Model):
+    #Pilot only
+    medically_cleared_until = models.DateField(null=True, blank=True)
+    certificates = [
+        ('none', 'None'), #0
+        ('student', 'Student'),#1
+        ('private', 'Private'),#2
+        ('commercial', 'Commercial'),#3
+        ('airline', 'Airline'),#4
+    ]
+    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')  
 
-  
+class mechanic_info(models.Model):
+    AP_certificate_number = models.PositiveIntegerField(blank=True, null=True)
+    mechanic_certificate_img = models.ImageField(upload_to='mechanic_cert/', blank= True, null=True)
+    inspector_authentication = models.BooleanField(default= False)
+    authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
 
 
 
