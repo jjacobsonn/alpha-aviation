@@ -5,37 +5,32 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 
+
 class Company(models.Model):
     name = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    locations =models.CharField(null=True, blank=True)
     
 
     def __str__(self):
         return self.name
 
 class Profile(AbstractUser):
-    roleChoices = [
+    role_choices = [
         ('owner', 'Owner'),
         ('mechanic', 'Mechanic'),
         ('pilot', 'Pilot'),
         ('manager', 'Manager'),
     ]
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="Users", null=True, blank=True)
-    company_role = models.CharField(max_length= 255, choices=roleChoices, default='pilot' )
+    company_role = models.CharField(max_length= 255, choices=role_choices, default='pilot' )
     middle_name = models.CharField(max_length=150, blank=True, null=True)
     employee_id = models.PositiveIntegerField(null=True, blank=True)
     phone_number = models.CharField(max_length=10, blank=True, null=True, help_text="Numbers only, do not add \"(\", \")\" or \"-\" ")
     profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
     
-    """Need to add:
-    Profile picture
-    Locations -- should be added to companies pilots can change locations mechanic has set location
-
-    certifications
-    trainings?
-    add photos to certificates/medical certificates
-    """
+    
 
 
 
@@ -50,60 +45,58 @@ class Profile(AbstractUser):
                 })
     
     def save(self, *args, **kwargs):
-        if self.medically_cleared_until and self.medically_cleared_until < timezone.now().date():
-            self.medically_cleared_until = None
         super().save(*args, **kwargs)
-    #Helper functions
-    #mechanic
+
     def is_mechanic(self):
         return self.company_role == "mechanic"
     
-    #Pilot
+
     def is_pilot(self):
         return self.company_role == "pilot"
     
-    def is_cleared_to_fly(self):
-        if self.company_role == 'pilot':
-            if self.pilot_info.medically_cleared_until and self.pilot_info.medically_cleared_until > timezone.now().date():
-                if self.pilot_info.pilot_certificate != 'none':
-                    return True
-                else:
-                    return False #pilot certificate failed
-            else:
-                return False #medically cleared failed
+    def is_cleared_to_fly(self): 
+        if self.company_role == 'pilot' and self.Pilot.medically_cleared_until and self.Pilot.medically_cleared_until > timezone.now().date() and self.Pilot.pilot_certificate != 'none': #change
+            return True
         else:
-            return False
+            return False 
         
     def is_certified(self, reqRole):
-        def get_cert_num(role):
-            if role == 'none':
-                return 0
-            elif role == 'student':
-                return 1
-            elif role == 'private':
-                return 2
-            elif role == 'commercial':
-                return 3
-            elif role == 'airline':
-                return 4
-        pilotNum = self.get_cert_num(self.pilot_certificate)
+        if self.Pilot.pilot_certificate == 'none':
+            pilotNum = 0
+        elif self.Pilot.pilot_certificate == 'student':
+            pilotNum = 1
+        elif self.Pilot.pilot_certificate == 'private':
+            pilotNum = 2
+        elif self.Pilot.pilot_certificate == 'commercial':
+            pilotNum = 3
+        elif self.Pilot.pilot_certificate == 'airline':
+            pilotNum = 4
         if type(reqRole) == int:
             reqNum = reqRole
         else:
-            reqNum = self.get_cert_num(reqRole)
+            if reqRole == 'none':
+                reqNum = 0
+            elif reqRole == 'student':
+                reqNum = 1
+            elif reqRole == 'private':
+                reqNum = 2
+            elif reqRole == 'commercial':
+                reqNum = 3
+            elif reqRole == 'airline':
+                reqNum = 4
         return pilotNum >= reqNum
 
 
-    #owner
+    
     def is_owner(self):
         return self.company_role == "owner"
     
-    #manager
+    
     def is_manager(self):
         return self.company_role == 'manager'
     
     
-class pilot_info(models.Model):
+class Pilot(models.Model):
     profile = models.OneToOneField(
         Profile,
         on_delete=models.CASCADE,
@@ -119,7 +112,7 @@ class pilot_info(models.Model):
     ]
     pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')  
 
-class mechanic_info(models.Model):
+class Mechanic(models.Model):
     profile = models.OneToOneField(
     Profile,
     on_delete=models.CASCADE,
@@ -129,7 +122,6 @@ class mechanic_info(models.Model):
     mechanic_certificate_img = models.ImageField(upload_to='mechanic_cert/', blank= True, null=True)
     inspector_authentication = models.BooleanField(default= False)
     authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
-
 
 
 class Aircraft(models.Model):
@@ -143,12 +135,52 @@ class Aircraft(models.Model):
     def __str__(self):
         return f"{self.registration_number} ({self.model})"
 
+
 class Part(models.Model):
     part_number = models.CharField(max_length=200)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE)
-    in_stock = models.PositiveIntegerField(default=0)
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, blank= True)
+
+    def __str__(self):
+        return f"{self.part_number} - {self.name}"
+    
+
+class Inventory(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+
     last_inspected = models.DateField(null= True)
+    inspection_due_in = models.PositiveIntegerField(null= True, blank=True, help_text="Days")
 
+    in_stock = models.PositiveIntegerField(default=0)
+    stock_alert = models.PositiveIntegerField(default=0, help_text="Number where stock needs to be reordered")
+    stock_alert_percentage = models.FloatField(validators=[MinValueValidator(0), MaxValueValidator(1)], default= .10, help_text="What percentile low stock warning shows up")
+    shop_location = models.CharField(max_length=100, blank= True, null= True)
+    
+    @admin.display(boolean=True, description="Low Stock?")
+    def low_stock(self):
+        if self.stock_alert>= self.in_stock * (1+self.stock_alert_percentage) or self.stock_alert >= self.in_stock -1:
+            return True
+        else:
+            return False
 
+    def __str__(self):
+        return f"{self.part.name} with {self.in_stock} in stock"
+
+class Flight(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True)
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True)
+    flight_number = models.CharField(max_length= 250, null = True)
+    origin = models.CharField(max_length= 250, null = True)
+    destination = models.CharField(max_length=250, null = True)
+    departure_time = models.DateField(null = True)
+    arrival_time = models.DateField(null = True)
+    route = models.CharField(blank= True, null= True)
+    flight_type_options = [
+        ('training', 'Training'),
+        ('charter', 'Charter'),
+        ('positioning', 'Positioning'),
+        ('maintenance ferry', 'Maintenance Ferry'),
+    ]
+    flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='pilot' )
