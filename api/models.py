@@ -158,12 +158,14 @@ class Inventory(models.Model):
     stock_alert_percentage = models.FloatField(validators=[MinValueValidator(0), MaxValueValidator(1)], default= .10, help_text="What percentile low stock warning shows up")
     shop_location = models.CharField(max_length=100, blank= True, null= True)
     
-    @admin.display(boolean=True, description="Low Stock?")
     def low_stock(self):
-        if self.stock_alert>= self.in_stock * (1+self.stock_alert_percentage) or self.stock_alert >= self.in_stock -1:
-            return True
-        else:
-            return False
+        return (
+            self.stock_alert >= self.in_stock * (1 + self.stock_alert_percentage)
+            or self.stock_alert >= self.in_stock - 1
+        )
+
+    low_stock.boolean = True
+    low_stock.short_description = "Low Stock?"
 
     def __str__(self):
         return f"{self.part.name} with {self.in_stock} in stock"
