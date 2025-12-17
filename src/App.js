@@ -8,6 +8,7 @@ import Management from './pages/Management';
 import PartsPage from './pages/PartsPage';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
+import Maintenance from './pages/Maintenance';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -70,7 +71,7 @@ function App() {
 						{/* Public routes */}
 						<Route path="/login" element={<Login />} />
 						<Route path="/" element={<LandingPage />} />
-						
+
 						{/* Protected routes */}
 						<Route
 							path="/management"
@@ -92,7 +93,18 @@ function App() {
 								</ProtectedRoute>
 							}
 						/>
-						
+						<Route
+							path="/maintenance"
+							element={
+								<ProtectedRoute>
+									<Layout>
+										<Maintenance />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+
+
 						{/* 404 - Must be last */}
 						<Route path="*" element={<NotFound />} />
 					</Routes>
