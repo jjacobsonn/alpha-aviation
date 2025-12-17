@@ -169,6 +169,7 @@ const KPICard = ({ title, color, trend }) => (
 			width: '7em',
 			height: '7em',
 			textAlign: 'center',
+			fontWeight: "bold",
 		}}>
 			<p>{title}</p>
 			<p>{trend}</p>
@@ -193,22 +194,29 @@ const Discrepancy = ({ discrepancy_number, part_number, aircraft, description })
 );
 
 const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_to, due_date }) => (
-	<>
+	<div style={{
+		display: 'flex',
+		flexDirection: 'column',
+		gap: '0px',
+		border: 'solid',
+		margin: '2em'
+	}}>
 		<div style={{
 			//work order styles
-			bacground: 'grey',
+			background: 'grey',
 			display: 'flex',
+
 		}}>
-			<p style={{ padding: '2em 4em', width: '20%', border: 'solid' }}>{order_number}</p>
-			<p style={{ padding: '2em 4em', width: '20%', border: 'solid' }}>{part_number}</p>
-			<p style={{ padding: '2em 4em', width: '20%', border: 'solid' }}>{aircraft}</p>
-			<p style={{ padding: '2em 4em', width: '20%', border: 'solid' }}>assigned to: {assigned_to}</p>
-			<p style={{ padding: '2em 4em', width: '20%', border: 'solid' }}>due: {due_date}</p>
+			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{order_number}</p>
+			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{part_number}</p>
+			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{aircraft}</p>
+			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>assigned to: {assigned_to}</p>
+			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>due: {due_date}</p>
 		</div>
 		<div>
-			<p style={{ padding: '2em 4em', border: 'solid' }}>{description}</p>
+			<p style={{ padding: '2em 2em' }}>{description}</p>
 		</div>
-	</>
+	</div>
 );
 
 const Maintenance = () => {
@@ -221,11 +229,13 @@ const Maintenance = () => {
 				justifyContent: 'space-evenly',
 				marginBottom: '5em',
 				marginTop: '1em',
+				padding: '1em',
+				backgroundColor: 'slategray',
 			}}>
-				<KPICard title="Pending" color="lightred" trend={discrepanciesData.length} />
-				<KPICard title="Open" color="lightgreen" trend={workOrdersData.length} />
-				<KPICard title="Overdue" color="lightyellow" trend={overdueWorkOrders.length} />
-				<KPICard title="Due Soon" color="lightblue" trend={dueSoonWorkOrders.length} />
+				<KPICard title="Pending" color="lightblue" trend={discrepanciesData.length} />
+				<KPICard title="Open" color="mediumpurple" trend={workOrdersData.length} />
+				<KPICard title="Overdue" color="firebrick" trend={overdueWorkOrders.length} />
+				<KPICard title="Due Soon" color="lightgreen" trend={dueSoonWorkOrders.length} />
 			</div >
 
 			{/* WORK ORDER SECTION */}
@@ -256,7 +266,6 @@ const Maintenance = () => {
 				<div style={{
 					display: 'flex',
 					flexDirection: 'column',
-					gap: '1em',
 					overflow: 'auto',
 					border: 'solid',
 					padding: '1em',
