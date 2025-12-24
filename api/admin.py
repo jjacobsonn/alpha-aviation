@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
-from .models import Profile, Company, Aircraft, Part, Pilot, Mechanic, Inventory, Flight
+from .models import *
 from django.utils.html import format_html
 # Register your models here.
 
@@ -50,6 +50,11 @@ class CustomUserAdmin(UserAdmin):
       def get_inline_instances(self, request, obj = ...):
             return [inline(self.model, self.admin_site) for inline in self.get_inlines(request, obj)]
 
+class UserInline(admin.TabularInline):
+      model = Profile
+      fields = ('first_name', 'middle_name', 'last_name', 'profile_img', 'phone_number', 'email', 'employee_id', 'company_role', 'last_login', 'date_joined')
+      readonly_fields = ('first_name', 'middle_name', 'last_name', 'phone_number', 'email', 'last_login', 'date_joined')
+      extra = 0
 
 class PilotInfoInline(admin.StackedInline):
     model = Pilot
@@ -84,17 +89,25 @@ class InventoryInline(admin.TabularInline):
 
 
 class FlightAdmin(admin.ModelAdmin):
-    fields = ['company', 'aircraft', 'origin', 'destination', 'departure_time', 'arrival_time']
+    fields = ['company', 'aircraft', 'primary_pilot', "secondary_pilot" 'origin', 'destination', 'departure_time', 'arrival_time']
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+          if db_field.name == "primary_pilot":
+                kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
+          return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 class FlightInline(admin.TabularInline):
       model = Flight
       extra = 0
-      fields = ("aircraft", "flight_number", "origin", "destination", "departure_time", "arrival_time", "route", "flight_type")
+      fields = ("aircraft", "flight_number", "primary_pilot", "secondary_pilot", "origin", "destination", "departure_time", "arrival_time", "pilot_requirement", "route", "flight_type", "approved")
       autocomplete_fields = ["aircraft"]
+      def formfield_for_foreignkey(self, db_field, request, **kwargs):
+            if db_field.name in  ("primary_pilot", "secondary_pilot"):
+                  kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
+            return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 class CompanyAdmin(admin.ModelAdmin):
-        inlines = [AircraftInline, InventoryInline, FlightInline]
-
+      inlines = [UserInline, AircraftInline, InventoryInline, FlightInline]
+      
 
 
 admin.site.register(Profile, CustomUserAdmin)

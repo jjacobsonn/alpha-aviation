@@ -46,6 +46,11 @@ class Profile(AbstractUser):
     
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
+        if self.company_role == "pilot":
+            Pilot.objects.get_or_create(profile = self)
+        elif self.company_role == "mechanic":
+            Mechanic.objects.get_or_create(profile = self)
+            
 
     def is_mechanic(self):
         return self.company_role == "mechanic"
@@ -54,37 +59,7 @@ class Profile(AbstractUser):
     def is_pilot(self):
         return self.company_role == "pilot"
     
-    def is_cleared_to_fly(self): 
-        if self.company_role == 'pilot' and self.Pilot.medically_cleared_until and self.Pilot.medically_cleared_until > timezone.now().date() and self.Pilot.pilot_certificate != 'none': #change
-            return True
-        else:
-            return False 
-        
-    def is_certified(self, reqRole):
-        if self.Pilot.pilot_certificate == 'none':
-            pilotNum = 0
-        elif self.Pilot.pilot_certificate == 'student':
-            pilotNum = 1
-        elif self.Pilot.pilot_certificate == 'private':
-            pilotNum = 2
-        elif self.Pilot.pilot_certificate == 'commercial':
-            pilotNum = 3
-        elif self.Pilot.pilot_certificate == 'airline':
-            pilotNum = 4
-        if type(reqRole) == int:
-            reqNum = reqRole
-        else:
-            if reqRole == 'none':
-                reqNum = 0
-            elif reqRole == 'student':
-                reqNum = 1
-            elif reqRole == 'private':
-                reqNum = 2
-            elif reqRole == 'commercial':
-                reqNum = 3
-            elif reqRole == 'airline':
-                reqNum = 4
-        return pilotNum >= reqNum
+    
 
 
     
@@ -110,7 +85,25 @@ class Pilot(models.Model):
         ('commercial', 'Commercial'),#3
         ('airline', 'Airline'),#4
     ]
-    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')  
+    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')
+    
+
+    def is_cleared_to_fly(self, flight_date):
+        return (
+            self.medically_cleared_until
+            and self.medically_cleared_until >= flight_date
+            and self.pilot_certificate != 'none'
+        )
+
+    def is_certified(self, required):
+        levels = {
+            'none': 0,
+            'student': 1,
+            'private': 2,
+            'commercial': 3,
+            'airline': 4,
+        }
+        return levels[self.pilot_certificate] >= levels[required]
 
 class Mechanic(models.Model):
     profile = models.OneToOneField(
@@ -176,8 +169,8 @@ class Flight(models.Model):
     flight_number = models.CharField(max_length= 250, null = True)
     origin = models.CharField(max_length= 250, null = True)
     destination = models.CharField(max_length=250, null = True)
-    departure_time = models.DateField(null = True)
-    arrival_time = models.DateField(null = True)
+    departure_time = models.DateTimeField(null = True)
+    arrival_time = models.DateTimeField(null = True)
     route = models.CharField(blank= True, null= True)
     flight_type_options = [
         ('training', 'Training'),
@@ -185,4 +178,53 @@ class Flight(models.Model):
         ('positioning', 'Positioning'),
         ('maintenance ferry', 'Maintenance Ferry'),
     ]
-    flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='pilot' )
+    flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='training' )
+    primary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "primary_flights")
+    secondary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "secondary_flights")
+    pilot_req_options =[
+        ('student', 'Student'),#1
+        ('private', 'Private'),#2
+        ('commercial', 'Commercial'),#3
+        ('airline', 'Airline'),#4
+    ]
+    pilot_requirement = models.CharField(max_length= 255, choices=pilot_req_options, default = "private")
+    approved = models.BooleanField(default=False)
+
+
+    def clean(self):
+        errors = {}
+        
+        if self.primary_pilot and self.secondary_pilot:
+            if self.primary_pilot == self.secondary_pilot:
+                errors["secondary_pilot"] = ("Secondary pilot cannot be the same person as Primary pilot!") 
+        if not self.departure_time:
+            errors["departure_time"] = ("Departure time does not exist")
+
+        if not self.arrival_time:
+            errors["arrival_time"] = ("Arrival time does not exist")
+            
+        elif self.arrival_time < self.departure_time:
+            errors["arrival_time"] = ("Arrival time can not be before departure time.")
+        
+        def check_pilot(pilot, which_pilot):
+            if not pilot:
+                return
+            if pilot.company_role != "pilot":
+                errors[which_pilot] = (f"{pilot.first_name} is not a pilot")
+                return
+            
+            if pilot.company != self.company:
+                errors[which_pilot] = (f"{pilot.first_name} is not of company {self.company}")
+                return
+            if not hasattr(pilot, "pilot_info"):
+                errors[which_pilot] = (f"{pilot.first_name} does not have attribute \'pilot_info\'")
+                return
+            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
+                errors[which_pilot] = (f"{pilot.first_name} is not cleared to fly until {self.arrival_time.date()}")
+            if not pilot.pilot_info.is_certified(self.pilot_requirement):
+                errors[which_pilot] = (f"{pilot.first_name} is not a high enough certification")
+        check_pilot(self.primary_pilot, "primary_pilot")
+        check_pilot(self.secondary_pilot, "secondary_pilot")
+
+        if errors:
+            raise ValidationError(errors)
