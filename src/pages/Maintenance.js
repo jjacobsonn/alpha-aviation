@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-
+import AddWorkOrderForm from '../components/AddWorkOrderForm';
+import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
 
 //______________TEMPORARY DATA__________________
 
@@ -220,6 +221,8 @@ const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_
 );
 
 const Maintenance = () => {
+	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
+	const [isAddDiscrepancyOpen, setIsAddDiscrepancyOpen] = useState(false);
 	return (
 		<>
 			{/* KPI CARD SECTION */}
@@ -245,12 +248,14 @@ const Maintenance = () => {
 				padding: '1em',
 			}
 			}>
-				<button>
+				<button onClick={() => setIsAddWorkOrderOpen(true)}>
 					add work order
 				</button>
-				<button>
+				<AddWorkOrderForm isOpen={isAddWorkOrderOpen} onClose={() => setIsAddWorkOrderOpen(false)} />
+				<button onClick={() => setIsAddDiscrepancyOpen(true)}>
 					add discrepancy
 				</button>
+				<AddDiscrepancyForm isOpen={isAddDiscrepancyOpen} onClose={() => setIsAddDiscrepancyOpen(false)} />
 				<button>
 					sort by
 				</button>
