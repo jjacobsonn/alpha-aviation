@@ -11,14 +11,26 @@ Monorepo for the Alpha Aviation application: backend API and web frontend.
 
 ## Table of Contents
 
+- [Live links](#-live-links)
 - [About](#-about)
 - [Repository structure](#-repository-structure)
 - [How to run](#-how-to-run)
+- [Deployment](#-deployment)
 - [License](#-license)
 
-**Documentation:** [docs/](docs/) — setup, testing, and merge guide.
+**Documentation** ([docs/](docs/)):
 
-For **full-stack setup** (database, env, running backend + frontend together, testing), see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
+- **Local setup** — Database, env, run backend + frontend: [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **Deploy on Render** — 3 services (DB, backend, frontend): [DEPLOYMENT.md](docs/DEPLOYMENT.md)
+
+---
+
+## Live links
+
+| Link | URL |
+|------|-----|
+| **Website (app)** | [https://alpha-aviation-dev-1.onrender.com/](https://alpha-aviation-dev-1.onrender.com/) |
+| **Django admin** | [https://alpha-aviation-dev.onrender.com/admin/](https://alpha-aviation-dev.onrender.com/admin/) |
 
 ## About
 
@@ -48,6 +60,16 @@ npm run dev   # starts backend (port 8000) + frontend (port 3000)
 | Frontend | `cd frontend && yarn install && yarn start` | http://localhost:3000 |
 
 The frontend talks to the backend at `http://localhost:8000/api` (see `REACT_APP_API_URL` in `frontend/.env`). For env vars, database setup, and **how to test backend vs frontend and that they’re connected**, see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#how-to-test-that-backend-and-frontend-are-working-together)**.
+
+## Deployment
+
+The app runs on [Render](https://render.com) as **three services**:
+
+1. **PostgreSQL** — database (e.g. `alpha-aviation-db`)
+2. **Web Service (Python)** — Django API + admin (e.g. `alpha-aviation-dev`)
+3. **Static Site** — React frontend (e.g. `alpha-aviation-dev-1`)
+
+Full step-by-step setup (env vars, CORS, SPA rewrite, superuser) is in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. Use it when connecting a new GitHub repo or creating a new Render project.
 
 ## License
 
