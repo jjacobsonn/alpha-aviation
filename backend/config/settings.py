@@ -62,10 +62,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# Comma-separated origins for production (e.g. https://your-app.onrender.com); localhost is always allowed in dev
+_CORS_EXTRA = env.list('CORS_ALLOWED_ORIGINS', default=[])
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-]
+] + _CORS_EXTRA
 
 CORS_ALLOW_CREDENTIALS = True
 
