@@ -116,8 +116,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Prefer DATABASE_URL (e.g. Render Internal Database URL) if set
-_db_url = env('DATABASE_URL', default=None)
+# Prefer DATABASE_URL (e.g. Render Internal Database URL) if set and non-empty
+_db_url = (env('DATABASE_URL', default=None) or '').strip()
 if _db_url:
     DATABASES = {'default': dj_database_url.parse(_db_url, conn_max_age=600)}
 else:
