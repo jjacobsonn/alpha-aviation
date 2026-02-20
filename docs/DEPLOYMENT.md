@@ -66,6 +66,12 @@
    - `REACT_APP_API_URL` — your **backend** URL from step 3 with `/api` (e.g. `https://alpha-aviation-backend.onrender.com/api`).
 5. **Create Static Site**. Render will build and deploy. Your app will be at a URL like `https://alpha-aviation-frontend.onrender.com`.
 
+6. **SPA rewrite (required for `/login` and other client-side routes):** In the Static Site → **Redirects/Rewrites**, add:
+   - **Source path:** `/*`
+   - **Destination path:** `/index.html`
+   - **Action:** **Rewrite**  
+   This makes paths like `/login` serve `index.html` so React Router works.
+
 ---
 
 ## 5. Point backend CORS at the frontend URL
