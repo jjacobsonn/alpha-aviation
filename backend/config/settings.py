@@ -33,7 +33,7 @@ SECRET_KEY = env('SECRET_KEY', default='dev-secret-key')
 DEBUG = env('DEBUG', default=False)
 AUTH_USER_MODEL = 'api.Profile'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
 
 # Application definition

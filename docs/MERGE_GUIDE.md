@@ -98,8 +98,8 @@ git subtree add --prefix=frontend frontend-repo main
   git log --oneline -- frontend | wc -l
   ```
 - **Compare to original repos:** In a separate clone of `aviation-backend` and `aviation-web`, run `git log --oneline | wc -l` and compare counts to the monorepo prefix counts above; they should match (or be very close if the original had merges).
-- **Full history per prefix (via merge parent):** Subtree add creates a merge whose second parent is the tip of the added repo. To see all original commits for backend: `git log 9f10bfa^2 --oneline` (replace `9f10bfa` with the “Add 'backend/'” merge commit). For frontend: `git log 7a61fe0^2 --oneline` (replace with the “Add 'frontend/'” merge commit).
-- **Verify a specific file’s history:**
+- **Full history per prefix (via merge parent):** Subtree add creates a merge whose second parent is the tip of the added repo. To see all original commits for backend: `git log 9f10bfa^2 --oneline` (replace `9f10bfa` with the "Add 'backend/'" merge commit). For frontend: `git log 7a61fe0^2 --oneline` (replace with the "Add 'frontend/'" merge commit).
+- **Verify a specific file's history:**
   ```bash
   git log --oneline -- backend/package.json
   git log -- frontend/README.md
@@ -122,12 +122,12 @@ See the root **README.md** in this repo for:
 
 | Pitfall | What happens | Fix |
 |--------|----------------|-----|
-| **Branch name mismatch** | `git subtree add ... main` fails with “ref not found” or similar | Run `git remote show backend-repo` and `git remote show frontend-repo` and use the reported HEAD branch (e.g. `master`) in `subtree add`. |
+| **Branch name mismatch** | `git subtree add ... main` fails with "ref not found" or similar | Run `git remote show backend-repo` and `git remote show frontend-repo` and use the reported HEAD branch (e.g. `master`) in `subtree add`. |
 | **Prefix dirs already exist** | Subtree add complains about existing path | Remove or rename existing `backend`/`frontend` dirs (and drop them from the index if already committed: `git rm -r --cached backend frontend` then `git subtree add`). |
 | **Merge conflicts during subtree add** | Conflict markers in files (e.g. both repos had a root README) | Resolve as usual: edit files, `git add`, then run `git commit` (no `git merge --continue`; the subtree command is doing the merge). Prefer resolving in favor of one repo or the other, or combining content by hand. |
 | **Wrong remote or branch** | You add the wrong repo or branch under a prefix | Before pushing: `git reset --hard HEAD~1` (or to the commit before the bad subtree add), then re-run `git subtree add` with the correct remote and branch. |
 | **Large history / timeout** | Fetch or subtree add is very slow or times out | Increase buffer: `git config http.postBuffer 524288000`; use SSH if HTTPS is flaky; run fetch/subtree on a fast network. |
-| **Want to redo the merge** | You haven’t pushed yet and want a clean try | `git reset --hard HEAD~2` (or to before both subtree adds), remove `backend`/`frontend` if needed, then re-run the two `subtree add` commands. |
+| **Want to redo the merge** | You haven't pushed yet and want a clean try | `git reset --hard HEAD~2` (or to before both subtree adds), remove `backend`/`frontend` if needed, then re-run the two `subtree add` commands. |
 
 ---
 
