@@ -6,7 +6,7 @@ Combine **aviation-backend** and **aviation-web** into this repo with full histo
 
 ## 1) Exact Git Commands
 
-**Assumptions:** Default branch is `main` for all three repos. If yours use `master`, replace `main` below.
+**Assumptions:** This merge was done using `master` for both backend and frontend (their default branches). The monorepo uses `main`.
 
 ### Option A: Start from existing alpha-aviation clone (this repo)
 
@@ -28,22 +28,17 @@ git remote add frontend-repo https://github.com/Alpha-Aviation-e2i/aviation-web.
 git fetch backend-repo
 git fetch frontend-repo
 
-# First subtree: bring backend history into /backend
-git subtree add --prefix=backend backend-repo main --squash
-# To preserve full history (no squash), use:
-git subtree add --prefix=backend backend-repo main
-
-# Second subtree: bring frontend history into /frontend
-git subtree add --prefix=frontend frontend-repo main --squash
-# To preserve full history (no squash), use:
-git subtree add --prefix=frontend frontend-repo main
+# First subtree: bring backend history into /backend (full history)
+git subtree add --prefix=backend backend-repo master
+# Second subtree: bring frontend history into /frontend (full history)
+git subtree add --prefix=frontend frontend-repo master
 ```
 
-**Important:** You asked to preserve ALL history, so **do not use `--squash`**. Use:
+**Important:** Use **no `--squash`** to preserve full history. Both source repos use `master`:
 
 ```bash
-git subtree add --prefix=backend backend-repo main
-git subtree add --prefix=frontend frontend-repo main
+git subtree add --prefix=backend backend-repo master
+git subtree add --prefix=frontend frontend-repo master
 ```
 
 ### If you prefer a completely fresh monorepo (new folder, new GitHub repo)
@@ -61,9 +56,9 @@ git remote add frontend-repo https://github.com/Alpha-Aviation-e2i/aviation-web.
 git fetch backend-repo
 git fetch frontend-repo
 
-# 4) Subtree add (full history, no --squash)
-git subtree add --prefix=backend backend-repo main
-git subtree add --prefix=frontend frontend-repo main
+# 4) Subtree add (full history, no --squash; use master for both source repos)
+git subtree add --prefix=backend backend-repo master
+git subtree add --prefix=frontend frontend-repo master
 
 # 5) Push to the new monorepo
 git push -u origin main
@@ -103,6 +98,7 @@ git subtree add --prefix=frontend frontend-repo main
   git log --oneline -- frontend | wc -l
   ```
 - **Compare to original repos:** In a separate clone of `aviation-backend` and `aviation-web`, run `git log --oneline | wc -l` and compare counts to the monorepo prefix counts above; they should match (or be very close if the original had merges).
+- **Full history per prefix (via merge parent):** Subtree add creates a merge whose second parent is the tip of the added repo. To see all original commits for backend: `git log 9f10bfa^2 --oneline` (replace `9f10bfa` with the “Add 'backend/'” merge commit). For frontend: `git log 7a61fe0^2 --oneline` (replace with the “Add 'frontend/'” merge commit).
 - **Verify a specific file’s history:**
   ```bash
   git log --oneline -- backend/package.json
@@ -144,8 +140,8 @@ git init && git branch -M main
 git remote add backend-repo https://github.com/Alpha-Aviation-e2i/aviation-backend.git
 git remote add frontend-repo https://github.com/Alpha-Aviation-e2i/aviation-web.git
 git fetch backend-repo && git fetch frontend-repo
-git subtree add --prefix=backend backend-repo main
-git subtree add --prefix=frontend frontend-repo main
+git subtree add --prefix=backend backend-repo master
+git subtree add --prefix=frontend frontend-repo master
 git remote add origin https://github.com/Alpha-Aviation-e2i/alpha-aviation.git  # if new
 git push -u origin main
 ```
