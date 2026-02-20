@@ -6,7 +6,7 @@ This project includes a custom Django management command named `seed` that popul
 ## What It Does
 
 - Deletes existing rows from all seeded tables.
-- Inserts a complete set of sample data across the project models.
+- Inserts a complete set of sample data across the API models.
 - Ensures required relationships are created in the correct order.
 
 Because it clears tables before inserting new rows, it is destructive and should not be used on production data.
@@ -30,4 +30,6 @@ poetry run python manage.py dbshell
 ```
 
 From there, you can list tables and run SQL queries to inspect the seeded data. 
-[Add database-specific commands here.]
+
+* `\dt` shows a list of tables in the database
+* `select * from [table] (limit [rows])` shows a specific table and its contents, optionally limiting the number of rows shown
