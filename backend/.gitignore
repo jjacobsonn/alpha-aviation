@@ -29,6 +29,9 @@ htmlcov/
 .pytest_cache/
 .tox/
 
+# Collected static files (generated on deploy)
+staticfiles/
+
 # Database (if using SQLite locally)
 db.sqlite3
 *.sqlite3

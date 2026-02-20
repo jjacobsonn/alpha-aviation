@@ -34,7 +34,7 @@
    - **Root Directory:** `backend`.
    - **Runtime:** `Python 3`.
    - **Build Command:** `pip install poetry && poetry config virtualenvs.create false && poetry install`
-   - **Start Command:** `python manage.py migrate && gunicorn config.wsgi:application`
+   - **Start Command:** `python manage.py collectstatic --noinput && python manage.py migrate && gunicorn config.wsgi:application`
 4. **Environment:**
    - Add variables (use the values from your DB and the Internal Database URL):
      - `SECRET_KEY` — a long random string (e.g. from `python -c "import secrets; print(secrets.token_urlsafe(32))"`).
