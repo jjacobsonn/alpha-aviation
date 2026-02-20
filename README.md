@@ -4,8 +4,12 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/Django-5.x-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![DRF](https://img.shields.io/badge/Django%20REST%20Framework-3.16-ff1709?logo=django&logoColor=white)](https://www.django-rest-framework.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![license](https://img.shields.io/badge/license-See%20repos-brightgreen)](#-license)
+[![MUI](https://img.shields.io/badge/Material%20UI-7.x-007FFF?logo=mui&logoColor=white)](https://mui.com/)
+[![JWT](https://img.shields.io/badge/JWT-Auth-black?logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![License](https://img.shields.io/badge/License-See%20repos-lightgrey)](#-license)
 
 Monorepo for the Alpha Aviation application: backend API and web frontend.
 
