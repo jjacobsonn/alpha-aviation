@@ -33,8 +33,8 @@
    - **Branch:** `main`.
    - **Root Directory:** `backend`.
    - **Runtime:** `Python 3`.
-   - **Build Command:** `pip install poetry && poetry config virtualenvs.create false && poetry install && python manage.py migrate`
-   - **Start Command:** `gunicorn config.wsgi:application`
+   - **Build Command:** `pip install poetry && poetry config virtualenvs.create false && poetry install`
+   - **Start Command:** `python manage.py migrate && gunicorn config.wsgi:application`
 4. **Environment:**
    - Add variables (use the values from your DB and the Internal Database URL):
      - `SECRET_KEY` — a long random string (e.g. from `python -c "import secrets; print(secrets.token_urlsafe(32))"`).
@@ -44,7 +44,7 @@
      - `DB_PASSWORD` — from the DB URL.
      - `DB_HOST` — from the DB URL (Render gives an internal hostname).
      - `DB_PORT` — usually `5432`.
-   - Or use **Render’s “Internal Database URL”** and in Django parse it: add `dj-database-url` and set `DATABASES['default'] = dj_database_url.config(...)` if you prefer a single URL.
+   - Or use **Render’s “Internal Database URL”** and in Django parse it: **Easiest:** set **`DATABASE_URL`** to the Internal Database URL from your Postgres (Info/Connect tab); the backend uses `dj-database-url` when this is set.
 5. **Create Web Service**. Render will build and deploy. Note the service URL (e.g. `https://alpha-aviation-backend.onrender.com`).
 
 **CORS:** In the backend service’s Environment on Render, add:
