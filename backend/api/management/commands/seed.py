@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from api.models import Company, Profile, Pilot, Mechanic, Aircraft, Part, Inventory, Flight
+from api.models import Company, Profile, Pilot, Mechanic, Aircraft, Part, Inventory, Flight, WorkOrder, WorkOrderPart, Discrepancy
 from datetime import date, timedelta
 
 
@@ -16,6 +16,9 @@ class Command(BaseCommand):
         Aircraft.objects.all().delete()
         Part.objects.all().delete()
         Inventory.objects.all().delete()
+        WorkOrder.objects.all().delete()
+        WorkOrderPart.objects.all().delete()
+        Discrepancy.objects.all().delete()
         Flight.objects.all().delete()
 
         # Company
@@ -178,6 +181,72 @@ class Command(BaseCommand):
             stock_alert = 2,
             stock_alert_percentage = 0.10,
             shop_location = "Hangar B"
+        )
+
+        # WorkOrder & WorkOrderPart
+        THydraulicWO = WorkOrder.objects.create(
+            aircraft = TPlane,
+            created_by = MechanicProfile,
+            title = "Hydraulic pump inspection",
+            description = "Inspect for leaks and verify pressure stability.",
+            status = "in_progress",
+            due_by = date(2026, 3, 1),
+            tach_time = 1245.6,
+            hobbs_time = 1188.4,
+            ATA_code = 29,
+            components_affected = "Hydraulic system"
+        )
+
+        SBrakeWO = WorkOrder.objects.create(
+            aircraft = SPlane,
+            created_by = MechanicProfile,
+            title = "Brake assembly replacement",
+            description = "Replace worn brake assembly and verify taxi test.",
+            status = "awaiting_parts",
+            due_by = date(2026, 2, 28),
+            tach_time = 980.2,
+            hobbs_time = 944.9,
+            ATA_code = 32,
+            components_affected = "Landing gear / brakes"
+        )
+
+        WorkOrderPart.objects.create(
+            work_order = THydraulicWO,
+            part = THydraulic,
+            quantity = 1
+        )
+
+        WorkOrderPart.objects.create(
+            work_order = THydraulicWO,
+            part = TAvionics,
+            quantity = 1
+        )
+
+        WorkOrderPart.objects.create(
+            work_order = SBrakeWO,
+            part = SBrake,
+            quantity = 2
+        )
+
+        # Discrepancy
+        Discrepancy.objects.create(
+            work_order = THydraulicWO,
+            aircraft = TPlane,
+            reporter = PilotProfile,
+            description = "Hydraulic pressure warning light during climb.",
+            ata_code = "29",
+            tach_time = "1245.6",
+            status = "pending"
+        )
+
+        Discrepancy.objects.create(
+            work_order = SBrakeWO,
+            aircraft = SPlane,
+            reporter = MechanicProfile,
+            description = "Right main brake squeal and reduced stopping power.",
+            ata_code = "32",
+            tach_time = "980.2",
+            status = "pending"
         )
 
         # Flight
