@@ -163,6 +163,60 @@ class Inventory(models.Model):
     def __str__(self):
         return f"{self.part.name} with {self.in_stock} in stock"
 
+class WorkOrder(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_progress', 'In Progress'),
+        ('awaiting_parts', 'Awaiting Parts'),
+        ('closed', 'Closed'),
+    ]
+    
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="work_orders")
+    created_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
+    parts_needed = models.ManyToManyField(Part, blank=True, through='WorkOrderPart')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    due_by = models.DateField(null=True, blank=True)
+    tach_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    hobbs_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    ATA_code =models.IntegerField(null=True, blank=True)
+    components_affected = models.CharField(max_length=200, blank=True)
+    components_image = models.ImageField(upload_to='work_order_components/', null=True, blank=True)
+    signed_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="signed_work_orders")
+    signature = models.ImageField(upload_to='work_order_signatures/', null=True, blank=True)
+    signature_date = models.DateField(null=True, blank=True)
+    
+
+    def __str__(self):
+        return f"Work Order #{self.id} - {self.aircraft.registration_number}"
+    
+class WorkOrderPart(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+
+    
+
+class Discrepancy(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('closed', 'Closed'),
+    ]
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="discrepancies")
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="discrepancies")
+    reporter = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
+    date_reported = models.DateField(auto_now_add=True)
+    description = models.CharField(max_length=200)
+    ata_code = models.CharField(max_length=50, blank=True)
+    tach_time = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    def __str__(self):
+        return f"Discrepancy on {self.aircraft} ({self.status})"
+
 class Flight(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True)
     aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True)
