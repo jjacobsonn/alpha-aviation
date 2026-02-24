@@ -117,6 +117,10 @@ class Mechanic(models.Model):
     authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
 
 
+####
+# Maintenance Dashboard
+####
+
 class Aircraft(models.Model):
     registration_number = models.IntegerField()
     model = models.CharField(max_length=200)
@@ -162,6 +166,45 @@ class Inventory(models.Model):
 
     def __str__(self):
         return f"{self.part.name} with {self.in_stock} in stock"
+
+
+    def clean(self):
+        errors = {}
+        
+        if self.primary_pilot and self.secondary_pilot:
+            if self.primary_pilot == self.secondary_pilot:
+                errors["secondary_pilot"] = ("Secondary pilot cannot be the same person as Primary pilot!") 
+        if not self.departure_time:
+            errors["departure_time"] = ("Departure time does not exist")
+
+        if not self.arrival_time:
+            errors["arrival_time"] = ("Arrival time does not exist")
+            
+        elif self.arrival_time < self.departure_time:
+            errors["arrival_time"] = ("Arrival time can not be before departure time.")
+        
+        def check_pilot(pilot, which_pilot):
+            if not pilot:
+                return
+            if pilot.company_role != "pilot":
+                errors[which_pilot] = (f"{pilot.first_name} is not a pilot")
+                return
+            
+            if pilot.company != self.company:
+                errors[which_pilot] = (f"{pilot.first_name} is not of company {self.company}")
+                return
+            if not hasattr(pilot, "pilot_info"):
+                errors[which_pilot] = (f"{pilot.first_name} does not have attribute \'pilot_info\'")
+                return
+            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
+                errors[which_pilot] = (f"{pilot.first_name} is not cleared to fly until {self.arrival_time.date()}")
+            if not pilot.pilot_info.is_certified(self.pilot_requirement):
+                errors[which_pilot] = (f"{pilot.first_name} is not a high enough certification")
+        check_pilot(self.primary_pilot, "primary_pilot")
+        check_pilot(self.secondary_pilot, "secondary_pilot")
+
+        if errors:
+            raise ValidationError(errors)
 
 class WorkOrder(models.Model):
     STATUS_CHOICES = [
@@ -217,6 +260,7 @@ class Discrepancy(models.Model):
     def __str__(self):
         return f"Discrepancy on {self.aircraft} ({self.status})"
 
+
 class Flight(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True)
     aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True)
@@ -243,42 +287,3 @@ class Flight(models.Model):
     ]
     pilot_requirement = models.CharField(max_length= 255, choices=pilot_req_options, default = "private")
     approved = models.BooleanField(default=False)
-
-
-    def clean(self):
-        errors = {}
-        
-        if self.primary_pilot and self.secondary_pilot:
-            if self.primary_pilot == self.secondary_pilot:
-                errors["secondary_pilot"] = ("Secondary pilot cannot be the same person as Primary pilot!") 
-        if not self.departure_time:
-            errors["departure_time"] = ("Departure time does not exist")
-
-        if not self.arrival_time:
-            errors["arrival_time"] = ("Arrival time does not exist")
-            
-        elif self.arrival_time < self.departure_time:
-            errors["arrival_time"] = ("Arrival time can not be before departure time.")
-        
-        def check_pilot(pilot, which_pilot):
-            if not pilot:
-                return
-            if pilot.company_role != "pilot":
-                errors[which_pilot] = (f"{pilot.first_name} is not a pilot")
-                return
-            
-            if pilot.company != self.company:
-                errors[which_pilot] = (f"{pilot.first_name} is not of company {self.company}")
-                return
-            if not hasattr(pilot, "pilot_info"):
-                errors[which_pilot] = (f"{pilot.first_name} does not have attribute \'pilot_info\'")
-                return
-            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
-                errors[which_pilot] = (f"{pilot.first_name} is not cleared to fly until {self.arrival_time.date()}")
-            if not pilot.pilot_info.is_certified(self.pilot_requirement):
-                errors[which_pilot] = (f"{pilot.first_name} is not a high enough certification")
-        check_pilot(self.primary_pilot, "primary_pilot")
-        check_pilot(self.secondary_pilot, "secondary_pilot")
-
-        if errors:
-            raise ValidationError(errors)
