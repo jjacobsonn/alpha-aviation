@@ -1,91 +1,11 @@
 import React, { useState } from 'react';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
+import {makeApiRequest} from '../shared/Api';
 
 //______________TEMPORARY DATA__________________
 
-const workOrdersData = [
-	{
-		order_number: "001",
-		part_number: "09234",
-		aircraft: "Boeing 747",
-		assigned_to: "John Doe",
-		due_date: "2025-12-10", // overdue
-		description: "Part is giving error code 9243 in software"
-	},
-	{
-		order_number: "002",
-		part_number: "04567",
-		aircraft: "Airbus A320",
-		assigned_to: "Jane Smith",
-		due_date: "2025-12-20", // soon
-		description: "Hydraulic system showing low pressure warning"
-	},
-	{
-		order_number: "003",
-		part_number: "07890",
-		aircraft: "Boeing 737",
-		assigned_to: "Alex Johnson",
-		due_date: "2026-01-05", // soon
-		description: "Engine temperature reading fluctuates"
-	},
-	{
-		order_number: "004",
-		part_number: "03456",
-		aircraft: "Embraer 190",
-		assigned_to: "Chris Lee",
-		due_date: "2026-03-20", // later
-		description: "Landing gear sensor malfunction"
-	},
-	{
-		order_number: "005",
-		part_number: "05678",
-		aircraft: "Boeing 777",
-		assigned_to: "Patricia Green",
-		due_date: "2025-11-30", // overdue
-		description: "Fuel pump not maintaining pressure"
-	},
-	{
-		order_number: "006",
-		part_number: "06789",
-		aircraft: "Airbus A380",
-		assigned_to: "Michael Brown",
-		due_date: "2026-06-15", // far in the future
-		description: "Autopilot disengages intermittently"
-	},
-	{
-		order_number: "007",
-		part_number: "02345",
-		aircraft: "Bombardier CS300",
-		assigned_to: "Linda White",
-		due_date: "2026-02-28", // later
-		description: "Cabin lighting flickering"
-	},
-	{
-		order_number: "008",
-		part_number: "08901",
-		aircraft: "Boeing 737 MAX",
-		assigned_to: "David Black",
-		due_date: "2025-12-18", // soon
-		description: "Landing gear hydraulics slow to respond"
-	},
-	{
-		order_number: "009",
-		part_number: "01234",
-		aircraft: "Embraer 175",
-		assigned_to: "Emma Stone",
-		due_date: "2026-07-01", // far in the future
-		description: "Avionics software requires update"
-	},
-	{
-		order_number: "010",
-		part_number: "04512",
-		aircraft: "Airbus A321",
-		assigned_to: "Robert King",
-		due_date: "2025-11-25", // overdue
-		description: "Engine oil temperature sensor failure"
-	}
-];
+const workOrdersData = await makeApiRequest('GET', '/workorders');
 
 const discrepanciesData = [
 	{
