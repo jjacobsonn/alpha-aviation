@@ -7,6 +7,16 @@ from django.contrib.auth import authenticate
 from rest_framework import status
 from rest_framework.response import Response
 
+from rest_framework import viewsets, permissions
+from .models import (
+    Company, Profile, Aircraft, Part,
+    Discrepancy, WorkOrder
+)
+from .serializers import (
+    CompanySerializer, ProfileSerializer, AircraftSerializer,
+    PartSerializer, DiscrepancySerializer, WorkOrderSerializer
+)
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):
@@ -101,3 +111,50 @@ def user_profile(request):
         'first_name': user.first_name,
         'last_name': user.last_name,
     })
+
+
+####
+# User Profile
+####
+
+
+class CompanyViewSet(viewsets.ModelViewSet):
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class ProfileViewSet(viewsets.ModelViewSet):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+####
+# Maintenance Dashboard
+####
+
+
+class AircraftViewSet(viewsets.ModelViewSet):
+    queryset = Aircraft.objects.all()
+    serializer_class = AircraftSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class PartViewSet(viewsets.ModelViewSet):
+    queryset = Part.objects.all()
+    serializer_class = PartSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class DiscrepancyViewSet(viewsets.ModelViewSet):
+    queryset = Discrepancy.objects.all().order_by('-date_reported')
+    serializer_class = DiscrepancySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class WorkOrderViewSet(viewsets.ModelViewSet):
+    queryset = WorkOrder.objects.all().order_by('-created_at')
+    serializer_class = WorkOrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
