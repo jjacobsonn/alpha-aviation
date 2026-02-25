@@ -6,69 +6,7 @@ import {makeApiRequest} from '../shared/Api';
 //______________TEMPORARY DATA__________________
 
 const workOrdersData = await makeApiRequest('GET', '/workorders');
-
-const discrepanciesData = [
-	{
-		discrepancy_number: "D001",
-		part_number: "09234",
-		aircraft: "Boeing 747",
-		description: "Part is giving error code 9243 in software"
-	},
-	{
-		discrepancy_number: "D002",
-		part_number: "04567",
-		aircraft: "Airbus A320",
-		description: "Minor oil leak detected"
-	},
-	{
-		discrepancy_number: "D003",
-		part_number: "07890",
-		aircraft: "Boeing 737",
-		description: "Cabin pressure sensor faulty"
-	},
-	{
-		discrepancy_number: "D004",
-		part_number: "03456",
-		aircraft: "Embraer 190",
-		description: "Navigation system update required"
-	},
-	{
-		discrepancy_number: "D005",
-		part_number: "05678",
-		aircraft: "Boeing 777",
-		description: "Fuel pump pressure inconsistency"
-	},
-	{
-		discrepancy_number: "D006",
-		part_number: "06789",
-		aircraft: "Airbus A380",
-		description: "Autopilot disengages during turbulence"
-	},
-	{
-		discrepancy_number: "D007",
-		part_number: "02345",
-		aircraft: "Bombardier CS300",
-		description: "Cabin lights flicker intermittently"
-	},
-	{
-		discrepancy_number: "D008",
-		part_number: "08901",
-		aircraft: "Boeing 737 MAX",
-		description: "Landing gear hydraulics slow to respond"
-	},
-	{
-		discrepancy_number: "D009",
-		part_number: "01234",
-		aircraft: "Embraer 175",
-		description: "Avionics software outdated"
-	},
-	{
-		discrepancy_number: "D010",
-		part_number: "04512",
-		aircraft: "Airbus A321",
-		description: "Engine oil temperature sensor failure"
-	}
-];
+const discrepanciesData = await makeApiRequest('GET', '/discrepancies');
 
 const today = new Date();
 
@@ -119,12 +57,12 @@ const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_
 		display: 'flex',
 		flexDirection: 'column',
 		gap: '0px',
-		border: 'solid',
+		// border: 'solid',
 		margin: '2em'
 	}}>
 		<div style={{
 			//work order styles
-			background: 'grey',
+			//background: 'grey',
 			display: 'flex',
 
 		}}>
@@ -194,17 +132,17 @@ const Maintenance = () => {
 					overflow: 'auto',
 					border: 'solid',
 					padding: '1em',
-					height: '30vh',
+					height: '60vh',
 					overflow: 'auto',
 				}}>
 					{workOrdersData.map((order) => (
 						<WorkOrder
 							key={order.order_number} // React needs unique keys
-							order_number={order.order_number}
+							order_number={order.id}
 							part_number={order.part_number}
 							aircraft={order.aircraft}
 							assigned_to={order.assigned_to}
-							due_date={order.due_date}
+							due_date={order.due_by}
 							description={order.description}
 						/>
 					))}
@@ -225,7 +163,7 @@ const Maintenance = () => {
 					overflow: 'auto',
 					border: 'solid',
 					padding: '1em',
-					height: '30vh',
+					height: '60vh',
 					overflow: 'auto',
 				}}>
 					{discrepanciesData.map((order) => (
