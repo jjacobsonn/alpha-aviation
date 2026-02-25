@@ -1,0 +1,36 @@
+:root {
+  /* --- DARK BACKGROUNDS (From AIMS Image) --- */
+  --bg-deep: #0b1121;
+  /* Darkest navy for body */
+  --bg-card: #1e293b;
+  /* Lighter navy for the actual cards */
+  --bg-glass: rgba(255, 255, 255, 0.1);
+
+  /* --- PUNCHY STATUS COLORS (High Contrast) --- */
+  --status-pending: #3b82f6;
+  /* Strong "Aviation" Blue */
+  --status-open: #a855f7;
+  /* Punchy Purple */
+  --status-overdue: #dc2626;
+  /* True "Redder" Red (Very Urgent) */
+  --status-due-soon: #22c55e;
+  /* Vibrant Alert Green */
+
+  /* --- TEXT & ACCENTS --- */
+  --text-pure: #222222;
+  --text-dim: #94a3b8;
+  --border-glow: rgba(59, 130, 246, 0.5);
+  /* Blue glow for active states */
+
+  /* --- DIMENSIONS --- */
+  --radius: 8px;
+  --font-main: 'Inter', sans-serif;
+}
+
+/* Base style to make everything fit the image vibe */
+body {
+  background-color: var(--bg-deep);
+  color: var(--text-pure);
+  font-family: var(--font-main);
+  border-radius: 10px;
+}

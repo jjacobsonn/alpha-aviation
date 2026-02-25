@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import '../theme.css';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
 import {makeApiRequest} from '../shared/Api';
@@ -25,10 +26,12 @@ const KPICard = ({ title, color, trend }) => (
 		<div className='KPIcard' style={{
 			//KPI Card Styling
 			backgroundColor: color,
+			borderRadius:'10px',
 			width: '7em',
 			height: '7em',
 			textAlign: 'center',
 			fontWeight: "bold",
+			boxShadow: '2px 2px',
 		}}>
 			<p>{title}</p>
 			<p>{trend}</p>
@@ -91,12 +94,12 @@ const Maintenance = () => {
 				marginBottom: '5em',
 				marginTop: '1em',
 				padding: '1em',
-				backgroundColor: 'slategray',
+				backgroundColor: 'lightgray',
 			}}>
-				<KPICard title="Pending" color="lightblue" trend={discrepanciesData.length} />
-				<KPICard title="Open" color="mediumpurple" trend={workOrdersData.length} />
-				<KPICard title="Overdue" color="firebrick" trend={overdueWorkOrders.length} />
-				<KPICard title="Due Soon" color="lightgreen" trend={dueSoonWorkOrders.length} />
+				<KPICard title="Pending" color= "var(--status-pending)" trend={discrepanciesData.length} />
+				<KPICard title="Open" color="var(--status-open)" trend={workOrdersData.length} />
+				<KPICard title="Overdue" color="var(--status-overdue)" trend={overdueWorkOrders.length} />
+				<KPICard title="Due Soon" color="var(--status-due-soon)" trend={dueSoonWorkOrders.length} />
 			</div >
 
 			{/* WORK ORDER SECTION */}
@@ -106,15 +109,30 @@ const Maintenance = () => {
 				padding: '1em',
 			}
 			}>
-				<button onClick={() => setIsAddWorkOrderOpen(true)}>
+				<button style={{
+					padding: '8px, 16px',
+					borderRadius: '10px',
+					backgroundColor: 'var(--bg-glass)',
+					fontWeight: 'bold',
+					}}onClick={() => setIsAddWorkOrderOpen(true)}>
 					add work order
 				</button>
 				<AddWorkOrderForm isOpen={isAddWorkOrderOpen} onClose={() => setIsAddWorkOrderOpen(false)} />
-				<button onClick={() => setIsAddDiscrepancyOpen(true)}>
+ 				<button style={{
+					padding: '8px, 16px',
+					borderRadius: '10px',
+					backgroundColor: 'var(--bg-glass)',
+					fontWeight: 'bold',
+				}}onClick={() => setIsAddDiscrepancyOpen(true)}>
 					add discrepancy
 				</button>
 				<AddDiscrepancyForm isOpen={isAddDiscrepancyOpen} onClose={() => setIsAddDiscrepancyOpen(false)} />
-				<button>
+ 				<button style={{
+					padding: '8px, 16px',
+					borderRadius: '10px',
+					backgroundColor: 'var(--bg-glass)',
+					fontWeight: 'bold',
+					}}>
 					sort by
 				</button>
 			</div >
