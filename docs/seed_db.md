@@ -32,4 +32,6 @@ poetry run python manage.py dbshell
 From there, you can list tables and run SQL queries to inspect the seeded data. 
 
 * `\dt` shows a list of tables in the database
-* `select * from [table] (limit [rows])` shows a specific table and its contents, optionally limiting the number of rows shown
+* `select * from [table] (limit [rows]);` shows a specific table and its contents, optionally limiting the number of rows shown
+
+Enter `\q` to quit the database shell
