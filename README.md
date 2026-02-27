@@ -4,21 +4,37 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/Django-5.x-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![DRF](https://img.shields.io/badge/Django%20REST%20Framework-3.16-ff1709?logo=django&logoColor=white)](https://www.django-rest-framework.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![license](https://img.shields.io/badge/license-See%20repos-brightgreen)](#-license)
+[![MUI](https://img.shields.io/badge/Material%20UI-7.x-007FFF?logo=mui&logoColor=white)](https://mui.com/)
+[![JWT](https://img.shields.io/badge/JWT-Auth-black?logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![License](https://img.shields.io/badge/License-See%20repos-lightgrey)](#-license)
 
 Monorepo for the Alpha Aviation application: backend API and web frontend.
 
 ## Table of Contents
 
+- [Live links](#-live-links)
 - [About](#-about)
 - [Repository structure](#-repository-structure)
 - [How to run](#-how-to-run)
+- [Deployment](#-deployment)
 - [License](#-license)
 
-**Documentation:** [docs/](docs/) — setup, testing, and merge guide.
+**Documentation** ([docs/](docs/)):
 
-For **full-stack setup** (database, env, running backend + frontend together, testing), see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
+- **Local setup** — Database, env, run backend + frontend: [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **Deploy on Render** — 3 services (DB, backend, frontend): [DEPLOYMENT.md](docs/DEPLOYMENT.md)
+
+---
+
+## Live links
+
+| Link | URL |
+|------|-----|
+| **Website (app)** | [https://alpha-aviation-dev-1.onrender.com/](https://alpha-aviation-dev-1.onrender.com/) |
+| **Django admin** | [https://alpha-aviation-dev.onrender.com/admin/](https://alpha-aviation-dev.onrender.com/admin/) |
 
 ## About
 
@@ -48,6 +64,16 @@ npm run dev   # starts backend (port 8000) + frontend (port 3000)
 | Frontend | `cd frontend && yarn install && yarn start` | http://localhost:3000 |
 
 The frontend talks to the backend at `http://localhost:8000/api` (see `REACT_APP_API_URL` in `frontend/.env`). For env vars, database setup, and **how to test backend vs frontend and that they’re connected**, see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#how-to-test-that-backend-and-frontend-are-working-together)**.
+
+## Deployment
+
+The app runs on [Render](https://render.com) as **three services**:
+
+1. **PostgreSQL** — database (e.g. `alpha-aviation-db`)
+2. **Web Service (Python)** — Django API + admin (e.g. `alpha-aviation-dev`)
+3. **Static Site** — React frontend (e.g. `alpha-aviation-dev-1`)
+
+Full step-by-step setup (env vars, CORS, SPA rewrite, superuser) is in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. Use it when connecting a new GitHub repo or creating a new Render project.
 
 ## License
 

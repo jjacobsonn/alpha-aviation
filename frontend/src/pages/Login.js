@@ -117,6 +117,7 @@ const Login = () => {
 								{error}
 							</Alert>
 						)}
+						<form onSubmit={handleSubmit} noValidate>
 							<Stack spacing={3}>
 								<TextField
 									fullWidth
@@ -147,6 +148,7 @@ const Login = () => {
 													aria-label="toggle password visibility"
 													onClick={handleClickShowPassword}
 													edge="end"
+													type="button"
 												>
 													{showPassword ? <VisibilityOff /> : <Visibility />}
 												</IconButton>
@@ -161,7 +163,6 @@ const Login = () => {
 									variant="contained"
 									size="large"
 									disabled={isLoading}
-									onClick={handleSubmit}
 									sx={{
 										bgcolor: '#273469',
 										py: 1.5,
@@ -173,6 +174,7 @@ const Login = () => {
 									{isLoading ? 'Signing in...' : 'Sign In'}
 								</Button>
 							</Stack>
+						</form>
 
 						{/* Footer */}
 						<Box sx={{ mt: 3, textAlign: 'center' }}>
