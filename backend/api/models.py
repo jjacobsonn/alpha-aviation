@@ -21,7 +21,7 @@ class Company(models.Model):
         if not aircraft_id:
             # Check all aircraft
             available_aircraft = []
-            for aircraft in self.Aircraft.all():
+            for aircraft in self.aircraft.all():
                 clean = True
                 for flight in aircraft.flights.all():
                     if flight.departure_time < end_date and flight.arrival_time > start_date:
@@ -32,7 +32,7 @@ class Company(models.Model):
             return available_aircraft
         #chekcs a specific aircraft
         else:
-            aircraft = self.Aircraft.filter(id=aircraft_id).first()
+            aircraft = self.aircraft.filter(id=aircraft_id).first()
             if not aircraft:
                 return []
 
@@ -40,6 +40,15 @@ class Company(models.Model):
                 if flight.departure_time < end_date and flight.arrival_time > start_date:
                     return []
             return [aircraft]
+
+    #To give day/week/month view
+    def calendar_flights(self, start_date, end_date):
+        flights = self.flights.all()
+        valid_flights = []
+        for flight in flights:
+            if flight.departure_time.date() <= end_date and flight.departure_time.date() >= start_date:
+                valid_flights.append(flight)
+        return valid_flights
     
 class Profile(AbstractUser):
     role_choices = [

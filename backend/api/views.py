@@ -6,7 +6,7 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from django.contrib.auth import authenticate
 from rest_framework import status
 from rest_framework.response import Response
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_datetime, parse_date
 
 from rest_framework import viewsets, permissions
 from .models import *
@@ -107,6 +107,8 @@ def user_profile(request):
         'last_name': user.last_name,
     })
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def available_aircraft_view(request):
     """ given start date/time and end date/time return list of flights that fall within that time range start_date and end_date are both required to be datetime strings
     optional if you give an aircraft id, only return flights for that aircraft
@@ -124,21 +126,46 @@ def available_aircraft_view(request):
     if start_date > end_date:
         return JsonResponse({'error': 'start_date must be before end_date'}, status=400)
 
-    # Base queryset: all aircraft for the company
-    aircraft_qs = Aircraft.objects.filter(company=company)
-
-    # Optional filter for a specific aircraft
     if aircraft_id:
-        aircraft_qs = aircraft_qs.filter(id=aircraft_id)
-
-    # Exclude aircraft that have flights overlapping the requested period
-    available_aircraft = aircraft_qs.exclude(
-        flights__departure_time__lt=end_date,
-        flights__arrival_time__gt=start_date
-    ).distinct()
+        try:
+            aircraft_id = int(aircraft_id)
+        except ValueError:
+            return JsonResponse({'error': 'aircraft_id must be an integer'}, status=400)
+        available_aircraft = company.availability(start_date, end_date, aircraft_id=aircraft_id)
+    else:
+        available_aircraft = company.availability(start_date, end_date)
 
     serializer = AircraftSerializer(available_aircraft, many=True)
-    return JsonResponse(serializer.data, safe=False)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def flight_list_view(request):
+    company = request.user.company
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    aircraft_id = request.GET.get('aircraft_id')
+
+    start_date = parse_date(start_date_str)
+    end_date = parse_date(end_date_str)
+    if not start_date or not end_date:
+        return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+    if start_date > end_date:
+        return JsonResponse({'error': 'start_date must be before end_date'}, status=400)
+    
+    if aircraft_id:
+        try:
+            aircraft_id = int(aircraft_id)
+        except ValueError:
+            return JsonResponse({'error': 'aircraft_id must be an integer'}, status=400)
+        flights = company.calendar_flights(start_date, end_date, aircraft_id=aircraft_id)
+    else:
+        flights = company.calendar_flights(start_date, end_date)
+    
+    serializer = FlightSerializer(flights, many=True)
+    return Response(serializer.data)
+
+    
 ####
 # User Profile
 ####

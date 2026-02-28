@@ -18,6 +18,7 @@ urlpatterns = [
     path('auth/logout/', logout, name='logout'),
     path('users/me/', user_profile, name='user_profile'),
     path('aircraft/availability/', available_aircraft_view, name='aircraft-availability'),
+    path('flights/calendar/', flight_list_view, name='flight-calendar'),
     path('', include(router.urls)),
     
 ]
