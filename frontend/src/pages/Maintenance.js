@@ -34,7 +34,8 @@ const Discrepancy = ({ discrepancy_number, part_number, aircraft, description })
     </div>
 );
 
-const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_to, due_date }) => (
+const WorkOrder = ({
+    id, title, created_by, description, part_needed, status, created_at, updated_at, due_by, aircraft, tach_time, hobbs_time, ATA_code, conponents_affected, components_image, signed_by, signature_date}) => (
     <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -43,11 +44,11 @@ const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_
         backgroundColor: '#fff'
     }}>
         <div style={{ display: 'flex', borderBottom: '1px solid #eee' }}>
-            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{order_number}</p>
-            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{part_number}</p>
+            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{id}</p>
+            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{part_needed}</p>
             <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{aircraft}</p>
-            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>Assignee: {assigned_to}</p>
-            <p style={{ padding: '1em', width: '20%' }}>Due: {due_date}</p>
+            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>Signed by: {signed_by}</p>
+            <p style={{ padding: '1em', width: '20%' }}>Due: {due_by}</p>
         </div>
         <div>
             <p style={{ padding: '1em' }}>{description}</p>
@@ -153,13 +154,25 @@ const Maintenance = () => {
                 }}>
                     {workOrdersData.map((order) => (
                         <WorkOrder
-                            key={order.id} 
-                            order_number={order.id}
-                            part_number={order.part_number}
-                            aircraft={order.aircraft}
-                            assigned_to={order.assigned_to}
-                            due_date={order.due_by}
+                            order_id={order.id} 
+                            id={order.id}
+                            title={order.title}
+                            created_by={order.created_by}
                             description={order.description}
+                            part_needed={order.part_needed}
+                            status={order.status}
+                            created_at={order.created_at}
+                            updated_at={order.updated_at}
+                            due_by={order.due_by}
+                            aircraft={order.aircraft}
+                            tach_time={order.tach_time}
+                            hobbs_time={order.hobbs_time}
+                            ATA_code={order.ATA_code}
+                            //TODO add components affected
+                            components_image={order.components_image}
+                            signed_by={order.signed_by}
+                            signature={order.signature}
+                            signature_date={order.signature_date}
                         />
                     ))}
                 </div>
