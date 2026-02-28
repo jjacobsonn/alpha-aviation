@@ -100,8 +100,6 @@ class PartInline(admin.TabularInline):
       model = Part
       extra = 0
 
-
-
 class PartAdmin(admin.ModelAdmin):
       search_fields = ["part_number", "name"]
 
@@ -127,7 +125,7 @@ class FlightAdmin(admin.ModelAdmin):
 class FlightInline(admin.TabularInline):
       model = Flight
       extra = 0
-      fields = ("aircraft", "flight_number", "primary_pilot", "secondary_pilot", "origin", "destination", "departure_time", "arrival_time", "pilot_requirement", "route", "flight_type", "approved")
+      fields = ("aircraft", "flight_number", "primary_pilot", "secondary_pilot", "origin", "destination", "departure_time", "arrival_time", "pilot_requirement", "route", "flight_type")
       autocomplete_fields = ["aircraft"]
       def formfield_for_foreignkey(self, db_field, request, **kwargs):
             if db_field.name in  ("primary_pilot", "secondary_pilot"):
@@ -137,10 +135,6 @@ class FlightInline(admin.TabularInline):
 class CompanyAdmin(admin.ModelAdmin):
       inlines = [UserInline, AircraftInline, InventoryInline, FlightInline]
       
-
-
-
-
 def clear_expired_medical_dates():
       Profile.objects.filter(medically_cleared_until__lt = timezone.now().date()).update(medically_cleared_until=None)
 

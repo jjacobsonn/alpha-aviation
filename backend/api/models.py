@@ -3,7 +3,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-
+from django.db.models import Q
 
 
 class Company(models.Model):
@@ -15,24 +15,46 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+    
+    #seeing what aircraft are available for a given time period, can check just one aircraft or all aircrafts
+    def availability(self, start_date, end_date, aircraft_id=None):
+        if not aircraft_id:
+            # Check all aircraft
+            available_aircraft = []
+            for aircraft in self.Aircraft.all():
+                clean = True
+                for flight in aircraft.flights.all():
+                    if flight.departure_time < end_date and flight.arrival_time > start_date:
+                        clean = False
+                        break
+                if clean:
+                    available_aircraft.append(aircraft)
+            return available_aircraft
+        #chekcs a specific aircraft
+        else:
+            aircraft = self.Aircraft.filter(id=aircraft_id).first()
+            if not aircraft:
+                return []
 
+            for flight in aircraft.flights.all():
+                if flight.departure_time < end_date and flight.arrival_time > start_date:
+                    return []
+            return [aircraft]
+    
 class Profile(AbstractUser):
     role_choices = [
         ('owner', 'Owner'),
         ('mechanic', 'Mechanic'),
+        ('dispatcher', 'Dispatcher'),
         ('pilot', 'Pilot'),
         ('manager', 'Manager'),
     ]
-    company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="Users", null=True, blank=True)
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="users", null=True, blank=True)
     company_role = models.CharField(max_length= 255, choices=role_choices, default='pilot' )
     middle_name = models.CharField(max_length=150, blank=True, null=True)
     employee_id = models.PositiveIntegerField(null=True, blank=True)
     phone_number = models.CharField(max_length=10, blank=True, null=True, help_text="Numbers only, do not add \"(\", \")\" or \"-\" ")
     profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
-    
-    
-
-
 
     def clean(self):
         super().clean()
@@ -51,25 +73,17 @@ class Profile(AbstractUser):
         elif self.company_role == "mechanic":
             Mechanic.objects.get_or_create(profile = self)
             
-
     def is_mechanic(self):
         return self.company_role == "mechanic"
     
-
     def is_pilot(self):
         return self.company_role == "pilot"
-    
-    
-
-
     
     def is_owner(self):
         return self.company_role == "owner"
     
-    
     def is_manager(self):
         return self.company_role == 'manager'
-    
     
 class Pilot(models.Model):
     profile = models.OneToOneField(
@@ -116,22 +130,16 @@ class Mechanic(models.Model):
     inspector_authentication = models.BooleanField(default= False)
     authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
 
-
-####
-# Maintenance Dashboard
-####
-
 class Aircraft(models.Model):
     registration_number = models.IntegerField()
     model = models.CharField(max_length=200)
     manufacturer = models.CharField(max_length=200)
     engine_type = models.CharField(max_length=200, null= True)
     year_built = models.IntegerField(validators=[MaxValueValidator(9999),MinValueValidator(1903)])
-    company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="Aircraft", null=True, blank=True )
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="aircraft", null=True, blank=True )
     
     def __str__(self):
         return f"{self.registration_number} ({self.model})"
-
 
 class Part(models.Model):
     part_number = models.CharField(max_length=200)
@@ -142,7 +150,6 @@ class Part(models.Model):
     def __str__(self):
         return f"{self.part_number} - {self.name}"
     
-
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
     part = models.ForeignKey(Part, on_delete=models.CASCADE)
@@ -241,8 +248,6 @@ class WorkOrderPart(models.Model):
     part = models.ForeignKey(Part, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
 
-    
-
 class Discrepancy(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -260,13 +265,12 @@ class Discrepancy(models.Model):
     def __str__(self):
         return f"Discrepancy on {self.aircraft} ({self.status})"
 
-
 class Flight(models.Model):
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True)
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True, related_name="flights")
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True, related_name="flights")
     flight_number = models.CharField(max_length= 250, null = True)
-    origin = models.CharField(max_length= 250, null = True)
-    destination = models.CharField(max_length=250, null = True)
+    origin = models.CharField(max_length= 250, null = True)# location
+    destination = models.CharField(max_length=250, null = True) #location
     departure_time = models.DateTimeField(null = True)
     arrival_time = models.DateTimeField(null = True)
     route = models.CharField(blank= True, null= True)
@@ -277,8 +281,9 @@ class Flight(models.Model):
         ('maintenance ferry', 'Maintenance Ferry'),
     ]
     flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='training' )
-    primary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "primary_flights")
-    secondary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "secondary_flights")
+    primary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "primary_pilot")
+    secondary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "secondary_pilot")
+    dispatcher = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="flight_dispatcher")
     pilot_req_options =[
         ('student', 'Student'),#1
         ('private', 'Private'),#2
@@ -286,4 +291,18 @@ class Flight(models.Model):
         ('airline', 'Airline'),#4
     ]
     pilot_requirement = models.CharField(max_length= 255, choices=pilot_req_options, default = "private")
-    approved = models.BooleanField(default=False)
+    status_type_options = [
+        ('scheduled', 'Scheduled'),
+        ('approved', 'Approved'),
+        ('pending approval', 'Pending Approval'),
+        ('delayed', 'Delayed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+    status = models.CharField(max_length= 255, choices=status_type_options, default='pending approval' )
+    
+
+    #todo: endpoint for week view month view day view.
+    """filter the flights"""
+    #endpoints for managements
+    #documentation
