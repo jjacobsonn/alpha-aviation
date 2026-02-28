@@ -9,6 +9,7 @@ import Discrepancy from '../components/Discrepancy'
 
 //KPI CARD DEFINITION  this pay get replaced but is a decent placeholder atm
 const KPICard = ({ title, color, trend }) => (
+    //TODO: idk what hapens with the colors, but they get messed up with double clicking
     <div className='KPIcard' style={{
         backgroundColor: color,
         borderRadius: '10px',
