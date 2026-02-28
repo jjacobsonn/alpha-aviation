@@ -3,9 +3,11 @@ import '../theme.css';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
 import { makeApiRequest } from '../shared/Api';
+import WorkOrder from '../components/WorkOrder';
+import Discrepancy from '../components/Discrepancy'
 
-// --- SUB-COMPONENTS ---
 
+//KPI CARD DEFINITION  this pay get replaced but is a decent placeholder atm
 const KPICard = ({ title, color, trend }) => (
     <div className='KPIcard' style={{
         backgroundColor: color,
@@ -14,48 +16,12 @@ const KPICard = ({ title, color, trend }) => (
         height: '7em',
         textAlign: 'center',
         fontWeight: "bold",
-        boxShadow: '2px 2px',
     }}>
         <p>{title}</p>
         <p>{trend}</p>
     </div>
 );
-
-const Discrepancy = ({ discrepancy_number, part_number, aircraft, description }) => (
-    <div style={{
-        display: 'flex',
-        background: '#f9f9f9',
-        marginBottom: '5px'
-    }}>
-        <p style={{ padding: '1em', width: '15%', border: 'solid 1px' }}>{discrepancy_number}</p>
-        <p style={{ padding: '1em', width: '15%', border: 'solid 1px' }}>{part_number}</p>
-        <p style={{ padding: '1em', width: '15%', border: 'solid 1px' }}>{aircraft}</p>
-        <p style={{ padding: '1em', width: '55%', border: 'solid 1px' }}>{description}</p>
-    </div>
-);
-
-const WorkOrder = ({
-    id, title, created_by, description, part_needed, status, created_at, updated_at, due_by, aircraft, tach_time, hobbs_time, ATA_code, conponents_affected, components_image, signed_by, signature_date}) => (
-    <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        margin: '1em 0',
-        border: '1px solid #ccc',
-        backgroundColor: '#fff'
-    }}>
-        <div style={{ display: 'flex', borderBottom: '1px solid #eee' }}>
-            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{id}</p>
-            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{part_needed}</p>
-            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>{aircraft}</p>
-            <p style={{ padding: '1em', width: '20%', borderRight: '1px solid #eee' }}>Signed by: {signed_by}</p>
-            <p style={{ padding: '1em', width: '20%' }}>Due: {due_by}</p>
-        </div>
-        <div>
-            <p style={{ padding: '1em' }}>{description}</p>
-        </div>
-    </div>
-);
-
+    
 // --- MAIN COMPONENT ---
 
 const Maintenance = () => {
@@ -110,11 +76,11 @@ const Maintenance = () => {
             {/* KPI CARD SECTION */}
             <div style={{
                 display: 'flex',
-                justifyContent: 'space-evenly',
-                marginBottom: '3em',
-                marginTop: '1em',
-                padding: '1em',
-                backgroundColor: 'lightgray',
+                justifyContent: 'left',
+                gap: '10em',
+                margin: '3em',
+                paddingTop: '1em',
+                paddingBottom: '1em',
             }}>
                 <KPICard title="Pending" color="var(--status-pending)" trend={discrepanciesData.length} />
                 <KPICard title="Open" color="var(--status-open)" trend={workOrdersData.length} />
@@ -123,7 +89,7 @@ const Maintenance = () => {
             </div>
 
             {/* ACTION BUTTONS */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '2em', padding: '1em' }}>
+            <div style={{ display: 'flex', justifyContent: 'left', gap: '2em', padding: '1em', margin: '3em'}}>
                 <button 
                     style={{ padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}
                     onClick={() => setIsAddWorkOrderOpen(true)}
@@ -152,6 +118,7 @@ const Maintenance = () => {
                     height: '40vh',
                     overflowY: 'auto',
                 }}>
+                {/*---------------ADD DATA FROM API------------*/}
                     {workOrdersData.map((order) => (
                         <WorkOrder
                             order_id={order.id} 
@@ -188,11 +155,16 @@ const Maintenance = () => {
                 }}>
                     {discrepanciesData.map((disc) => (
                         <Discrepancy
-                            key={disc.id || disc.discrepancy_number}
-                            discrepancy_number={disc.discrepancy_number}
-                            part_number={disc.part_number}
-                            aircraft={disc.aircraft}
+                            key={disc.id}
+                            id={disc.id}
+                            date_reported={disc.date_reported}
                             description={disc.description}
+                            ata_code={disc.ata_code}
+                            tach_time={disc.tach_time}
+                            status={disc.status}
+                            work_order={disc.work_order}
+                            aircraft={disc.aircraft}
+                            reporter={disc.reporter}
                         />
                     ))}
                 </div>

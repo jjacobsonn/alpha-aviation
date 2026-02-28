@@ -9,12 +9,13 @@
   /* --- PUNCHY STATUS COLORS (High Contrast) --- */
   --status-pending: #3b82f6;
   /* Strong "Aviation" Blue */
-  --status-open: #a855f7;
+  --status-open: #aa54e3;
   /* Punchy Purple */
   --status-overdue: #dc2626;
   /* True "Redder" Red (Very Urgent) */
-  --status-due-soon: #22c55e;
+  --status-due-soon: #ff8822;
   /* Vibrant Alert Green */
+  --status-complete: #22c55e;
 
   /* --- TEXT & ACCENTS --- */
   --text-pure: #222222;
