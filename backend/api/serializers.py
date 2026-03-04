@@ -26,7 +26,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'medically_cleared_until', 'pilot_certificate',
             'AP_certificate_number', 'inspector_authentication', 'mechanic_certificate_img', 'authentication_img',
         ]
-    
+    #if user is not pilot or not mechanic it will remove those fields from the response.
     def to_representation(self, instance):
         data = super().to_representation(instance)
 

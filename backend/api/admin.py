@@ -29,7 +29,6 @@ class WorkOrderInline(admin.TabularInline):
       extra = 0
       fields = ('id', 'aircraft', 'status', 'description')
 
-
 class AircraftInline(admin.TabularInline):
     model = Aircraft
     extra = 1
@@ -38,7 +37,6 @@ class AircraftInline(admin.TabularInline):
 class AircraftAdmin(admin.ModelAdmin):
       inlines = [WorkOrderInline, DiscrepancyInline]
       search_fields = ["registration_number", "model"]
-
 
 class CustomUserAdmin(UserAdmin):
       
@@ -87,14 +85,12 @@ class PilotInfoInline(admin.StackedInline):
     extra = 0
     can_delete = False
 
-
 class MechanicInfoInline(admin.StackedInline):
       model = Mechanic
       extra = 0
       can_delete = False
       def clear_expired_medical_dates():
             Profile.objects.filter(medically_cleared_until__lt = timezone.now().date()).update(medically_cleared_until=None)
-
 
 class PartInline(admin.TabularInline):
       model = Part
@@ -112,7 +108,6 @@ class InventoryInline(admin.TabularInline):
       readonly_fields =("low_stock",)
       fields = ("part", "in_stock", "last_inspected", "inspection_due_in", "stock_alert", "shop_location", "low_stock")
       autocomplete_fields = ["part"]
-
 
 class FlightAdmin(admin.ModelAdmin):
     fields = ['company', 'aircraft', 'primary_pilot', "secondary_pilot", 'origin', 'destination', 'departure_time', 'arrival_time']
@@ -144,7 +139,5 @@ admin.site.register(Aircraft, AircraftAdmin)
 admin.site.register(Part, PartAdmin)
 admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(Flight, FlightAdmin)
-
-
 admin.site.register(Discrepancy, DiscrepancyAdmin)
 admin.site.register(WorkOrder, WorkOrderAdmin)

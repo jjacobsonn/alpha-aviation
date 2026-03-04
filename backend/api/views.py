@@ -107,6 +107,7 @@ def user_profile(request):
         'last_name': user.last_name,
     })
 
+#Endpoint to check the availability of aircraft given a start date and end date, and optionally to check a specific aircraft if given aircraft_id. Returns all of the flights that are available. If checking for specifc aircraft, will return just that aircraft or return empty json response if it is not available.
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def available_aircraft_view(request):
@@ -138,6 +139,7 @@ def available_aircraft_view(request):
     serializer = AircraftSerializer(available_aircraft, many=True)
     return Response(serializer.data)
 
+#Gets the flights for the calendar view, given start date and end date, and optionally an aircraft id, returns all the flights that fall within that date range.
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def flight_list_view(request):
@@ -165,6 +167,13 @@ def flight_list_view(request):
     serializer = FlightSerializer(flights, many=True)
     return Response(serializer.data)
 
+#endpoint for the management dashboard.
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def management_dashboard_view(request):
+    company = request.user.company
+    data = company.get_management_dashboard_data()
+    return Response(data)
     
 ####
 # User Profile

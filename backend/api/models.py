@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Q
 
-
+#Company model, points to user, aircraft, inventory, and flights. Has two methods for checking availability of aircraft and for giving all of the flights in a given time period.
 class Company(models.Model):
     name = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -50,6 +50,17 @@ class Company(models.Model):
                 valid_flights.append(flight)
         return valid_flights
     
+    #for the endpoint of the management dashboard, items are pretty self explanatory.
+    def get_management_dashboard_data(self):
+        data = {
+            'total_aircraft': self.aircraft.count(),
+            'total_flights': self.flights.count(),
+            'total_discrepancies': Discrepancy.objects.filter(aircraft__company=self).count(),
+            'total_work_orders': WorkOrder.objects.filter(aircraft__company=self).count(),
+        }
+        return data
+
+#Profile models, assigned to a company, with a role in the company, and basic profile information. Has functions for is_(company_role).
 class Profile(AbstractUser):
     role_choices = [
         ('owner', 'Owner'),
@@ -94,6 +105,7 @@ class Profile(AbstractUser):
     def is_manager(self):
         return self.company_role == 'manager'
     
+#Pilot model, Is a sub class of profile, that anyone that is of the company role pilot will have. Has method to check if they are cleared to fly. Has method to return if they are certifed, given the certification level.
 class Pilot(models.Model):
     profile = models.OneToOneField(
         Profile,
@@ -128,6 +140,7 @@ class Pilot(models.Model):
         }
         return levels[self.pilot_certificate] >= levels[required]
 
+#Mechanic model, Is a sub class of profile, that anyone that is of the company role mechanic will have. has basic information about mechanics and their certifications.
 class Mechanic(models.Model):
     profile = models.OneToOneField(
     Profile,
@@ -139,6 +152,7 @@ class Mechanic(models.Model):
     inspector_authentication = models.BooleanField(default= False)
     authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
 
+#Aircraft model, has basic information about the aircraft and a str function.
 class Aircraft(models.Model):
     registration_number = models.IntegerField()
     model = models.CharField(max_length=200)
@@ -150,6 +164,7 @@ class Aircraft(models.Model):
     def __str__(self):
         return f"{self.registration_number} ({self.model})"
 
+#Part model, has basic information about the part and a str function. It is related to aircraft.
 class Part(models.Model):
     part_number = models.CharField(max_length=200)
     name = models.CharField(max_length=200)
@@ -158,7 +173,8 @@ class Part(models.Model):
 
     def __str__(self):
         return f"{self.part_number} - {self.name}"
-    
+
+#Inventory model, is to show the inventory of parts for the company, points to company and part. Has a function(low_stock) to show the if the stock is lower than the stock alert percentage.
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
     part = models.ForeignKey(Part, on_delete=models.CASCADE)
@@ -183,7 +199,98 @@ class Inventory(models.Model):
     def __str__(self):
         return f"{self.part.name} with {self.in_stock} in stock"
 
+#Work order model, points to an aircraft, and the profile that created the work order, can have any number of parts needed. and other basic information needed for a work order.
+class WorkOrder(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_progress', 'In Progress'),
+        ('awaiting_parts', 'Awaiting Parts'),
+        ('closed', 'Closed'),
+    ]
+    
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="work_orders")
+    created_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
+    parts_needed = models.ManyToManyField(Part, blank=True, through='WorkOrderPart')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    due_by = models.DateField(null=True, blank=True)
+    tach_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    hobbs_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    ATA_code =models.IntegerField(null=True, blank=True)
+    components_affected = models.CharField(max_length=200, blank=True)
+    components_image = models.ImageField(upload_to='work_order_components/', null=True, blank=True)
+    signed_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="signed_work_orders")
+    signature = models.ImageField(upload_to='work_order_signatures/', null=True, blank=True)
+    signature_date = models.DateField(null=True, blank=True)
+    
 
+    def __str__(self):
+        return f"Work Order #{self.id} - {self.aircraft.registration_number}"
+
+#Sub model for work order to have a list of parts.  
+class WorkOrderPart(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+
+#Discrepancy model, points to an aircraft, and the profile that created the discrepancy, can be related to a work order to show that it is being worked on.
+class Discrepancy(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('closed', 'Closed'),
+    ]
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="discrepancies")
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="discrepancies")
+    reporter = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
+    date_reported = models.DateField(auto_now_add=True)
+    description = models.CharField(max_length=200)
+    ata_code = models.CharField(max_length=50, blank=True)
+    tach_time = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    def __str__(self):
+        return f"Discrepancy on {self.aircraft} ({self.status})"
+
+#flight model, points to company, aircraft, primary pilot, secondary pilot, and dispatcher. Model is for the scheduling page. has basic information about the flight and a clean function to check that the pilots are not the same person, that the departure and arrival times make sense, and that the pilots are cleared to fly and have the right certifications.
+class Flight(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True, related_name="flights")
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True, related_name="flights")
+    flight_number = models.CharField(max_length= 250, null = True)
+    origin = models.CharField(max_length= 250, null = True)# location
+    destination = models.CharField(max_length=250, null = True) #location
+    departure_time = models.DateTimeField(null = True)
+    arrival_time = models.DateTimeField(null = True)
+    route = models.CharField(blank= True, null= True)
+    flight_type_options = [
+        ('training', 'Training'),
+        ('charter', 'Charter'),
+        ('positioning', 'Positioning'),
+        ('maintenance ferry', 'Maintenance Ferry'),
+    ]
+    flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='training' )
+    primary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "primary_pilot")
+    secondary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "secondary_pilot")
+    dispatcher = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="flight_dispatcher")
+    pilot_req_options =[
+        ('student', 'Student'),#1
+        ('private', 'Private'),#2
+        ('commercial', 'Commercial'),#3
+        ('airline', 'Airline'),#4
+    ]
+    pilot_requirement = models.CharField(max_length= 255, choices=pilot_req_options, default = "private")
+    status_type_options = [
+        ('scheduled', 'Scheduled'),
+        ('approved', 'Approved'),
+        ('pending approval', 'Pending Approval'),
+        ('delayed', 'Delayed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+    status = models.CharField(max_length= 255, choices=status_type_options, default='pending approval' )
+    
     def clean(self):
         errors = {}
         
@@ -221,97 +328,4 @@ class Inventory(models.Model):
 
         if errors:
             raise ValidationError(errors)
-
-class WorkOrder(models.Model):
-    STATUS_CHOICES = [
-        ('open', 'Open'),
-        ('in_progress', 'In Progress'),
-        ('awaiting_parts', 'Awaiting Parts'),
-        ('closed', 'Closed'),
-    ]
-    
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="work_orders")
-    created_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
-    parts_needed = models.ManyToManyField(Part, blank=True, through='WorkOrderPart')
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='open')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    due_by = models.DateField(null=True, blank=True)
-    tach_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
-    hobbs_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
-    ATA_code =models.IntegerField(null=True, blank=True)
-    components_affected = models.CharField(max_length=200, blank=True)
-    components_image = models.ImageField(upload_to='work_order_components/', null=True, blank=True)
-    signed_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="signed_work_orders")
-    signature = models.ImageField(upload_to='work_order_signatures/', null=True, blank=True)
-    signature_date = models.DateField(null=True, blank=True)
-    
-
-    def __str__(self):
-        return f"Work Order #{self.id} - {self.aircraft.registration_number}"
-    
-class WorkOrderPart(models.Model):
-    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
-    part = models.ForeignKey(Part, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField()
-
-class Discrepancy(models.Model):
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('closed', 'Closed'),
-    ]
-    work_order = models.ForeignKey(WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="discrepancies")
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="discrepancies")
-    reporter = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
-    date_reported = models.DateField(auto_now_add=True)
-    description = models.CharField(max_length=200)
-    ata_code = models.CharField(max_length=50, blank=True)
-    tach_time = models.CharField(max_length=100, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-
-    def __str__(self):
-        return f"Discrepancy on {self.aircraft} ({self.status})"
-
-class Flight(models.Model):
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True, related_name="flights")
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True, related_name="flights")
-    flight_number = models.CharField(max_length= 250, null = True)
-    origin = models.CharField(max_length= 250, null = True)# location
-    destination = models.CharField(max_length=250, null = True) #location
-    departure_time = models.DateTimeField(null = True)
-    arrival_time = models.DateTimeField(null = True)
-    route = models.CharField(blank= True, null= True)
-    flight_type_options = [
-        ('training', 'Training'),
-        ('charter', 'Charter'),
-        ('positioning', 'Positioning'),
-        ('maintenance ferry', 'Maintenance Ferry'),
-    ]
-    flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='training' )
-    primary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "primary_pilot")
-    secondary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "secondary_pilot")
-    dispatcher = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="flight_dispatcher")
-    pilot_req_options =[
-        ('student', 'Student'),#1
-        ('private', 'Private'),#2
-        ('commercial', 'Commercial'),#3
-        ('airline', 'Airline'),#4
-    ]
-    pilot_requirement = models.CharField(max_length= 255, choices=pilot_req_options, default = "private")
-    status_type_options = [
-        ('scheduled', 'Scheduled'),
-        ('approved', 'Approved'),
-        ('pending approval', 'Pending Approval'),
-        ('delayed', 'Delayed'),
-        ('cancelled', 'Cancelled'),
-        ('completed', 'Completed'),
-    ]
-    status = models.CharField(max_length= 255, choices=status_type_options, default='pending approval' )
-    
-
-    #todo: endpoint for week view month view day view.
-    """filter the flights"""
     #endpoints for managements
-    #documentation
