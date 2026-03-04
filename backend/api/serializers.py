@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Company, Profile, Aircraft, Part,
-    Discrepancy, WorkOrder, Flight
+    Discrepancy, WorkOrder, Flight, Flight
 )
 
 
@@ -13,10 +13,15 @@ from .models import (
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
-        fields = '__all__'
+        fields = [
+            'id', 'name', 'created_at', 'updated_at', 'locations',
+        ]
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    # ProfileSerializer — medically_cleared_until, pilot_certificate,
+    # AP_certificate_number, and inspector_authentication don't exist
+    # on the Profile model
     class Meta:
         model = Profile
         fields = [
@@ -45,17 +50,24 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class AircraftSerializer(serializers.ModelSerializer):
+    # display field added - CHECK - Not yet included in fields
     company_name = serializers.CharField(source='company.name', read_only=True)
-
     class Meta:
         model = Aircraft
-        fields = ['id', 'registration_number', 'model', 'manufacturer', 'engine_type', 'year_built', 'company', 'company_name']
+        fields = [
+            'id', 'registration_number', 'model', 'manufacturer',
+            'engine_type', 'year_built', 'company',
+        ]
 
 
 class PartSerializer(serializers.ModelSerializer):
+    # display field added - CHECK - Not yet included in fields
+    aircraft_name = serializers.CharField(source='aircraft.model', read_only=True)
     class Meta:
         model = Part
-        fields = '__all__'
+        fields = [
+            'id', 'part_number', 'name', 'description', 'aircraft',
+        ]
 
 
 class DiscrepancySerializer(serializers.ModelSerializer):
@@ -63,7 +75,10 @@ class DiscrepancySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Discrepancy
-        fields = '__all__'
+        fields = [
+            'id', 'work_order', 'aircraft', 'reporter', 'reporter_name',
+            'date_reported', 'description', 'ata_code', 'tach_time', 'status',
+        ]
 
 
 class WorkOrderSerializer(serializers.ModelSerializer):
