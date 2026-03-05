@@ -6,6 +6,11 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from django.contrib.auth import authenticate
 from rest_framework import status
 from rest_framework.response import Response
+from django.utils.dateparse import parse_datetime, parse_date
+
+from rest_framework import viewsets, permissions
+from .models import *
+from .serializers import *
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -101,3 +106,121 @@ def user_profile(request):
         'first_name': user.first_name,
         'last_name': user.last_name,
     })
+
+#Endpoint to check the availability of aircraft given a start date and end date, and optionally to check a specific aircraft if given aircraft_id. Returns all of the flights that are available. If checking for specifc aircraft, will return just that aircraft or return empty json response if it is not available.
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def available_aircraft_view(request):
+    """ given start date/time and end date/time return list of flights that fall within that time range start_date and end_date are both required to be datetime strings
+    optional if you give an aircraft id, only return flights for that aircraft
+    """
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    company = request.user.company
+    aircraft_id = request.GET.get('aircraft_id')
+
+    start_date = parse_datetime(start_date_str)
+    end_date = parse_datetime(end_date_str)
+
+    if not start_date or not end_date:
+        return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+    if start_date > end_date:
+        return JsonResponse({'error': 'start_date must be before end_date'}, status=400)
+
+    if aircraft_id:
+        try:
+            aircraft_id = int(aircraft_id)
+        except ValueError:
+            return JsonResponse({'error': 'aircraft_id must be an integer'}, status=400)
+        available_aircraft = company.availability(start_date, end_date, aircraft_id=aircraft_id)
+    else:
+        available_aircraft = company.availability(start_date, end_date)
+
+    serializer = AircraftSerializer(available_aircraft, many=True)
+    return Response(serializer.data)
+
+#Gets the flights for the calendar view, given start date and end date, and optionally an aircraft id, returns all the flights that fall within that date range.
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def flight_list_view(request):
+    company = request.user.company
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    aircraft_id = request.GET.get('aircraft_id')
+
+    start_date = parse_date(start_date_str)
+    end_date = parse_date(end_date_str)
+    if not start_date or not end_date:
+        return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+    if start_date > end_date:
+        return JsonResponse({'error': 'start_date must be before end_date'}, status=400)
+    
+    if aircraft_id:
+        try:
+            aircraft_id = int(aircraft_id)
+        except ValueError:
+            return JsonResponse({'error': 'aircraft_id must be an integer'}, status=400)
+        flights = company.calendar_flights(start_date, end_date, aircraft_id=aircraft_id)
+    else:
+        flights = company.calendar_flights(start_date, end_date)
+    
+    serializer = FlightSerializer(flights, many=True)
+    return Response(serializer.data)
+
+#endpoint for the management dashboard.
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def management_dashboard_view(request):
+    company = request.user.company
+    data = company.get_management_dashboard_data()
+    return Response(data)
+    
+####
+# User Profile
+####
+
+
+class CompanyViewSet(viewsets.ModelViewSet):
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class ProfileViewSet(viewsets.ModelViewSet):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+####
+# Maintenance Dashboard
+####
+
+
+class AircraftViewSet(viewsets.ModelViewSet):
+    queryset = Aircraft.objects.all()
+    serializer_class = AircraftSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class PartViewSet(viewsets.ModelViewSet):
+    queryset = Part.objects.all()
+    serializer_class = PartSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class DiscrepancyViewSet(viewsets.ModelViewSet):
+    queryset = Discrepancy.objects.all().order_by('-date_reported')
+    serializer_class = DiscrepancySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class WorkOrderViewSet(viewsets.ModelViewSet):
+    queryset = WorkOrder.objects.all().order_by('-created_at')
+    serializer_class = WorkOrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class FlightViewSet(viewsets.ModelViewSet):
+    queryset = Flight.objects.all().order_by('-departure_time')
+    serializer_class = FlightSerializer
+    permission_classes = [permissions.IsAuthenticated]
