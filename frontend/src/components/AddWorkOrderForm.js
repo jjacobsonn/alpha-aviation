@@ -77,67 +77,73 @@ export default function AddWorkOrderForm({ isOpen, onClose }) {
             <h2>Add Work Order</h2>
             <form onSubmit={handleSubmit}>
                 <div>
-                    <label>Order Number</label>
-                    <input name="order_number" value={formData.order_number} onChange={handleChange} />
+                    <label htmlFor="order_number">Order Number</label>
+                    <input id="order_number" name="order_number" value={formData.order_number} onChange={handleChange} />
                     {errors.order_number && <div style={{ color: "red" }}>{errors.order_number}</div>}
                 </div>
 
                 <div>
-                    <label>Part Number</label>
-                    <input name="part_number" value={formData.part_number} onChange={handleChange} />
+                    <label htmlFor="part_number">Part Number</label>
+                    <input id="part_number" name="part_number" value={formData.part_number} onChange={handleChange} />
                     {errors.part_number && <div style={{ color: "red" }}>{errors.part_number}</div>}
                 </div>
 
                 <div>
-                    <label>Assigned To</label>
-                    <input name="assigned_to" value={formData.assigned_to} onChange={handleChange} />
+                    <label htmlFor="assigned_to">Assigned To</label>
+                    <input id="assigned_to" name="assigned_to" value={formData.assigned_to} onChange={handleChange} />
                     {errors.assigned_to && <div style={{ color: "red" }}>{errors.assigned_to}</div>}
                 </div>
 
                 <div>
-                    <label>Due Date</label>
-                    <input name="due_date" type="date" value={formData.due_date} onChange={handleChange} />
+                    <label htmlFor="due_date">Due Date</label>
+                    <input id="due_date" name="due_date" type="date" value={formData.due_date} onChange={handleChange} />
                 </div>
 
                 <div>
-                    <label>Date Reported</label>
-                    <input name="date_reported" type="date" value={formData.date_reported} onChange={handleChange} />
+                    <label htmlFor="date_reported">Date Reported</label>
+                    <input id="date_reported" name="date_reported" type="date" value={formData.date_reported} onChange={handleChange} />
                 </div>
 
                 <div>
-                    <label>Tach Time</label>
-                    <input name="tach_time" value={formData.tach_time} onChange={handleChange} />
+                    <label htmlFor="tach_time">Tach Time</label>
+                    <input id="tach_time" name="tach_time" value={formData.tach_time} onChange={handleChange} />
                 </div>
 
                 <div>
-                    <label>Hobbs Time</label>
-                    <input name="hobbs_time" value={formData.hobbs_time} onChange={handleChange} />
+                    <label htmlFor="hobbs_time">Hobbs Time</label>
+                    <input id="hobbs_time" name="hobbs_time" value={formData.hobbs_time} onChange={handleChange} />
                 </div>
 
                 <div>
-                    <label>ATA Code</label>
-                    <input name="ATA_code" value={formData.ATA_code} onChange={handleChange} />
+                    <label htmlFor="ATA_code">ATA Code</label>
+                    <input id="ATA_code" name="ATA_code" value={formData.ATA_code} onChange={handleChange} />
                 </div>
 
                 <div>
-                    <label>Component Affected</label>
-                    <input name="component_affected" value={formData.component_affected} onChange={handleChange} />
+                    <label htmlFor="component_affected">Component Affected</label>
+                    <input id="component_affected" name="component_affected" value={formData.component_affected} onChange={handleChange} />
                 </div>
 
                 <div>
-                    <label>Description</label>
-                    <textarea name="description" value={formData.description} onChange={handleChange} rows={4} />
+                    <label htmlFor="description">Description</label>
+                    <textarea id="description" name="description" value={formData.description} onChange={handleChange} rows={4} />
                     {errors.description && <div style={{ color: "red" }}>{errors.description}</div>}
                 </div>
 
                 <div>
-                    <label>Attachment (file)</label>
-                    <input name="attachment" type="file" onChange={handleFileChange} />
+                    <label htmlFor="attachment">Attachment (file)</label>
+                    <input id="attachment" name="attachment" type="file" onChange={handleFileChange} />
                 </div>
 
                 <div>
-                    <label>Digital Signature</label>
-                    <input name="digital_signature" value={formData.digital_signature} onChange={handleChange} placeholder="Signer name or signature data" />
+                    <label htmlFor="digital_signature">Digital Signature</label>
+                    <input
+                        id="digital_signature"
+                        name="digital_signature"
+                        value={formData.digital_signature}
+                        onChange={handleChange}
+                        placeholder="Signer name or signature data"
+                    />
                 </div>
 
                 <div style={{ marginTop: "1rem" }}>
