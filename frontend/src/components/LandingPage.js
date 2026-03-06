@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import {
 	AppBar,
 	Toolbar,
@@ -109,7 +109,7 @@ const LandingPage = () => {
 			>
 				<Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
 					<Grid container spacing={6} alignItems="center">
-						<Grid item xs={12} md={7}>
+						<Grid size={{ xs: 12, md: 7 }}>
 							<Typography
 								variant="overline"
 								sx={{
@@ -189,9 +189,7 @@ const LandingPage = () => {
 							</Stack>
 						</Grid>
 						<Grid
-							item
-							xs={12}
-							md={5}
+							size={{ xs: 12, md: 5 }}
 							sx={{ display: { xs: 'none', md: 'block' } }}
 						>
 							<Box
@@ -207,7 +205,7 @@ const LandingPage = () => {
 									Trusted by Industry Leaders
 								</Typography>
 								<Grid container spacing={2}>
-									<Grid item xs={6}>
+									<Grid size={6}>
 										<Typography
 											variant="h3"
 											sx={{ fontWeight: 700, color: 'white' }}
@@ -218,7 +216,7 @@ const LandingPage = () => {
 											Customers
 										</Typography>
 									</Grid>
-									<Grid item xs={6}>
+									<Grid size={6}>
 										<Typography
 											variant="h3"
 											sx={{ fontWeight: 700, color: 'white' }}
@@ -229,7 +227,7 @@ const LandingPage = () => {
 											Aircraft
 										</Typography>
 									</Grid>
-									<Grid item xs={6}>
+									<Grid size={6}>
 										<Typography
 											variant="h3"
 											sx={{ fontWeight: 700, color: 'white' }}
@@ -240,7 +238,7 @@ const LandingPage = () => {
 											Uptime
 										</Typography>
 									</Grid>
-									<Grid item xs={6}>
+									<Grid size={6}>
 										<Typography
 											variant="h3"
 											sx={{ fontWeight: 700, color: 'white' }}
@@ -287,7 +285,7 @@ const LandingPage = () => {
 				</Box>
 
 				<Grid container spacing={4}>
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<Card
 							elevation={0}
 							sx={{
@@ -319,7 +317,7 @@ const LandingPage = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<Card
 							elevation={0}
 							sx={{
@@ -351,7 +349,7 @@ const LandingPage = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<Card
 							elevation={0}
 							sx={{
@@ -385,7 +383,7 @@ const LandingPage = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<Card
 							elevation={0}
 							sx={{
@@ -417,7 +415,7 @@ const LandingPage = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<Card
 							elevation={0}
 							sx={{
@@ -449,7 +447,7 @@ const LandingPage = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<Card
 							elevation={0}
 							sx={{
@@ -497,7 +495,7 @@ const LandingPage = () => {
 						Get more aircraft uptime with intelligent aviation management
 					</Typography>
 					<Grid container spacing={6}>
-						<Grid item xs={12} md={4}>
+						<Grid size={{ xs: 12, md: 4 }}>
 							<Stack spacing={2}>
 								<SpeedIcon sx={{ fontSize: 48 }} />
 								<Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -510,7 +508,7 @@ const LandingPage = () => {
 								</Typography>
 							</Stack>
 						</Grid>
-						<Grid item xs={12} md={4}>
+						<Grid size={{ xs: 12, md: 4 }}>
 							<Stack spacing={2}>
 								<CheckCircleIcon sx={{ fontSize: 48 }} />
 								<Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -523,7 +521,7 @@ const LandingPage = () => {
 								</Typography>
 							</Stack>
 						</Grid>
-						<Grid item xs={12} md={4}>
+						<Grid size={{ xs: 12, md: 4 }}>
 							<Stack spacing={2}>
 								<AssessmentIcon sx={{ fontSize: 48 }} />
 								<Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -600,7 +598,7 @@ const LandingPage = () => {
 			<Box sx={{ bgcolor: 'primary.main', color: 'white', py: 6 }}>
 				<Container maxWidth="lg">
 					<Grid container spacing={4} sx={{ mb: 4 }}>
-						<Grid item xs={12} md={4}>
+						<Grid size={{ xs: 12, md: 4 }}>
 							<Stack direction="row" alignItems="center" sx={{ mb: 2 }}>
 								<FlightTakeoffIcon sx={{ mr: 1.5, fontSize: 28 }} />
 								<Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -615,7 +613,7 @@ const LandingPage = () => {
 								more uptime and better efficiency.
 							</Typography>
 						</Grid>
-						<Grid item xs={6} md={2}>
+						<Grid size={{ xs: 6, md: 2 }}>
 							<Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
 								Products
 							</Typography>
@@ -662,7 +660,7 @@ const LandingPage = () => {
 								</Typography>
 							</Stack>
 						</Grid>
-						<Grid item xs={6} md={2}>
+						<Grid size={{ xs: 6, md: 2 }}>
 							<Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
 								Company
 							</Typography>
@@ -709,7 +707,7 @@ const LandingPage = () => {
 								</Typography>
 							</Stack>
 						</Grid>
-						<Grid item xs={6} md={2}>
+						<Grid size={{ xs: 6, md: 2 }}>
 							<Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
 								Resources
 							</Typography>
@@ -756,7 +754,7 @@ const LandingPage = () => {
 								</Typography>
 							</Stack>
 						</Grid>
-						<Grid item xs={6} md={2}>
+						<Grid size={{ xs: 6, md: 2 }}>
 							<Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
 								Legal
 							</Typography>

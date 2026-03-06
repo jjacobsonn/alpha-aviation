@@ -1,12 +1,9 @@
 import { render } from '@testing-library/react';
 import App from '../App';
 
-jest.mock('react-modal', () => {
-  // mock setAppElement so it does nothing in the test environment
-  const Modal = ({ children }) => <div>{children}</div>;
-  Modal.setAppElement = jest.fn();
-  return Modal;
-});
+jest.mock('../shared/Api', () => ({
+  makeApiRequest: jest.fn(() => Promise.resolve({}))
+}));
 
 test('renders without crashing', () => {
   render(<App />);
