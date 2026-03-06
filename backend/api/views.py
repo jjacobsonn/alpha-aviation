@@ -12,6 +12,16 @@ from rest_framework import viewsets, permissions
 from .models import *
 from .serializers import *
 
+from rest_framework import viewsets, permissions
+from .models import (
+    Company, Profile, Aircraft, Part,
+    Discrepancy, WorkOrder
+)
+from .serializers import (
+    CompanySerializer, ProfileSerializer, AircraftSerializer,
+    PartSerializer, DiscrepancySerializer, WorkOrderSerializer
+)
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):

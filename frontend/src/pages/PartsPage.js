@@ -1,4 +1,5 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
+import '../theme.css';
 import { useState } from "react";
 import {
   Box,
