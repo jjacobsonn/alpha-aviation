@@ -55,7 +55,7 @@ class AircraftSerializer(serializers.ModelSerializer):
     class Meta:
         model = Aircraft
         fields = [
-            'id', 'registration_number', 'model', 'manufacturer',
+            'id', 'registration_number', 'model', 'manufacturer', 'company_name',
             'engine_type', 'year_built', 'company',
         ]
 
@@ -66,7 +66,7 @@ class PartSerializer(serializers.ModelSerializer):
     class Meta:
         model = Part
         fields = [
-            'id', 'part_number', 'name', 'description', 'aircraft',
+            'id', 'part_number', 'name', 'description', 'aircraft', 'aircraft_name',
         ]
 
 

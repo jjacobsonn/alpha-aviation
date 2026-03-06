@@ -117,21 +117,29 @@ def available_aircraft_view(request):
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    
     aircraft_id = request.GET.get('aircraft_id')
 
     start_date = parse_datetime(start_date_str)
     end_date = parse_datetime(end_date_str)
 
+
+    if start_date and timezone.is_naive(start_date):
+        start_date = timezone.make_aware(start_date, timezone.get_current_timezone())
+    if end_date and timezone.is_naive(end_date):
+        end_date = timezone.make_aware(end_date, timezone.get_current_timezone())
     if not start_date or not end_date:
-        return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        return Response({'error': 'start_date and end_date are required'}, status=400)
     if start_date > end_date:
-        return JsonResponse({'error': 'start_date must be before end_date'}, status=400)
+        return Response({'error': 'start_date must be before end_date'}, status=400)
 
     if aircraft_id:
         try:
             aircraft_id = int(aircraft_id)
         except ValueError:
-            return JsonResponse({'error': 'aircraft_id must be an integer'}, status=400)
+            return Response({'error': 'aircraft_id must be an integer'}, status=400)
         available_aircraft = company.availability(start_date, end_date, aircraft_id=aircraft_id)
     else:
         available_aircraft = company.availability(start_date, end_date)
@@ -144,6 +152,8 @@ def available_aircraft_view(request):
 @permission_classes([IsAuthenticated])
 def flight_list_view(request):
     company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     aircraft_id = request.GET.get('aircraft_id')
@@ -151,15 +161,15 @@ def flight_list_view(request):
     start_date = parse_date(start_date_str)
     end_date = parse_date(end_date_str)
     if not start_date or not end_date:
-        return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        return Response({'error': 'start_date and end_date are required'}, status=400)
     if start_date > end_date:
-        return JsonResponse({'error': 'start_date must be before end_date'}, status=400)
+        return Response({'error': 'start_date must be before end_date'}, status=400)
     
     if aircraft_id:
         try:
             aircraft_id = int(aircraft_id)
         except ValueError:
-            return JsonResponse({'error': 'aircraft_id must be an integer'}, status=400)
+            return Response({'error': 'aircraft_id must be an integer'}, status=400)
         flights = company.calendar_flights(start_date, end_date, aircraft_id=aircraft_id)
     else:
         flights = company.calendar_flights(start_date, end_date)
@@ -172,6 +182,8 @@ def flight_list_view(request):
 @permission_classes([IsAuthenticated])
 def management_dashboard_view(request):
     company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
     data = company.get_management_dashboard_data()
     return Response(data)
     
