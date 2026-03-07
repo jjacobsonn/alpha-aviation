@@ -73,7 +73,7 @@ class Profile(AbstractUser):
     company_role = models.CharField(max_length= 255, choices=role_choices, default='pilot' )
     middle_name = models.CharField(max_length=150, blank=True, null=True)
     employee_id = models.PositiveIntegerField(null=True, blank=True)
-    phone_number = models.CharField(max_length=10, blank=True, null=True, help_text="Numbers only, do not add \"(\", \")\" or \"-\" ")
+    phone_number = models.PositiveIntegerField(max_length=10, blank=True, null=True)
     profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
 
     def clean(self):
