@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Company, Profile, Aircraft, Part,
-    Discrepancy, WorkOrder, Flight, Flight
+    Discrepancy, WorkOrder, Flight
 )
 
 
@@ -42,6 +42,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         if not instance.is_mechanic():
             data.pop('AP_certificate_number', None)
             data.pop('inspector_authentication', None)
+
+        return data
 
 
 ####
