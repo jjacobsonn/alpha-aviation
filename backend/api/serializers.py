@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Company, Profile, Aircraft, Part,
-    Discrepancy, WorkOrder, Flight, Flight
+    Discrepancy, WorkOrder, Flight
 )
 
 
@@ -25,7 +25,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'id', 'username', 'first_name', 'last_name', 'middle_name', 'profile_image',
+            'id', 'username', 'first_name', 'last_name', 'middle_name', 'profile_img',
             'email', 'employee_id', 'phone_number',
             'company', 'company_role',
             'medically_cleared_until', 'pilot_certificate',
@@ -42,6 +42,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         if not instance.is_mechanic():
             data.pop('AP_certificate_number', None)
             data.pop('inspector_authentication', None)
+
+        return data
 
 
 ####
