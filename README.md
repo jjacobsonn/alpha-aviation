@@ -15,12 +15,12 @@ Monorepo for the Alpha Aviation application: backend API and web frontend.
 
 ## Table of Contents
 
-- [Live links](#-live-links)
-- [About](#-about)
-- [Repository structure](#-repository-structure)
-- [How to run](#-how-to-run)
-- [Deployment](#-deployment)
-- [License](#-license)
+- [Live links](#live-links)
+- [About](#about)
+- [Repository structure](#repository-structure)
+- [How to run](#how-to-run)
+- [Deployment](#deployment)
+- [License](#license)
 
 **Documentation** ([docs/](docs/)):
 

@@ -1,10 +1,12 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
+import '../theme.css';
 import { useState } from "react";
 import {
   Box,
   IconButton,
   Stack,
   Table,
+  TableBody,
   TableCell,
   TableHead,
   TableRow,
@@ -207,6 +209,7 @@ function PartsPage() {
         >
           {dashboardNumbers.map((item) => (
             <Box
+              key={item.title}
               sx={{
                 display: "flex",
                 flexDirection: "column",
@@ -256,40 +259,40 @@ function PartsPage() {
           <Table sx={{ minWidth: "100%" }}>
             <TableHead>
               <TableRow>
-                {inventoryFields.map((item, index) => {
-                  const keys = Object.keys(columnWidths);
-                  return <TableCell>{item}</TableCell>;
+                {inventoryFields.map((item) => {
+                  return <TableCell key={item}>{item}</TableCell>;
                 })}
               </TableRow>
             </TableHead>
+            <TableBody>
+              {inventoryData.map((item) => {
+                const status = currentStatus(
+                  item.inStock,
+                  item.minMax,
+                  item.expiration
+                );
+                const color = getStatusColor(status);
 
-            {inventoryData.map((item) => {
-              const status = currentStatus(
-                item.inStock,
-                item.minMax,
-                item.expiration
-              );
-              const color = getStatusColor(status);
-
-              return (
-                <TableRow sx={{ bgcolor: color }}>
-                  <TableCell>{item.pn}</TableCell>
-                  <TableCell>{item.partName}</TableCell>
-                  <TableCell>{item.oem}</TableCell>
-                  <TableCell>{item.vendor}</TableCell>
-                  <TableCell>{item.inStock}</TableCell>
-                  <TableCell>{item.minMax}</TableCell>
-                  <TableCell>{item.location}</TableCell>
-                  <TableCell>{item.condition}</TableCell>
-                  <TableCell>{item.expiration}</TableCell>
-                  <TableCell>
-                    <IconButton onClick={(e) => openMenu(e, item)}>
-                      <MoreVertIcon></MoreVertIcon>
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                return (
+                  <TableRow key={item.pn} sx={{ bgcolor: color }}>
+                    <TableCell>{item.pn}</TableCell>
+                    <TableCell>{item.partName}</TableCell>
+                    <TableCell>{item.oem}</TableCell>
+                    <TableCell>{item.vendor}</TableCell>
+                    <TableCell>{item.inStock}</TableCell>
+                    <TableCell>{item.minMax}</TableCell>
+                    <TableCell>{item.location}</TableCell>
+                    <TableCell>{item.condition}</TableCell>
+                    <TableCell>{item.expiration}</TableCell>
+                    <TableCell>
+                      <IconButton onClick={(e) => openMenu(e, item)}>
+                        <MoreVertIcon></MoreVertIcon>
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
           </Table>
           <Menu
             anchorEl={menuAnchor}
@@ -310,7 +313,6 @@ function PartsPage() {
 
             <MenuItem
               onClick={() => {
-                console.log("Edit", selectedPart);
                 closeMenu();
               }}
             >

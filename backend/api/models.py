@@ -60,6 +60,156 @@ class Company(models.Model):
         }
         return data
 
+    #Endpoint for all of the users that belong to this company
+    def get_user_data(self):
+        users = self.users.all()
+        user_data = []
+        for user in users:
+            user_data.append({
+                'id': user.id,
+                "profile_img": user.profile_img.url if user.profile_img else None,
+                'username': user.username,
+                'first_name': user.first_name,
+                'middle_name': user.middle_name,
+                'last_name': user.last_name,
+                'email': user.email,
+                'employee_id': user.employee_id,
+                'phone_number': user.phone_number,
+                'company_role': user.company_role,
+            })
+        return user_data
+    
+    #For endpoint for all of the aircraft that is under this company
+    def get_aircraft_data(self):
+        aircraft = self.aircraft.all()
+        aircraft_data = []
+        for plane in aircraft:
+            aircraft_data.append({
+                'id': plane.id,
+                'registration_number': plane.registration_number,
+                'model': plane.model,
+                'manufacturer': plane.manufacturer,
+                'engine_type': plane.engine_type,
+                'year_built': plane.year_built,
+            })
+        return aircraft_data
+    
+    #For endpoint for all of the flights that is under this company
+    def get_flight_data(self):
+        flights = self.flights.all()
+        flight_data = []
+        for flight in flights:
+            flight_data.append({
+                'id': flight.id,
+                'flight_number': flight.flight_number,
+                'aircraft_id': flight.aircraft.id,
+                'aircraft_manufacturer': flight.aircraft.manufacturer,
+                'aircraft_model': flight.aircraft.model,
+                'aircraft_registration': flight.aircraft.registration_number,
+                'aircraft_engine_type': flight.aircraft.engine_type,
+                'aircraft_year_built': flight.aircraft.year_built,
+                'origin': flight.origin,
+                'destination': flight.destination,
+                'departure_time': flight.departure_time,
+                'arrival_time': flight.arrival_time,
+                'route': flight.route,
+                'flight_type': flight.flight_type,
+                'pilot_requirement': flight.pilot_requirement,
+                'status': flight.status,
+            })
+        return flight_data
+
+    #for endpoint for all of the parts in the inventory that is under this company
+    def get_inventory_data(self):
+        inventory_data = []
+
+        for inventory in self.inventories.all():
+            for item in inventory.inventorypart_set.all():
+                inventory_data.append({
+                    "id": item.id,
+                    "part_number": item.part.part_number,
+                    "name": item.part.name,
+                    "description": item.part.description,
+                    "aircraft": item.part.aircraft.model if item.part.aircraft else None,
+                    "quantity": item.quantity,
+                    "stock_alert": item.stock_alert,
+                    "stock_alert_percentage": item.stock_alert_percentage,
+                    "shop_location": item.shop_location,
+                })
+
+        return inventory_data
+
+    #for endpoint for all of the workorders that is under this company
+    def get_workorders_data(self):
+        aircrafts = self.aircraft.all()
+        workorder_data = []
+        for aircraft in aircrafts:
+            workorders = aircraft.work_orders.all()
+            for workorder in workorders:
+                workorder_data.append({
+                    'id': workorder.id,
+                    'title': workorder.title,
+                    'created_by': (workorder.created_by.first_name, workorder.created_by.last_name),
+                    'description': workorder.description,
+                    'parts_needed': [
+                        {
+                        'name':item.part.name,
+                        'quantity':item.quantity
+                        } for item in workorder.workorderpart_set.all()],
+                    'status': workorder.status,
+                    'created_at': workorder.created_at,
+                    'updated_at': workorder.updated_at,
+                    'due_by':workorder.due_by,
+                    'aircraft': {'registration_number':workorder.aircraft.registration_number, 'model':workorder.aircraft.model},
+                    'tach_time':workorder.tach_time,
+                    'hobbs_time':workorder.hobbs_time,
+                    'ATA_code':workorder.ATA_code,
+                    'components_affected': workorder.components_affected,
+                    'components_image':workorder.components_image.url if workorder.components_image else None,
+                    'signed_by': (workorder.signed_by.first_name, workorder.signed_by.last_name) if workorder.signed_by else None,
+                    'signature':workorder.signature.url if workorder.signature else None,
+                    'signature_date': workorder.signature_date,
+                })
+        return workorder_data
+
+    #for endpoint for all of the discrepancies that is under this company
+    def get_discrepancy_data(self):
+        aircrafts = self.aircraft.all()
+        discrepancy_data = []
+        for aircraft in aircrafts:
+            discrepancies = aircraft.discrepancies.all()
+            for discrepancy in discrepancies:
+                discrepancy_data.append({
+                    'work_order': (discrepancy.work_order.id, discrepancy.work_order.title) if discrepancy.work_order else None,
+                    'aircraft': {'registration_number':discrepancy.aircraft.registration_number, 'model':discrepancy.aircraft.model},
+                    'reporter': (discrepancy.reporter.first_name, discrepancy.reporter.last_name),
+                    'date_reported': discrepancy.date_reported,
+                    'description': discrepancy.description,
+                    'ata_code': discrepancy.ata_code,
+                    'tach_time': discrepancy.tach_time,
+                    'status': discrepancy.status
+                })
+        return discrepancy_data
+
+    #for end point that returns every user in the company that is the role that is given
+    def get_company_role_data(self, role):
+        profiles = self.users.all()
+        role_out = []
+        for profile in profiles:
+            if profile.company_role == role:
+                role_out.append({
+                    'id': profile.id,
+                    "profile_img": profile.profile_img.url if profile.profile_img else None,
+                    'username': profile.username,
+                    'first_name': profile.first_name,
+                    'middle_name': profile.middle_name,
+                    'last_name': profile.last_name,
+                    'email': profile.email,
+                    'employee_id': profile.employee_id,
+                    'phone_number': profile.phone_number,
+                    'company_role': profile.company_role,
+                })
+        return role_out
 #Profile models, assigned to a company, with a role in the company, and basic profile information. Has functions for is_(company_role).
 class Profile(AbstractUser):
     role_choices = [
@@ -73,7 +223,7 @@ class Profile(AbstractUser):
     company_role = models.CharField(max_length= 255, choices=role_choices, default='pilot' )
     middle_name = models.CharField(max_length=150, blank=True, null=True)
     employee_id = models.PositiveIntegerField(null=True, blank=True)
-    phone_number = models.PositiveIntegerField(max_length=10, blank=True, null=True)
+    phone_number = models.CharField(max_length=10, blank=True, null=True)
     profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
 
     def clean(self):
@@ -177,28 +327,33 @@ class Part(models.Model):
 #Inventory model, is to show the inventory of parts for the company, points to company and part. Has a function(low_stock) to show the if the stock is lower than the stock alert percentage.
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
+    parts = models.ManyToManyField(Part, blank=True, through='InventoryPart', related_name="inventories")
+
+    def __str__(self):
+        items =self.inventorypart_set.all()
+        if not items:
+            return f"Inventory for {self.company.name} with no parts"
+        return ",".join([f"{item.part.name} (Qty: {item.quantity})" for item in items])
+
+#sub model for inventory to have a list of parts and their quantities, since inventory can have multiple parts and parts can be in multiple inventories.
+class InventoryPart(models.Model):
+    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
     part = models.ForeignKey(Part, on_delete=models.CASCADE)
-
-    last_inspected = models.DateField(null= True)
-    inspection_due_in = models.PositiveIntegerField(null= True, blank=True, help_text="Days")
-
-    in_stock = models.PositiveIntegerField(default=0)
+    quantity = models.PositiveIntegerField()
     stock_alert = models.PositiveIntegerField(default=0, help_text="Number where stock needs to be reordered")
     stock_alert_percentage = models.FloatField(validators=[MinValueValidator(0), MaxValueValidator(1)], default= .10, help_text="What percentile low stock warning shows up")
     shop_location = models.CharField(max_length=100, blank= True, null= True)
-    
+
     def low_stock(self):
         return (
-            self.stock_alert >= self.in_stock * (1 + self.stock_alert_percentage)
-            or self.stock_alert >= self.in_stock - 1
+            self.stock_alert >= self.quantity * (1 + self.stock_alert_percentage)
+            or self.stock_alert >= self.quantity - 1
         )
 
     low_stock.boolean = True
     low_stock.short_description = "Low Stock?"
-
     def __str__(self):
-        return f"{self.part.name} with {self.in_stock} in stock"
-
+        return f"{self.part.name} in {self.inventory.company.name} with {self.quantity} in stock"
 #Work order model, points to an aircraft, and the profile that created the work order, can have any number of parts needed. and other basic information needed for a work order.
 class WorkOrder(models.Model):
     STATUS_CHOICES = [
@@ -244,7 +399,7 @@ class Discrepancy(models.Model):
     ]
     work_order = models.ForeignKey(WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="discrepancies")
     aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="discrepancies")
-    reporter = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
+    reporter = models.ForeignKey(Profile, on_delete=models.CASCADE)
     date_reported = models.DateField(auto_now_add=True)
     description = models.CharField(max_length=200)
     ata_code = models.CharField(max_length=50, blank=True)
@@ -328,4 +483,4 @@ class Flight(models.Model):
 
         if errors:
             raise ValidationError(errors)
-    #endpoints for managements
+

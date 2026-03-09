@@ -259,10 +259,12 @@ Returns a single company by ID.
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 404 NOT FOUND — `{ "detail": "No Company matches the given query." }`
 
+
+
 ---
 
-### GET /api/management/dashboard/
-Returns summary statistics for the authenticated user's company.
+### GET /api/company/users/
+Returns all users belonging to the authenticated user's company
 * URL Params: None
 * Data Params: None
 * Headers:
@@ -272,16 +274,209 @@ Returns summary statistics for the authenticated user's company.
     * Code: 200
     * Content:
         ```json
-        {
-            "total_aircraft": 5,
-            "total_flights": 42,
-            "total_discrepancies": 8,
-            "total_work_orders": 3
-        }
+        [
+            {
+                "id":1,
+                "profile_img": "http://example.com/media/profile_pics/jdoe.jpg",
+                "username": "jdoe",
+                "first_name": "John",
+                "middle_name": "Michael",
+                "last_name": "Doe",
+                "email": "jdoe@example.com",
+                "employee_id": 1001,
+                "phone_number": 5555555555,
+                "company_role": "pilot"
+            }
+        ]
         ```
 * Error Response:
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+
+---
+
+### GET /api/company/aircrafts/
+Returns all aircraft belonging to the authenticated user's company
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "registration_number": 12345,
+                "model": "Cessna 172",
+                "manufacturer": "Cessna",
+                "engine_type": "Lycoming O-320",
+                "year_built": 2005
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+---
+
+### GET /api/company/flights/
+Returns all flights belonging to the authenticated user's company
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "flight_number": "ACM-001",
+                "aircraft_id": 1,
+                "aircraft_manufacturer": "Cessna",
+                "aircraft_model": "Cessna 172",
+                "aircraft_registration": 12345,
+                "aircraft_engine_type": "Lycoming O-320",
+                "aircraft_year_built": 2005,
+                "origin": "KSLC",
+                "destination": "KOGD",
+                "departure_time": "2026-03-10T09:00:00Z",
+                "arrival_time": "2026-03-10T10:30:00Z",
+                "route": "Direct",
+                "flight_type": "training",
+                "pilot_requirement": "private",
+                "status": "scheduled"
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+---
+
+### GET /api/company/inventories/
+Returns all inventories belonging to the authenticated user's company
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "part_number": "PN-1234",
+                "name": "Oil Filter",
+                "description": "Standard oil filter for Lycoming engines",
+                "aircraft": "Cessna 172",
+                "quantity": 5,
+                "stock_alert": 2,
+                "stock_alert_percentage": 0.1,
+                "shop_location": "Shelf A3"
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+---
+
+### GET /api/company/workorders/
+Returns all workorders belonging to the authenticated user's company
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "title": "Missing an engine",
+                "created_by": [
+                    "Kyle",
+                    "Bluemel"
+                ],
+                "description": "There is not an engine",
+                "parts_needed": [
+                    {
+                        "name": "Bolt",
+                        "quantity": 2
+                    },
+                    {
+                        "name": "Hose clamp",
+                        "quantity": 4
+                    }
+                ],
+                "status": "open",
+                "created_at": "2026-02-18T17:50:15.007901Z",
+                "updated_at": "2026-03-09T18:34:59.762609Z",
+                "due_by": "2026-03-09",
+                "aircraft": {
+                    "registration_number": 1,
+                    "model": "first"
+                },
+                "tach_time": 324.0,
+                "hobbs_time": 666.0,
+                "ATA_code": 33423,
+                "components_affected": "engine",
+                "components_image": "/work_order_components/engine.jpg",
+                "signed_by": [
+                    "Kyle",
+                    "Bluemel"
+                ],
+                "signature": "/work_order_signatures/engine.jpg",
+                "signature_date": "2026-03-09"
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+---
+
+### GET /api/company/role/
+Returns all users that have the given role that belongs to the authenticated user's company
+* URL Params: role = profile.role_choices#currently is 'owner', 'mechanic', 'dispatcher', 'pilot' or 'manager'
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "profile_img": null,
+                "username": "Kyle",
+                "first_name": "Kyle",
+                "middle_name": "Steven",
+                "last_name": "Bluemel",
+                "email": "10947011@uvu.edu",
+                "employee_id": 3,
+                "phone_number": "8014208071",
+                "company_role": "pilot"
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+    * Code: 400 BAD REQUEST — `{'error': 'Role parameter is required'}`
+    * Code: 400 BAD REQUEST — `{'error': 'Given role is not a valid role.'}`
 
 ---
 
