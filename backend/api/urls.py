@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     health, login, token_refresh, logout, user_profile,
     CompanyViewSet, ProfileViewSet, AircraftViewSet,
-    PartViewSet, DiscrepancyViewSet, WorkOrderViewSet
+    PartViewSet, DiscrepancyViewSet, WorkOrderViewSet, FlightViewSet
 )
 
 router = DefaultRouter()
@@ -13,6 +13,9 @@ router.register(r'aircraft', AircraftViewSet, basename='aircraft')
 router.register(r'parts', PartViewSet, basename='parts')
 router.register(r'discrepancies', DiscrepancyViewSet, basename='discrepancies')
 router.register(r'workorders', WorkOrderViewSet, basename='workorders')
+
+#Permissions
+router.register(r'flights', FlightViewSet, basename='flights')
 
 urlpatterns = [
     path('health/', health, name='health'),

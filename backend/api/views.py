@@ -10,11 +10,12 @@ from rest_framework.response import Response
 from rest_framework import viewsets, permissions
 from .models import (
     Company, Profile, Aircraft, Part,
-    Discrepancy, WorkOrder
+    Discrepancy, WorkOrder, Flight
 )
+from .permissions import IsMechanicOrManager, IsManagerOrOwner, IsOwner, IsOwnProfileOrManager
 from .serializers import (
     CompanySerializer, ProfileSerializer, AircraftSerializer,
-    PartSerializer, DiscrepancySerializer, WorkOrderSerializer
+    PartSerializer, DiscrepancySerializer, WorkOrderSerializer, FlightSerializer
 )
 
 @api_view(['GET'])
@@ -121,13 +122,24 @@ def user_profile(request):
 class CompanyViewSet(viewsets.ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwner()]
+        return [IsAuthenticated()]
 
 
 class ProfileViewSet(viewsets.ModelViewSet):
     queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsOwner()]
+        if self.action in ['list', 'create']:
+            return [IsManagerOrOwner()]
+        # retrieve, update, partial_update — own profile or manager
+        return [IsOwnProfileOrManager()]
 
 
 ####
@@ -138,23 +150,44 @@ class ProfileViewSet(viewsets.ModelViewSet):
 class AircraftViewSet(viewsets.ModelViewSet):
     queryset = Aircraft.objects.all()
     serializer_class = AircraftSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsManagerOrOwner()]
+        return [IsAuthenticated()]
 
 
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
     serializer_class = PartSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsMechanicOrManager]
 
 
 class DiscrepancyViewSet(viewsets.ModelViewSet):
     queryset = Discrepancy.objects.all().order_by('-date_reported')
     serializer_class = DiscrepancySerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsAuthenticated()]
+        return [IsMechanicOrManager()]
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
     queryset = WorkOrder.objects.all().order_by('-created_at')
     serializer_class = WorkOrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsManagerOrOwner()]
+        return [IsMechanicOrManager()]
+
+class FlightViewSet(viewsets.ModelViewSet):
+    queryset = Flight.objects.all()
+    serializer_class = FlightSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsManagerOrOwner()]
+        return [IsAuthenticated()]
 
