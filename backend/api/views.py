@@ -130,7 +130,7 @@ def available_aircraft_view(request):
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
     
-    aircraft_id = request.GET.get('aircraft_id')
+    aircraft_id = request.GET.get('aircraft_id')#optional
 
     start_date = parse_datetime(start_date_str)
     end_date = parse_datetime(end_date_str)
@@ -196,7 +196,87 @@ def management_dashboard_view(request):
         return Response({'error': 'User does not have an associated company'}, status=403)
     data = company.get_management_dashboard_data()
     return Response(data)
-    
+###
+#endpoints for all of the company submodels
+###
+
+#endpoint for company's users
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_user_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_user_data()
+    return Response(data)
+
+#endpoint for company's aircrafts
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_aircraft_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_aircraft_data()
+    return Response(data)
+
+#endpoint for company's flights
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_flights_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_flight_data()
+    return Response(data)
+
+#endpoint for company's inventories
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_inventory_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_inventory_data()
+    return Response(data)
+
+#endpoint for company's workorders
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_workorders_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_workorders_data()
+    return Response(data)
+
+#endpoint for company's discrepancies
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_discrepancies_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_discrepancy_data()
+    return Response(data)
+
+#endpoint that takes in the role that is wanted and checks the user in the company that is that role
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_role_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    role = request.GET.get("role")
+    if not role:
+        return Response({'error': 'Role parameter is required'}, status=400)
+    valid_roles = [r[0] for r in Profile.role_choices]
+
+    if role not in valid_roles:
+        return Response({'error': 'Given role is not a valid role.'}, status=400)
+    data = company.get_company_role_data(role)
+    return Response(data)
+
 ####
 # User Profile
 ####
@@ -206,7 +286,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [permissions.IsAuthenticated]
-
 
 class ProfileViewSet(viewsets.ModelViewSet):
     queryset = Profile.objects.all()
@@ -224,18 +303,15 @@ class AircraftViewSet(viewsets.ModelViewSet):
     serializer_class = AircraftSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
     serializer_class = PartSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-
 class DiscrepancyViewSet(viewsets.ModelViewSet):
     queryset = Discrepancy.objects.all().order_by('-date_reported')
     serializer_class = DiscrepancySerializer
     permission_classes = [permissions.IsAuthenticated]
-
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
     queryset = WorkOrder.objects.all().order_by('-created_at')

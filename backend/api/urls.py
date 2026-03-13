@@ -20,6 +20,13 @@ urlpatterns = [
     path('aircraft/availability/', available_aircraft_view, name='aircraft-availability'),
     path('flights/calendar/', flight_list_view, name='flight-calendar'),
     path('management/dashboard/', management_dashboard_view, name='management-dashboard'),
+    path('company/users/', company_user_view, name='company-users'),
+    path('company/inventories/', company_inventory_view, name='company-inventory'),
+    path('company/aircrafts/', company_aircraft_view, name='company-aircraft'),
+    path('company/flights/', company_flights_view, name='company-flights'),
+    path('company/workorders/', company_workorders_view, name='company-workorders'),
+    path('company/discrepancies/', company_discrepancies_view, name = "company-discrepancies"),
+    path('company/role/', company_role_view, name = "company-role"),
     path('', include(router.urls)),
     
 ]

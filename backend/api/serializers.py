@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Company, Profile, Aircraft, Part,
-    Discrepancy, WorkOrder, Flight, Flight
+    Discrepancy, WorkOrder, Flight
 )
 
 
@@ -17,7 +17,6 @@ class CompanySerializer(serializers.ModelSerializer):
             'id', 'name', 'created_at', 'updated_at', 'locations',
         ]
 
-
 class ProfileSerializer(serializers.ModelSerializer):
     # ProfileSerializer — medically_cleared_until, pilot_certificate,
     # AP_certificate_number, and inspector_authentication don't exist
@@ -25,7 +24,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'id', 'username', 'first_name', 'last_name', 'middle_name', 'profile_image',
+            'id', 'username', 'first_name', 'last_name', 'middle_name', 'profile_img',
             'email', 'employee_id', 'phone_number',
             'company', 'company_role',
             'medically_cleared_until', 'pilot_certificate',
@@ -43,6 +42,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             data.pop('AP_certificate_number', None)
             data.pop('inspector_authentication', None)
 
+        return data
+
 
 ####
 # Maintenance Dashboard
@@ -59,7 +60,6 @@ class AircraftSerializer(serializers.ModelSerializer):
             'engine_type', 'year_built', 'company',
         ]
 
-
 class PartSerializer(serializers.ModelSerializer):
     # display field added - CHECK - Not yet included in fields
     aircraft_name = serializers.CharField(source='aircraft.model', read_only=True)
@@ -68,7 +68,6 @@ class PartSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'part_number', 'name', 'description', 'aircraft', 'aircraft_name',
         ]
-
 
 class DiscrepancySerializer(serializers.ModelSerializer):
     reporter_name = serializers.CharField(source='reporter.username', read_only=True)
@@ -79,7 +78,6 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             'id', 'work_order', 'aircraft', 'reporter', 'reporter_name',
             'date_reported', 'description', 'ata_code', 'tach_time', 'status',
         ]
-
 
 class WorkOrderSerializer(serializers.ModelSerializer):
     class Meta:

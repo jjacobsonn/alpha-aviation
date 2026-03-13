@@ -34,6 +34,7 @@ class AircraftInline(admin.TabularInline):
     extra = 1
     inlines = [WorkOrderInline, DiscrepancyInline]
 
+
 class AircraftAdmin(admin.ModelAdmin):
       inlines = [WorkOrderInline, DiscrepancyInline]
       search_fields = ["registration_number", "model"]
@@ -99,16 +100,17 @@ class PartInline(admin.TabularInline):
 class PartAdmin(admin.ModelAdmin):
       search_fields = ["part_number", "name"]
 
+class InventoryPartInline(admin.TabularInline):
+      model = InventoryPart
+      extra = 1
+
 class InventoryAdmin(admin.ModelAdmin):
-      search_fields = ["part__part_number", "part__name", "shop_location"]
+      search_fields = ["shop_location"]
+      inlines = [InventoryPartInline]
 
 class InventoryInline(admin.TabularInline):
       model = Inventory
       extra = 0
-      readonly_fields =("low_stock",)
-      fields = ("part", "in_stock", "last_inspected", "inspection_due_in", "stock_alert", "shop_location", "low_stock")
-      autocomplete_fields = ["part"]
-
 class FlightAdmin(admin.ModelAdmin):
     fields = ['company', 'aircraft', 'primary_pilot', "secondary_pilot", 'origin', 'destination', 'departure_time', 'arrival_time']
     search_fields = ['aircraft__registration_number', 'aircraft__model', 'origin', 'destination']
