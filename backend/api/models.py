@@ -19,9 +19,10 @@ class Company(models.Model):
 class Profile(AbstractUser):
     role_choices = [
         ('owner', 'Owner'),
+        ('manager', 'Manager'),
         ('mechanic', 'Mechanic'),
         ('pilot', 'Pilot'),
-        ('manager', 'Manager'),
+        ('dispatcher', 'Dispatcher'),
     ]
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="Users", null=True, blank=True)
     company_role = models.CharField(max_length= 255, choices=role_choices, default='pilot' )
@@ -70,6 +71,8 @@ class Profile(AbstractUser):
     def is_manager(self):
         return self.company_role == 'manager'
     
+    def is_dispatcher(self):
+        return self.company_role == 'dispatcher'
     
 class Pilot(models.Model):
     profile = models.OneToOneField(
@@ -85,7 +88,7 @@ class Pilot(models.Model):
         ('commercial', 'Commercial'),#3
         ('airline', 'Airline'),#4
     ]
-    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')
+    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default='none')
     
 
     def is_cleared_to_fly(self, flight_date):
@@ -103,7 +106,9 @@ class Pilot(models.Model):
             'commercial': 3,
             'airline': 4,
         }
-        return levels[self.pilot_certificate] >= levels[required]
+        current_level = levels.get(self.pilot_certificate, 0)
+        required_level = levels.get(required, 0)
+        return current_level >= required_level
 
 class Mechanic(models.Model):
     profile = models.OneToOneField(
@@ -118,7 +123,7 @@ class Mechanic(models.Model):
 
 
 class Aircraft(models.Model):
-    registration_number = models.IntegerField()
+    registration_number = models.CharField(max_length=50)
     model = models.CharField(max_length=200)
     manufacturer = models.CharField(max_length=200)
     engine_type = models.CharField(max_length=200, null= True)
@@ -152,10 +157,13 @@ class Inventory(models.Model):
     shop_location = models.CharField(max_length=100, blank= True, null= True)
     
     def low_stock(self):
-        return (
-            self.stock_alert >= self.in_stock * (1 + self.stock_alert_percentage)
-            or self.stock_alert >= self.in_stock - 1
-        )
+        """
+        Consider this item low stock when current quantity is less than
+        or equal to the alert threshold.
+        """
+        if self.in_stock is None or self.stock_alert is None:
+            return False
+        return self.in_stock <= self.stock_alert
 
     low_stock.boolean = True
     low_stock.short_description = "Low Stock?"
@@ -228,3 +236,90 @@ class Flight(models.Model):
 
         if errors:
             raise ValidationError(errors)
+
+
+class WorkOrder(models.Model):
+    STATUS_CHOICES = [
+        ("open", "Open"),
+        ("in_progress", "In Progress"),
+        ("awaiting_parts", "Awaiting Parts"),
+        ("closed", "Closed"),
+    ]
+
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="work_orders"
+    )
+    created_by = models.ForeignKey(
+        Profile, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    parts_needed = models.ManyToManyField(
+        Part, blank=True, through="WorkOrderPart"
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=50, choices=STATUS_CHOICES, default="open"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    due_by = models.DateField(null=True, blank=True)
+    tach_time = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+    hobbs_time = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+    ATA_code = models.IntegerField(null=True, blank=True)
+    components_affected = models.CharField(max_length=200, blank=True)
+    components_image = models.ImageField(
+        upload_to="work_order_components/", null=True, blank=True
+    )
+    signed_by = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="signed_work_orders",
+    )
+    signature = models.ImageField(
+        upload_to="work_order_signatures/", null=True, blank=True
+    )
+    signature_date = models.DateField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Work Order #{self.id} - {self.aircraft.registration_number}"
+
+
+class WorkOrderPart(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+
+
+class Discrepancy(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("closed", "Closed"),
+    ]
+
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discrepancies",
+    )
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="discrepancies"
+    )
+    reporter = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    date_reported = models.DateField(auto_now_add=True)
+    description = models.CharField(max_length=200)
+    ata_code = models.CharField(max_length=50, blank=True)
+    tach_time = models.CharField(max_length=100, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending"
+    )
+
+    def __str__(self):
+        return f"Discrepancy on {self.aircraft} ({self.status})"

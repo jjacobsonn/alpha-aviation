@@ -19,10 +19,39 @@ class CustomUserAdmin(UserAdmin):
       inlines = []
       readonly_fields = ("profile_img_preview",)
       fieldsets = (
-            ('Personal info', {'fields': ('first_name', 'middle_name', 'last_name', 'profile_img', 'profile_img_preview')}),
-            ('Company Info', {'fields': ('company', 'phone_number', 'email', 'employee_id', 'company_role')}),
-            ('Web Permissions', {'fields':('is_active', 'is_staff', 'is_superuser','groups', 'user_permissions')}),
-            ('Important Dates', {'fields':('last_login', 'date_joined')}),
+            ('Personal info', {
+                  'fields': (
+                        'first_name',
+                        'middle_name',
+                        'last_name',
+                        'profile_img',
+                        'profile_img_preview',
+                  )
+            }),
+            ('Company Info', {
+                  'fields': (
+                        'company',
+                        'phone_number',
+                        'email',
+                        'employee_id',
+                        'company_role',
+                  )
+            }),
+            ('Authentication', {
+                  'fields': ('password',)
+            }),
+            ('Web Permissions', {
+                  'fields': (
+                        'is_active',
+                        'is_staff',
+                        'is_superuser',
+                        'groups',
+                        'user_permissions',
+                  )
+            }),
+            ('Important Dates', {
+                  'fields': ('last_login', 'date_joined')
+            }),
       )
 
       add_fieldsets = (
@@ -52,8 +81,9 @@ class CustomUserAdmin(UserAdmin):
 
 class UserInline(admin.TabularInline):
       model = Profile
-      fields = ('first_name', 'middle_name', 'last_name', 'profile_img', 'phone_number', 'email', 'employee_id', 'company_role', 'last_login', 'date_joined')
-      readonly_fields = ('first_name', 'middle_name', 'last_name', 'phone_number', 'email', 'last_login', 'date_joined')
+      # Compact but useful: show login + basic identity + contact + role.
+      fields = ('username', 'first_name', 'middle_name', 'last_name', 'phone_number', 'email', 'company_role')
+      readonly_fields = ()
       extra = 0
 
 class PilotInfoInline(admin.StackedInline):
@@ -83,8 +113,9 @@ class PartAdmin(admin.ModelAdmin):
 class InventoryInline(admin.TabularInline):
       model = Inventory
       extra = 0
-      readonly_fields =("low_stock",)
-      fields = ("part", "in_stock", "last_inspected", "inspection_due_in", "stock_alert", "shop_location", "low_stock")
+      # Show only the most important, easy-to-understand fields inline.
+      readonly_fields = ("low_stock",)
+      fields = ("part", "in_stock", "stock_alert", "shop_location", "low_stock")
       autocomplete_fields = ["part"]
 
 
@@ -98,7 +129,18 @@ class FlightAdmin(admin.ModelAdmin):
 class FlightInline(admin.TabularInline):
       model = Flight
       extra = 0
-      fields = ("aircraft", "flight_number", "primary_pilot", "secondary_pilot", "origin", "destination", "departure_time", "arrival_time", "pilot_requirement", "route", "flight_type", "approved")
+      # Keep the inline focused on the core scheduling info so it's readable.
+      fields = (
+            "aircraft",
+            "flight_number",
+            "primary_pilot",
+            "origin",
+            "destination",
+            "departure_time",
+            "arrival_time",
+            "flight_type",
+            "approved",
+      )
       autocomplete_fields = ["aircraft"]
       def formfield_for_foreignkey(self, db_field, request, **kwargs):
             if db_field.name in  ("primary_pilot", "secondary_pilot"):
@@ -107,9 +149,21 @@ class FlightInline(admin.TabularInline):
 
 class CompanyAdmin(admin.ModelAdmin):
       inlines = [UserInline, AircraftInline, InventoryInline, FlightInline]
-      
+
+      class Media:
+            css = {
+                  'all': ('api/admin.css',)
+            }
+            js = ('api/admin_inventory.js',)
 
 
 admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
+
+
+@admin.register(Inventory)
+class InventoryAdmin(admin.ModelAdmin):
+      list_display = ("part", "company", "in_stock", "stock_alert", "shop_location", "low_stock")
+      list_filter = ("company",)
+      search_fields = ("part__part_number", "part__name", "company__name", "shop_location")
 

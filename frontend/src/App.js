@@ -5,6 +5,8 @@ import { AppProvider } from './context/AppContext';
 import CssBaseline from '@mui/material/CssBaseline';
 import LandingPage from './components/LandingPage';
 import Management from './pages/Management';
+import AdminCompanies from './pages/AdminCompanies';
+import AdminCompanyForm from './pages/AdminCompanyForm';
 import PartsPage from './pages/PartsPage';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
@@ -70,13 +72,13 @@ function App() {
 					<Routes>
 						{/* Public routes */}
 						<Route path="/login" element={<Login />} />
-						<Route path="/" element={<LandingPage />} />
+						<Route path="/" element={<Login />} />
 
 						{/* Protected routes */}
 						<Route
 							path="/management"
 							element={
-								<ProtectedRoute>
+								<ProtectedRoute allowedRoles={['owner', 'manager']}>
 									<Layout>
 										<Management />
 									</Layout>
@@ -84,9 +86,29 @@ function App() {
 							}
 						/>
 						<Route
+							path="/admin/companies"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+									<Layout>
+										<AdminCompanies />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/admin/companies/new"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+									<Layout>
+										<AdminCompanyForm />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
 							path="/parts"
 							element={
-								<ProtectedRoute>
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
 									<Layout>
 										<PartsPage />
 									</Layout>
@@ -96,7 +118,7 @@ function App() {
 						<Route
 							path="/maintenance"
 							element={
-								<ProtectedRoute>
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
 									<Layout>
 										<Maintenance />
 									</Layout>

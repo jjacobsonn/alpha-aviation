@@ -1,165 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
-
-//______________TEMPORARY DATA__________________
-
-const workOrdersData = [
-	{
-		order_number: "001",
-		part_number: "09234",
-		aircraft: "Boeing 747",
-		assigned_to: "John Doe",
-		due_date: "2025-12-10", // overdue
-		description: "Part is giving error code 9243 in software"
-	},
-	{
-		order_number: "002",
-		part_number: "04567",
-		aircraft: "Airbus A320",
-		assigned_to: "Jane Smith",
-		due_date: "2025-12-20", // soon
-		description: "Hydraulic system showing low pressure warning"
-	},
-	{
-		order_number: "003",
-		part_number: "07890",
-		aircraft: "Boeing 737",
-		assigned_to: "Alex Johnson",
-		due_date: "2026-01-05", // soon
-		description: "Engine temperature reading fluctuates"
-	},
-	{
-		order_number: "004",
-		part_number: "03456",
-		aircraft: "Embraer 190",
-		assigned_to: "Chris Lee",
-		due_date: "2026-03-20", // later
-		description: "Landing gear sensor malfunction"
-	},
-	{
-		order_number: "005",
-		part_number: "05678",
-		aircraft: "Boeing 777",
-		assigned_to: "Patricia Green",
-		due_date: "2025-11-30", // overdue
-		description: "Fuel pump not maintaining pressure"
-	},
-	{
-		order_number: "006",
-		part_number: "06789",
-		aircraft: "Airbus A380",
-		assigned_to: "Michael Brown",
-		due_date: "2026-06-15", // far in the future
-		description: "Autopilot disengages intermittently"
-	},
-	{
-		order_number: "007",
-		part_number: "02345",
-		aircraft: "Bombardier CS300",
-		assigned_to: "Linda White",
-		due_date: "2026-02-28", // later
-		description: "Cabin lighting flickering"
-	},
-	{
-		order_number: "008",
-		part_number: "08901",
-		aircraft: "Boeing 737 MAX",
-		assigned_to: "David Black",
-		due_date: "2025-12-18", // soon
-		description: "Landing gear hydraulics slow to respond"
-	},
-	{
-		order_number: "009",
-		part_number: "01234",
-		aircraft: "Embraer 175",
-		assigned_to: "Emma Stone",
-		due_date: "2026-07-01", // far in the future
-		description: "Avionics software requires update"
-	},
-	{
-		order_number: "010",
-		part_number: "04512",
-		aircraft: "Airbus A321",
-		assigned_to: "Robert King",
-		due_date: "2025-11-25", // overdue
-		description: "Engine oil temperature sensor failure"
-	}
-];
-
-const discrepanciesData = [
-	{
-		discrepancy_number: "D001",
-		part_number: "09234",
-		aircraft: "Boeing 747",
-		description: "Part is giving error code 9243 in software"
-	},
-	{
-		discrepancy_number: "D002",
-		part_number: "04567",
-		aircraft: "Airbus A320",
-		description: "Minor oil leak detected"
-	},
-	{
-		discrepancy_number: "D003",
-		part_number: "07890",
-		aircraft: "Boeing 737",
-		description: "Cabin pressure sensor faulty"
-	},
-	{
-		discrepancy_number: "D004",
-		part_number: "03456",
-		aircraft: "Embraer 190",
-		description: "Navigation system update required"
-	},
-	{
-		discrepancy_number: "D005",
-		part_number: "05678",
-		aircraft: "Boeing 777",
-		description: "Fuel pump pressure inconsistency"
-	},
-	{
-		discrepancy_number: "D006",
-		part_number: "06789",
-		aircraft: "Airbus A380",
-		description: "Autopilot disengages during turbulence"
-	},
-	{
-		discrepancy_number: "D007",
-		part_number: "02345",
-		aircraft: "Bombardier CS300",
-		description: "Cabin lights flicker intermittently"
-	},
-	{
-		discrepancy_number: "D008",
-		part_number: "08901",
-		aircraft: "Boeing 737 MAX",
-		description: "Landing gear hydraulics slow to respond"
-	},
-	{
-		discrepancy_number: "D009",
-		part_number: "01234",
-		aircraft: "Embraer 175",
-		description: "Avionics software outdated"
-	},
-	{
-		discrepancy_number: "D010",
-		part_number: "04512",
-		aircraft: "Airbus A321",
-		description: "Engine oil temperature sensor failure"
-	}
-];
-
-const today = new Date();
-
-const overdueWorkOrders = workOrdersData.filter(order => new Date(order.due_date) < today);
-
-const dueSoonWorkOrders = workOrdersData.filter(order => {
-	const dueDate = new Date(order.due_date);
-	const diffInTime = dueDate - today; // difference in milliseconds
-	const diffInDays = diffInTime / (1000 * 60 * 60 * 24); // convert to days
-	return diffInDays >= 0 && diffInDays <= 7;
-});
+import { fetchCompanyDiscrepancies, fetchCompanyWorkorders } from '../shared/Api';
 
 
 const KPICard = ({ title, color, trend }) => (
@@ -223,6 +65,93 @@ const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_
 const Maintenance = () => {
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
 	const [isAddDiscrepancyOpen, setIsAddDiscrepancyOpen] = useState(false);
+	const [workOrders, setWorkOrders] = useState([]);
+	const [discrepancies, setDiscrepancies] = useState([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState('');
+
+	useEffect(() => {
+		let mounted = true;
+
+		const load = async () => {
+			setIsLoading(true);
+			setError('');
+			try {
+				const [woData, discData] = await Promise.all([
+					fetchCompanyWorkorders(),
+					fetchCompanyDiscrepancies(),
+				]);
+				if (!mounted) return;
+				setWorkOrders(Array.isArray(woData) ? woData : []);
+				setDiscrepancies(Array.isArray(discData) ? discData : []);
+			} catch (e) {
+				if (!mounted) return;
+				setError(e?.message || 'Failed to load maintenance data.');
+			} finally {
+				if (!mounted) return;
+				setIsLoading(false);
+			}
+		};
+
+		load();
+
+		return () => {
+			mounted = false;
+		};
+	}, []);
+
+	const today = useMemo(() => new Date(), []);
+
+	const overdueWorkOrders = useMemo(
+		() =>
+			workOrders.filter((wo) => {
+				if (!wo.due_by) return false;
+				const dueDate = new Date(wo.due_by);
+				return dueDate < today;
+			}),
+		[workOrders, today]
+	);
+
+	const dueSoonWorkOrders = useMemo(
+		() =>
+			workOrders.filter((wo) => {
+				if (!wo.due_by) return false;
+				const dueDate = new Date(wo.due_by);
+				const diffInTime = dueDate - today;
+				const diffInDays = diffInTime / (1000 * 60 * 60 * 24);
+				return diffInDays >= 0 && diffInDays <= 7;
+			}),
+		[workOrders, today]
+	);
+
+	const mappedWorkOrders = useMemo(
+		() =>
+			workOrders.map((wo) => ({
+				id: wo.id,
+				order_number: wo.id,
+				part_number: (wo.parts_needed && wo.parts_needed.length) ? wo.parts_needed[0] : '',
+				aircraft:
+					typeof wo.aircraft === 'object'
+						? wo.aircraft.model || wo.aircraft.registration_number
+						: wo.aircraft,
+				assigned_to: Array.isArray(wo.created_by) ? wo.created_by.join(' ') : wo.created_by,
+				due_date: wo.due_by,
+				description: wo.description,
+			})),
+		[workOrders]
+	);
+
+	const mappedDiscrepancies = useMemo(
+		() =>
+			discrepancies.map((d) => ({
+				id: d.id,
+				discrepancy_number: d.id,
+				part_number: d.ata_code || '',
+				aircraft: d.aircraft,
+				description: d.description,
+			})),
+		[discrepancies]
+	);
 	return (
 		<>
 			{/* KPI CARD SECTION */}
@@ -235,8 +164,8 @@ const Maintenance = () => {
 				padding: '1em',
 				backgroundColor: 'slategray',
 			}}>
-				<KPICard title="Pending" color="lightblue" trend={discrepanciesData.length} />
-				<KPICard title="Open" color="mediumpurple" trend={workOrdersData.length} />
+				<KPICard title="Pending" color="lightblue" trend={discrepancies.length} />
+				<KPICard title="Open" color="mediumpurple" trend={workOrders.length} />
 				<KPICard title="Overdue" color="firebrick" trend={overdueWorkOrders.length} />
 				<KPICard title="Due Soon" color="lightgreen" trend={dueSoonWorkOrders.length} />
 			</div >
@@ -267,6 +196,9 @@ const Maintenance = () => {
 				gap: '1em',
 				padding: '2em',
 			}}>
+				{error && (
+					<div style={{ color: 'red', marginBottom: '0.5em' }}>{error}</div>
+				)}
 				<h3>Open Work Orders</h3>
 				<div style={{
 					display: 'flex',
@@ -277,9 +209,9 @@ const Maintenance = () => {
 					height: '30vh',
 					overflow: 'auto',
 				}}>
-					{workOrdersData.map((order) => (
+					{mappedWorkOrders.map((order) => (
 						<WorkOrder
-							key={order.order_number} // React needs unique keys
+							key={order.id}
 							order_number={order.order_number}
 							part_number={order.part_number}
 							aircraft={order.aircraft}
@@ -308,9 +240,9 @@ const Maintenance = () => {
 					height: '30vh',
 					overflow: 'auto',
 				}}>
-					{discrepanciesData.map((order) => (
+					{mappedDiscrepancies.map((order) => (
 						<Discrepancy
-							key={order.discrepancy_number}
+							key={order.id}
 							discrepancy_number={order.discrepancy_number}
 							part_number={order.part_number}
 							aircraft={order.aircraft}

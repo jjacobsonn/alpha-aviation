@@ -39,7 +39,7 @@ function NavigationDrawer() {
   const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { dispatch } = useAppContext();
+  const { state, dispatch } = useAppContext();
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -74,26 +74,45 @@ function NavigationDrawer() {
     setSelectedTab(currentPath || "dashboard");
   }, [location]);
 
-  const menuItems = [
+  const role = state.user?.role;
+
+  const allMenuItems = [
     {
       id: "management",
       title: "Management",
       icon: <DashboardIcon />,
       color: "#273469",
+      allowedRoles: ["owner", "manager"],
+    },
+    {
+      id: "admin",
+      title: "Company Admin",
+      icon: <DashboardIcon />,
+      color: "#00695c",
+      allowedRoles: ["owner", "manager"],
+      to: "/admin/companies",
     },
     {
       id: "parts",
       title: "Parts",
       icon: <InventoryIcon />,
       color: "#2196F3",
+      allowedRoles: ["owner", "manager", "mechanic"],
     },
     {
       id: "maintenance",
       title: "Maintenance",
       icon: <BuildIcon />,
       color: "#FF9800",
+      allowedRoles: ["owner", "manager", "mechanic"],
     },
   ];
+
+  const menuItems = allMenuItems.filter((item) => {
+    if (!item.allowedRoles || item.allowedRoles.length === 0) return true;
+    if (!role) return false;
+    return item.allowedRoles.includes(role);
+  });
 
   return (
     <Drawer
@@ -167,7 +186,8 @@ function NavigationDrawer() {
               <ListItemButton
                 selected={selectedTab === item.id}
                 onClick={() => {
-                  navigate(`/${item.id}`);
+                  const target = item.to || `/${item.id}`;
+                  navigate(target);
                   setSelectedTab(item.id);
                 }}
                 sx={{

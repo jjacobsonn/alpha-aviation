@@ -36,6 +36,12 @@ AUTH_USER_MODEL = 'api.Profile'
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
+# Allow frontend origin for CSRF when posting to the API
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
 
 # Application definition
 

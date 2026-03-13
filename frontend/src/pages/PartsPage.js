@@ -1,5 +1,5 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   IconButton,
@@ -17,10 +17,14 @@ import HandymanIcon from "@mui/icons-material/Handyman";
 import WorkHistoryIcon from "@mui/icons-material/WorkHistory";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { deleteInventory, fetchCompanyInventoriesDetailed } from "../shared/Api";
 
 function PartsPage() {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [inventories, setInventories] = useState([]);
 
   const openMenu = (event, part) => {
     setMenuAnchor(event.currentTarget);
@@ -31,28 +35,68 @@ function PartsPage() {
     setMenuAnchor(null);
   };
 
-  const dashboardNumbers = [
-    {
-      title: "Parts in Stock",
-      icon: <PendingActionsIcon />,
-      number: 100,
-    },
-    {
-      title: "Low Stock Alert",
-      icon: <HandymanIcon />,
-      number: 23,
-    },
-    {
-      title: "Parts on Order",
-      icon: <WorkHistoryIcon />,
-      number: 34,
-    },
-    {
-      title: "Tools Due for Calibration",
-      icon: <WorkHistoryIcon />,
-      number: 9,
-    },
-  ];
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError("");
+      try {
+        const data = await fetchCompanyInventoriesDetailed();
+        if (!mounted) return;
+        setInventories(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (!mounted) return;
+        setError(e?.message || "Failed to load inventory.");
+      } finally {
+        if (!mounted) return;
+        setIsLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const lowStockCount = useMemo(() => {
+    return inventories.filter((inv) => {
+      const inStock = Number(inv?.in_stock ?? 0);
+      const alert = Number(inv?.stock_alert ?? 0);
+      return inStock <= alert;
+    }).length;
+  }, [inventories]);
+
+  const partsInStockCount = useMemo(() => {
+    return inventories.filter((inv) => Number(inv?.in_stock ?? 0) > 0).length;
+  }, [inventories]);
+
+  const dashboardNumbers = useMemo(() => {
+    return [
+      {
+        title: "Parts in Stock",
+        icon: <PendingActionsIcon />,
+        number: isLoading ? "—" : partsInStockCount,
+      },
+      {
+        title: "Low Stock Alert",
+        icon: <HandymanIcon />,
+        number: isLoading ? "—" : lowStockCount,
+      },
+      {
+        title: "Parts on Order",
+        icon: <WorkHistoryIcon />,
+        number: "—",
+      },
+      {
+        title: "Tools Due for Calibration",
+        icon: <WorkHistoryIcon />,
+        number: "—",
+      },
+    ];
+  }, [isLoading, lowStockCount, partsInStockCount]);
 
   const inventoryFields = [
     "P/N",
@@ -80,73 +124,25 @@ function PartsPage() {
     actions: 120,
   };
 
-  const [inventoryData, setInventoryData] = useState([
-    {
-      pn: "A-10234",
-      partName: "Hydraulic Pump Seal",
-      oem: "AeroSeal Co.",
-      vendor: "SkyTech Supplies",
-      inStock: 12,
-      minMax: "5 / 20",
-      location: "Aisle 3 – Bin 12",
-      condition: "New",
-      expiration: "2025-11-19",
-      actions: "Edit / Delete",
-      status: "OK",
-    },
-    {
-      pn: "B-55321",
-      partName: "Fuel Line Hose",
-      oem: "FuelWorks Inc.",
-      vendor: "Global Parts LLC",
-      inStock: 32,
-      minMax: "10 / 30",
-      location: "Aisle 1 – Bin 4",
-      condition: "New",
-      expiration: "2026-11-02",
-      actions: "Edit / Delete",
-      status: "EXPIRING",
-    },
-    {
-      pn: "C-99102",
-      partName: "Cooling Fan Assembly",
-      oem: "ThermoFlight",
-      vendor: "Aviation Central",
-      inStock: 18,
-      minMax: "3 / 15",
-      location: "Aisle 4 – Bin 9",
-      condition: "Used – Serviceable",
-      expiration: "N/A",
-      actions: "Edit / Delete",
-      status: "OK",
-    },
-    {
-      pn: "D-22011",
-      partName: "Brake Pad Set",
-      oem: "BrakePro",
-      vendor: "SkyTech Supplies",
-      inStock: 2,
-      minMax: "5 / 10",
-      location: "Aisle 2 – Bin 7",
-      condition: "New",
-      expiration: "2025-09-18",
-      actions: "Edit / Delete",
-      status: "EXPIRED",
-    },
-    {
-      pn: "E-88410",
-      partName: "Main Rotor Bolt",
-      oem: "RotorWorks",
-      vendor: "Flight Components Co.",
-      inStock: 47,
-      minMax: "20 / 60",
-      location: "Aisle 5 – Bin 2",
-      condition: "New",
-      expiration: "2030-01-01",
-      actions: "Edit / Delete",
-      status: "EXPIRED",
-    },
-  ]);
+  const inventoryData = useMemo(() => {
+    return inventories.map((inv) => {
+      const part = inv?.part || {};
+      const min = Number(inv?.stock_alert ?? 0);
+      const max = "";
+      return {
+        id: inv?.id,
+        pn: part?.part_number ?? "",
+        partName: part?.name ?? "",
+        oem: "—",
+        vendor: "—",
+        inStock: Number(inv?.in_stock ?? 0),
+        minMax: `${min}${max ? ` / ${max}` : ""}`,
+        location: inv?.shop_location ?? "—",
+        condition: "—",
+        expiration: "—",
+      };
+    });
+  }, [inventories]);
 
   const currentStatus = (amount, minMax, expiration) => {
     const [min, max] = minMax.split(" / ").map(Number);
@@ -252,6 +248,12 @@ function PartsPage() {
             }}
           />
 
+          {error && (
+            <Box sx={{ px: 2, pb: 1, color: "error.main" }}>
+              {error}
+            </Box>
+          )}
+
           {/* Inventory Column Fields */}
           <Table sx={{ minWidth: "100%" }}>
             <TableHead>
@@ -272,7 +274,7 @@ function PartsPage() {
               const color = getStatusColor(status);
 
               return (
-                <TableRow sx={{ bgcolor: color }}>
+                <TableRow key={item.id ?? item.pn} sx={{ bgcolor: color }}>
                   <TableCell>{item.pn}</TableCell>
                   <TableCell>{item.partName}</TableCell>
                   <TableCell>{item.oem}</TableCell>
@@ -283,7 +285,10 @@ function PartsPage() {
                   <TableCell>{item.condition}</TableCell>
                   <TableCell>{item.expiration}</TableCell>
                   <TableCell>
-                    <IconButton onClick={(e) => openMenu(e, item)}>
+                    <IconButton
+                      onClick={(e) => openMenu(e, item)}
+                      disabled={isLoading}
+                    >
                       <MoreVertIcon></MoreVertIcon>
                     </IconButton>
                   </TableCell>
@@ -298,10 +303,25 @@ function PartsPage() {
           >
             <MenuItem
               onClick={() => {
-                setInventoryData(prev =>
-                  prev.filter(item => item !== selectedPart)
-                )
-                // console.log("Delete", selectedPart);
+                if (!selectedPart?.id) {
+                  closeMenu();
+                  return;
+                }
+                deleteInventory(selectedPart.id)
+                  .then(() => {
+                    setInventories((prev) =>
+                      prev.filter((inv) => inv?.id !== selectedPart.id)
+                    );
+                  })
+                  .catch((e) => {
+                    console.error("Failed to delete inventory", e);
+                    setError(
+                      e?.message || "Failed to delete inventory item."
+                    );
+                  })
+                  .finally(() => {
+                    closeMenu();
+                  });
                 closeMenu();
               }}
             >
