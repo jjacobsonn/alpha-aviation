@@ -307,7 +307,12 @@ def management_dashboard_view(request):
         return Response(
             {"error": "User does not have an associated company"}, status=403
         )
-    data = company.get_management_dashboard_data()
+    # Minimal management data until richer dashboard logic is implemented in Company.
+    # This keeps the endpoint stable for frontend development/testing.
+    data = {
+        "company_id": company.id,
+        "company_name": company.name,
+    }
     return Response(data)
 
 
@@ -319,8 +324,22 @@ def company_user_view(request):
         return Response(
             {"error": "User does not have an associated company"}, status=403
         )
-    data = company.get_user_data()
-    return Response(data)
+    profiles = (
+        Profile.objects.filter(company=company)
+        .order_by("first_name", "last_name")
+        .values(
+            "id",
+            "username",
+            "first_name",
+            "middle_name",
+            "last_name",
+            "email",
+            "phone_number",
+            "employee_id",
+            "company_role",
+        )
+    )
+    return Response(list(profiles))
 
 
 @api_view(["GET"])
@@ -331,8 +350,12 @@ def company_aircraft_view(request):
         return Response(
             {"error": "User does not have an associated company"}, status=403
         )
-    data = company.get_aircraft_data()
-    return Response(data)
+    aircraft = (
+        Aircraft.objects.filter(company=company)
+        .order_by("registration_number")
+    )
+    serializer = AircraftSerializer(aircraft, many=True)
+    return Response(serializer.data)
 
 
 @api_view(["GET"])
@@ -343,8 +366,13 @@ def company_flights_view(request):
         return Response(
             {"error": "User does not have an associated company"}, status=403
         )
-    data = company.get_flight_data()
-    return Response(data)
+    flights = (
+        Flight.objects.filter(company=company)
+        .select_related("aircraft", "primary_pilot", "secondary_pilot")
+        .order_by("-departure_time")
+    )
+    serializer = FlightSerializer(flights, many=True)
+    return Response(serializer.data)
 
 
 @api_view(["GET"])
@@ -367,8 +395,13 @@ def company_workorders_view(request):
         return Response(
             {"error": "User does not have an associated company"}, status=403
         )
-    data = company.get_workorders_data()
-    return Response(data)
+    workorders = (
+        WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
+        .filter(aircraft__company=company)
+        .order_by("-created_at")
+    )
+    serializer = WorkOrderSerializer(workorders, many=True)
+    return Response(serializer.data)
 
 
 @api_view(["GET"])
@@ -379,8 +412,13 @@ def company_discrepancies_view(request):
         return Response(
             {"error": "User does not have an associated company"}, status=403
         )
-    data = company.get_discrepancy_data()
-    return Response(data)
+    discrepancies = (
+        Discrepancy.objects.select_related("aircraft", "reporter", "work_order")
+        .filter(aircraft__company=company)
+        .order_by("-date_reported")
+    )
+    serializer = DiscrepancySerializer(discrepancies, many=True)
+    return Response(serializer.data)
 
 
 @api_view(["GET"])

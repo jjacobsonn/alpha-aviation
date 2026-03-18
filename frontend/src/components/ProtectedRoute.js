@@ -28,8 +28,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (
     Array.isArray(allowedRoles) &&
     allowedRoles.length > 0 &&
-    state.user?.role &&
-    !allowedRoles.includes(state.user.role)
+		(!state.user?.role || !allowedRoles.includes(state.user.role))
   ) {
     // User is authenticated but does not have the required role
     return <Navigate to="/management" replace />;

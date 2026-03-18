@@ -7,6 +7,7 @@ import LandingPage from './components/LandingPage';
 import Management from './pages/Management';
 import AdminCompanies from './pages/AdminCompanies';
 import AdminCompanyForm from './pages/AdminCompanyForm';
+import CompanyOverview from './pages/CompanyOverview';
 import PartsPage from './pages/PartsPage';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
@@ -101,6 +102,16 @@ function App() {
 								<ProtectedRoute allowedRoles={['owner', 'manager']}>
 									<Layout>
 										<AdminCompanyForm />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/admin/companies/current"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+									<Layout>
+										<CompanyOverview />
 									</Layout>
 								</ProtectedRoute>
 							}

@@ -252,10 +252,26 @@ export const deleteInventory = async (id) => {
 	return await makeApiRequest('DELETE', `/inventories/${id}/`);
 };
 
+export const updateInventory = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/inventories/${id}/`, payload);
+};
+
 export const fetchCompanyWorkorders = async () => {
 	return await makeApiRequest('GET', '/company/workorders/');
 };
 
 export const fetchCompanyDiscrepancies = async () => {
 	return await makeApiRequest('GET', '/company/discrepancies/');
+};
+
+export const fetchCompanyUsers = async () => {
+	return await makeApiRequest('GET', '/company/users/');
+};
+
+export const fetchCompanyAircrafts = async () => {
+	return await makeApiRequest('GET', '/company/aircrafts/');
+};
+
+export const fetchCompanyFlights = async () => {
+	return await makeApiRequest('GET', '/company/flights/');
 };

@@ -13,11 +13,21 @@ import {
   Menu,
   MenuItem
 } from "@mui/material";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import HandymanIcon from "@mui/icons-material/Handyman";
 import WorkHistoryIcon from "@mui/icons-material/WorkHistory";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import { deleteInventory, fetchCompanyInventoriesDetailed } from "../shared/Api";
+import {
+  deleteInventory,
+  fetchCompanyInventoriesDetailed,
+  updateInventory,
+} from "../shared/Api";
 
 function PartsPage() {
   const [menuAnchor, setMenuAnchor] = useState(null);
@@ -25,6 +35,14 @@ function PartsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [inventories, setInventories] = useState([]);
+  const [editOpen, setEditOpen] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editValues, setEditValues] = useState({
+    inStock: "",
+    stockAlert: "",
+    shopLocation: "",
+    partId: null,
+  });
 
   const openMenu = (event, part) => {
     setMenuAnchor(event.currentTarget);
@@ -60,6 +78,41 @@ function PartsPage() {
       mounted = false;
     };
   }, []);
+
+  const handleOpenEdit = (invRow) => {
+    if (!invRow?.id) return;
+    setSelectedPart(invRow);
+    setEditValues({
+      inStock: String(invRow?.inStock ?? ""),
+      stockAlert: String(invRow?.stockAlert ?? ""),
+      shopLocation: String(invRow?.shopLocation ?? ""),
+      partId: invRow?.partId ?? null,
+    });
+    setEditOpen(true);
+    setMenuAnchor(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedPart?.id) return;
+    setIsSavingEdit(true);
+    setError("");
+    try {
+      const payload = {
+        in_stock: Number(editValues.inStock),
+        stock_alert: Number(editValues.stockAlert),
+        shop_location: editValues.shopLocation,
+        part_id: editValues.partId,
+      };
+      await updateInventory(selectedPart.id, payload);
+      const data = await fetchCompanyInventoriesDetailed();
+      setInventories(Array.isArray(data) ? data : []);
+      setEditOpen(false);
+    } catch (e) {
+      setError(e?.message || "Failed to update inventory item.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   const lowStockCount = useMemo(() => {
     return inventories.filter((inv) => {
@@ -136,10 +189,13 @@ function PartsPage() {
         oem: "—",
         vendor: "—",
         inStock: Number(inv?.in_stock ?? 0),
+        stockAlert: Number(inv?.stock_alert ?? 0),
         minMax: `${min}${max ? ` / ${max}` : ""}`,
+        shopLocation: inv?.shop_location ?? "—",
         location: inv?.shop_location ?? "—",
         condition: "—",
         expiration: "—",
+        partId: part?.id ?? null,
       };
     });
   }, [inventories]);
@@ -330,13 +386,58 @@ function PartsPage() {
 
             <MenuItem
               onClick={() => {
-                console.log("Edit", selectedPart);
-                closeMenu();
+                handleOpenEdit(selectedPart);
               }}
             >
               Edit
             </MenuItem>
           </Menu>
+
+          <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
+            <DialogTitle>Edit Inventory</DialogTitle>
+            <DialogContent>
+              <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                  label="Part"
+                  value={`${selectedPart?.pn || ""}${selectedPart?.partName ? ` - ${selectedPart.partName}` : ""}`}
+                  disabled
+                  fullWidth
+                />
+                <TextField
+                  label="In stock"
+                  type="number"
+                  value={editValues.inStock}
+                  onChange={(e) => setEditValues((p) => ({ ...p, inStock: e.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  label="Stock alert"
+                  type="number"
+                  value={editValues.stockAlert}
+                  onChange={(e) => setEditValues((p) => ({ ...p, stockAlert: e.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  label="Shop location"
+                  value={editValues.shopLocation}
+                  onChange={(e) => setEditValues((p) => ({ ...p, shopLocation: e.target.value }))}
+                  fullWidth
+                />
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEditOpen(false)} disabled={isSavingEdit}>
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleSaveEdit}
+                disabled={isSavingEdit || editValues.partId == null}
+              >
+                {isSavingEdit ? <CircularProgress size={18} /> : 'Save'}
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Box>
       </Box>
     </Box>

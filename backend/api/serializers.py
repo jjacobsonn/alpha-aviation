@@ -69,6 +69,7 @@ class AircraftSerializer(serializers.ModelSerializer):
             "engine_type",
             "year_built",
             "company",
+            "company_name",
         ]
 
 
@@ -152,6 +153,8 @@ class FlightSerializer(serializers.ModelSerializer):
             "secondary_pilot",
             "pilot_requirement",
             "approved",
+            "company_name",
+            "aircraft_name",
         ]
 
 

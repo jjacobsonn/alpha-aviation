@@ -88,7 +88,9 @@ const AdminCompanies = () => {
                   cursor: 'pointer',
                   '&:hover': { boxShadow: 3 },
                 }}
-                onClick={() => navigate('/admin/companies/new', { state: { company: co } })}
+                // Owners/managers should land on a tenant overview that is wired
+                // to the backend API. "New company" remains create-only.
+                onClick={() => navigate('/admin/companies/current')}
               >
                 <CardContent sx={{ p: 3 }}>
                   <Stack direction="row" spacing={2} alignItems="center">
