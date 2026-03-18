@@ -38,7 +38,7 @@ const Login = () => {
       const role = state.user.role;
       const defaultPath =
         role === 'owner' || role === 'manager'
-          ? '/admin/companies'
+          ? '/management'
           : role === 'mechanic'
           ? '/maintenance'
           : '/management';
@@ -70,7 +70,7 @@ const Login = () => {
 			const role = userData.company_role;
       const defaultPath =
         role === 'owner' || role === 'manager'
-          ? '/admin/companies'
+          ? '/management'
           : role === 'mechanic'
           ? '/maintenance'
           : '/management';
