@@ -11,7 +11,11 @@ import {
   TextField,
   Typography,
   Menu,
-  MenuItem
+  MenuItem,
+  Container,
+  Card,
+  CardContent,
+  Grid,
 } from "@mui/material";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -242,204 +246,206 @@ function PartsPage() {
   };
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", flexDirection: "column" }}>
-      <Box
-        mb={2}
-        sx={{
-          display: "flex",
-          flexDirection: "row",
-          minHeight: "100px",
-          justifyContent: "center",
-        }}
-      >
-        <Stack
-          sx={{
-            flexDirection: "row",
-          }}
-        >
-          {dashboardNumbers.map((item) => (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
-                margin: 3,
-              }}
-            >
-              <Typography variant="h5">{item.title}</Typography>
-              <Typography
-                variant="p"
-                sx={{ fontSize: 24, textAlign: "center" }}
-              >
-                {item.number}
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Stack spacing={3}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                Parts
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Inventory and low stock alerts
               </Typography>
             </Box>
-          ))}
-        </Stack>
-      </Box>
+          </Stack>
 
-      <Box sx={{ display: "flex", flexDirection: "row" }}>
-        {/* <FleetStatusPanel /> */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            // bgcolor: "#4b4b4bff",
-            flexGrow: 1,
-            mt: 2,
-            mb: 2,
-            mr: 0,
-            ml: 0,
-            borderRadius: 2,
-          }}
-        >
-          <TextField
-            variant="outlined"
-            placeholder="Search..."
-            sx={{
-              m: 2,
-              borderRadius: 2,
-              bgcolor: "#FFFFFF",
-            }}
-          />
+          <Grid container spacing={3}>
+            {dashboardNumbers.map((item) => (
+              <Grid item xs={12} sm={6} md={3} key={item.title}>
+                <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+                  <CardContent sx={{ py: 2.5 }}>
+                    <Stack spacing={0.5} alignItems="center" textAlign="center">
+                      <Box sx={{ color: item.icon?.props?.color || 'primary.main' }}>
+                        {item.icon}
+                      </Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        {item.title}
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 900 }}>
+                        {item.number}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
 
-          {error && (
-            <Box sx={{ px: 2, pb: 1, color: "error.main" }}>
-              {error}
-            </Box>
-          )}
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  variant="outlined"
+                  placeholder="Search..."
+                />
 
-          {/* Inventory Column Fields */}
-          <Table sx={{ minWidth: "100%" }}>
-            <TableHead>
-              <TableRow>
-                {inventoryFields.map((item, index) => {
-                  const keys = Object.keys(columnWidths);
-                  return <TableCell>{item}</TableCell>;
-                })}
-              </TableRow>
-            </TableHead>
+                {error && (
+                  <Box sx={{ color: 'error.main' }}>
+                    {error}
+                  </Box>
+                )}
 
-            {inventoryData.map((item) => {
-              const status = currentStatus(
-                item.inStock,
-                item.minMax,
-                item.expiration
-              );
-              const color = getStatusColor(status);
+                <Table
+                  size="small"
+                  sx={{
+                    minWidth: '100%',
+                    '& .MuiTableCell-head': {
+                      bgcolor: 'primary.main',
+                      color: 'common.white',
+                      fontWeight: 700,
+                      borderColor: 'divider',
+                    },
+                    '& .MuiTableCell-root': { borderColor: 'divider' },
+                  }}
+                >
+                  <TableHead>
+                    <TableRow>
+                      {inventoryFields.map((item) => (
+                        <TableCell key={item}>{item}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
 
-              return (
-                <TableRow key={item.id ?? item.pn} sx={{ bgcolor: color }}>
-                  <TableCell>{item.pn}</TableCell>
-                  <TableCell>{item.partName}</TableCell>
-                  <TableCell>{item.oem}</TableCell>
-                  <TableCell>{item.vendor}</TableCell>
-                  <TableCell>{item.inStock}</TableCell>
-                  <TableCell>{item.minMax}</TableCell>
-                  <TableCell>{item.location}</TableCell>
-                  <TableCell>{item.condition}</TableCell>
-                  <TableCell>{item.expiration}</TableCell>
-                  <TableCell>
-                    <IconButton
-                      onClick={(e) => openMenu(e, item)}
-                      disabled={isLoading}
+                  {inventoryData.map((item) => {
+                    const status = currentStatus(item.inStock, item.minMax, item.expiration);
+                    const color = getStatusColor(status);
+                    return (
+                      <TableRow key={item.id ?? item.pn} sx={{ bgcolor: color }}>
+                        <TableCell>{item.pn}</TableCell>
+                        <TableCell>{item.partName}</TableCell>
+                        <TableCell>{item.oem}</TableCell>
+                        <TableCell>{item.vendor}</TableCell>
+                        <TableCell>{item.inStock}</TableCell>
+                        <TableCell>{item.minMax}</TableCell>
+                        <TableCell>{item.location}</TableCell>
+                        <TableCell>{item.condition}</TableCell>
+                        <TableCell>{item.expiration}</TableCell>
+                        <TableCell>
+                          <IconButton
+                            onClick={(e) => openMenu(e, item)}
+                            disabled={isLoading}
+                          >
+                            <MoreVertIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </Table>
+
+                <Menu
+                  anchorEl={menuAnchor}
+                  open={Boolean(menuAnchor)}
+                  onClose={closeMenu}
+                >
+                  <MenuItem
+                    onClick={() => {
+                      if (!selectedPart?.id) {
+                        closeMenu();
+                        return;
+                      }
+                      deleteInventory(selectedPart.id)
+                        .then(() => {
+                          setInventories((prev) =>
+                            prev.filter((inv) => inv?.id !== selectedPart.id)
+                          );
+                        })
+                        .catch((e) => {
+                          console.error('Failed to delete inventory', e);
+                          setError(e?.message || 'Failed to delete inventory item.');
+                        })
+                        .finally(() => closeMenu());
+                      closeMenu();
+                    }}
+                  >
+                    Delete
+                  </MenuItem>
+
+                  <MenuItem
+                    onClick={() => {
+                      handleOpenEdit(selectedPart);
+                    }}
+                  >
+                    Edit
+                  </MenuItem>
+                </Menu>
+
+                <Dialog
+                  open={editOpen}
+                  onClose={() => setEditOpen(false)}
+                  maxWidth="sm"
+                  fullWidth
+                >
+                  <DialogTitle>Edit Inventory</DialogTitle>
+                  <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                      <TextField
+                        label="Part"
+                        value={`${selectedPart?.pn || ''}${
+                          selectedPart?.partName ? ` - ${selectedPart.partName}` : ''
+                        }`}
+                        disabled
+                        fullWidth
+                      />
+                      <TextField
+                        label="In stock"
+                        type="number"
+                        value={editValues.inStock}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, inStock: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Stock alert"
+                        type="number"
+                        value={editValues.stockAlert}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, stockAlert: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Shop location"
+                        value={editValues.shopLocation}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, shopLocation: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                    </Stack>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setEditOpen(false)} disabled={isSavingEdit}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={handleSaveEdit}
+                      disabled={isSavingEdit || editValues.partId == null}
                     >
-                      <MoreVertIcon></MoreVertIcon>
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </Table>
-          <Menu
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor)}
-            onClose={closeMenu}
-          >
-            <MenuItem
-              onClick={() => {
-                if (!selectedPart?.id) {
-                  closeMenu();
-                  return;
-                }
-                deleteInventory(selectedPart.id)
-                  .then(() => {
-                    setInventories((prev) =>
-                      prev.filter((inv) => inv?.id !== selectedPart.id)
-                    );
-                  })
-                  .catch((e) => {
-                    console.error("Failed to delete inventory", e);
-                    setError(
-                      e?.message || "Failed to delete inventory item."
-                    );
-                  })
-                  .finally(() => {
-                    closeMenu();
-                  });
-                closeMenu();
-              }}
-            >
-              Delete
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                handleOpenEdit(selectedPart);
-              }}
-            >
-              Edit
-            </MenuItem>
-          </Menu>
-
-          <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
-            <DialogTitle>Edit Inventory</DialogTitle>
-            <DialogContent>
-              <Stack spacing={2} sx={{ mt: 1 }}>
-                <TextField
-                  label="Part"
-                  value={`${selectedPart?.pn || ""}${selectedPart?.partName ? ` - ${selectedPart.partName}` : ""}`}
-                  disabled
-                  fullWidth
-                />
-                <TextField
-                  label="In stock"
-                  type="number"
-                  value={editValues.inStock}
-                  onChange={(e) => setEditValues((p) => ({ ...p, inStock: e.target.value }))}
-                  fullWidth
-                />
-                <TextField
-                  label="Stock alert"
-                  type="number"
-                  value={editValues.stockAlert}
-                  onChange={(e) => setEditValues((p) => ({ ...p, stockAlert: e.target.value }))}
-                  fullWidth
-                />
-                <TextField
-                  label="Shop location"
-                  value={editValues.shopLocation}
-                  onChange={(e) => setEditValues((p) => ({ ...p, shopLocation: e.target.value }))}
-                  fullWidth
-                />
+                      {isSavingEdit ? <CircularProgress size={18} /> : 'Save'}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
               </Stack>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setEditOpen(false)} disabled={isSavingEdit}>
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handleSaveEdit}
-                disabled={isSavingEdit || editValues.partId == null}
-              >
-                {isSavingEdit ? <CircularProgress size={18} /> : 'Save'}
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </Box>
-      </Box>
+            </CardContent>
+          </Card>
+        </Stack>
+      </Container>
     </Box>
   );
 }
