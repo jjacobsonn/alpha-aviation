@@ -227,23 +227,8 @@ function PartsPage() {
     return "OK";
   };
 
-  const getStatusColor = (status) => {
-    status = status.toUpperCase();
-    switch (status) {
-      case "OK":
-        return "rgba(0, 200, 0, 0.15)"; // light green
-      case "EXPIRING":
-        return "rgba(255, 200, 0, 0.25)"; // light amber
-      case "LOW":
-        return "rgba(255, 200, 0, 0.25)"; // same as expiring
-      case "EXPIRED":
-        return "rgba(255, 0, 0, 0.20)"; // light red
-      case "OUT":
-        return "rgba(255, 0, 0, 0.20)"; // same as expired
-      default:
-        return "transparent";
-    }
-  };
+  // Keep table rows neutral while preserving the computed status logic.
+  const getStatusColor = () => "transparent";
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -323,7 +308,7 @@ function PartsPage() {
                     const status = currentStatus(item.inStock, item.minMax, item.expiration);
                     const color = getStatusColor(status);
                     return (
-                      <TableRow key={item.id ?? item.pn} sx={{ bgcolor: color }}>
+                      <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
                         <TableCell>{item.pn}</TableCell>
                         <TableCell>{item.partName}</TableCell>
                         <TableCell>{item.oem}</TableCell>
