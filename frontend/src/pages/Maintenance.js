@@ -1,4 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import {
+	Alert,
+	Box,
+	Card,
+	CardContent,
+	Container,
+	Button,
+	Grid,
+	Stack,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+	Typography,
+	CircularProgress,
+} from '@mui/material';
+
+import BuildIcon from '@mui/icons-material/Build';
+import WarningIcon from '@mui/icons-material/Warning';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
+
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
 import { fetchCompanyDiscrepancies, fetchCompanyWorkorders } from '../shared/Api';
@@ -153,107 +176,235 @@ const Maintenance = () => {
 		[discrepancies]
 	);
 	return (
-		<>
-			{/* KPI CARD SECTION */}
-			<div style={{
-				//KPI card holder styles (mostly layout stuff)
-				display: 'flex',
-				justifyContent: 'space-evenly',
-				marginBottom: '5em',
-				marginTop: '1em',
-				padding: '1em',
-				backgroundColor: 'slategray',
-			}}>
-				<KPICard title="Pending" color="lightblue" trend={discrepancies.length} />
-				<KPICard title="Open" color="mediumpurple" trend={workOrders.length} />
-				<KPICard title="Overdue" color="firebrick" trend={overdueWorkOrders.length} />
-				<KPICard title="Due Soon" color="lightgreen" trend={dueSoonWorkOrders.length} />
-			</div >
+		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+			<Container maxWidth="xl" sx={{ py: 4 }}>
+				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+					<Box>
+						<Typography variant="h4" sx={{ fontWeight: 800 }}>
+							Maintenance
+						</Typography>
+						<Typography variant="body2" color="text.secondary">
+							Work orders and discrepancy reports (company-scoped)
+						</Typography>
+					</Box>
+					<Stack direction="row" spacing={1}>
+						<Button
+							variant="contained"
+							startIcon={<BuildIcon />}
+							onClick={() => setIsAddWorkOrderOpen(true)}
+						>
+							Add Work Order
+						</Button>
+						<Button
+							variant="outlined"
+							startIcon={<WarningIcon />}
+							onClick={() => setIsAddDiscrepancyOpen(true)}
+						>
+							Add Discrepancy
+						</Button>
+					</Stack>
+				</Stack>
 
-			{/* WORK ORDER SECTION */}
-			< div style={{
-				display: 'flex',
-				justifyContent: 'space-around',
-				padding: '1em',
-			}
-			}>
-				<button onClick={() => setIsAddWorkOrderOpen(true)}>
-					add work order
-				</button>
-				<AddWorkOrderForm isOpen={isAddWorkOrderOpen} onClose={() => setIsAddWorkOrderOpen(false)} />
-				<button onClick={() => setIsAddDiscrepancyOpen(true)}>
-					add discrepancy
-				</button>
-				<AddDiscrepancyForm isOpen={isAddDiscrepancyOpen} onClose={() => setIsAddDiscrepancyOpen(false)} />
-				<button>
-					sort by
-				</button>
-			</div >
+				{error ? (
+					<Alert severity="error" sx={{ mb: 2 }}>
+						{error}
+					</Alert>
+				) : null}
 
-			<div style={{
-				display: 'flex',
-				flexDirection: 'column',
-				gap: '1em',
-				padding: '2em',
-			}}>
-				{error && (
-					<div style={{ color: 'red', marginBottom: '0.5em' }}>{error}</div>
-				)}
-				<h3>Open Work Orders</h3>
-				<div style={{
-					display: 'flex',
-					flexDirection: 'column',
-					overflow: 'auto',
-					border: 'solid',
-					padding: '1em',
-					height: '30vh',
-					overflow: 'auto',
-				}}>
-					{mappedWorkOrders.map((order) => (
-						<WorkOrder
-							key={order.id}
-							order_number={order.order_number}
-							part_number={order.part_number}
-							aircraft={order.aircraft}
-							assigned_to={order.assigned_to}
-							due_date={order.due_date}
-							description={order.description}
-						/>
-					))}
-				</div>
-			</div >
+				{/* KPI Cards */}
+				<Grid container spacing={3} sx={{ mb: 3 }}>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#2196F315', color: '#2196F3', p: 1.25, borderRadius: 2 }}>
+											<WorkHistoryIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Pending
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : discrepancies.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#FF980015', color: '#FF9800', p: 1.25, borderRadius: 2 }}>
+											<BuildIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Open
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : workOrders.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#F4433615', color: '#F44336', p: 1.25, borderRadius: 2 }}>
+											<WarningIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Overdue
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : overdueWorkOrders.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#4CAF5015', color: '#4CAF50', p: 1.25, borderRadius: 2 }}>
+											<CheckCircleIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Due Soon
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : dueSoonWorkOrders.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+				</Grid>
 
-			<div style={{
-				display: 'flex',
-				flexDirection: 'column',
-				gap: '1em',
-				padding: '2em',
-			}}>
-				<h3>Pending Work Orders</h3>
-				<div style={{
-					display: 'flex',
-					flexDirection: 'column',
-					gap: '1em',
-					overflow: 'auto',
-					border: 'solid',
-					padding: '1em',
-					height: '30vh',
-					overflow: 'auto',
-				}}>
-					{mappedDiscrepancies.map((order) => (
-						<Discrepancy
-							key={order.id}
-							discrepancy_number={order.discrepancy_number}
-							part_number={order.part_number}
-							aircraft={order.aircraft}
-							description={order.description}
-						/>
-					))}
-				</div>
-			</div>
+				{/* Tables */}
+				<Grid container spacing={3}>
+					<Grid item xs={12} lg={7}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent sx={{ p: 3 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+									Work Orders
+								</Typography>
 
+								{isLoading ? (
+									<Stack alignItems="center" sx={{ py: 4 }}>
+										<CircularProgress />
+									</Stack>
+								) : (
+									<Table size="small">
+										<TableHead>
+											<TableRow>
+												<TableCell>ID</TableCell>
+												<TableCell>Part</TableCell>
+												<TableCell>Aircraft</TableCell>
+												<TableCell>Assigned</TableCell>
+												<TableCell>Due</TableCell>
+												<TableCell>Description</TableCell>
+											</TableRow>
+										</TableHead>
+										<TableBody>
+											{mappedWorkOrders.map((order) => (
+												<TableRow key={order.id}>
+													<TableCell>{order.order_number}</TableCell>
+													<TableCell>{order.part_number || '—'}</TableCell>
+													<TableCell>{order.aircraft || '—'}</TableCell>
+													<TableCell>{order.assigned_to || '—'}</TableCell>
+													<TableCell>{order.due_date || '—'}</TableCell>
+													<TableCell>{order.description || '—'}</TableCell>
+												</TableRow>
+											))}
+											{mappedWorkOrders.length === 0 ? (
+												<TableRow>
+													<TableCell colSpan={6} sx={{ color: 'text.secondary' }}>
+														No work orders found.
+													</TableCell>
+												</TableRow>
+											) : null}
+										</TableBody>
+									</Table>
+								)}
+							</CardContent>
+						</Card>
+					</Grid>
 
-		</>
-	)
+					<Grid item xs={12} lg={5}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent sx={{ p: 3 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+									Discrepancies (Pending)
+								</Typography>
+
+								{isLoading ? (
+									<Stack alignItems="center" sx={{ py: 4 }}>
+										<CircularProgress />
+									</Stack>
+								) : (
+									<Table size="small">
+										<TableHead>
+											<TableRow>
+												<TableCell>ID</TableCell>
+												<TableCell>ATA</TableCell>
+												<TableCell>Aircraft</TableCell>
+												<TableCell>Description</TableCell>
+											</TableRow>
+										</TableHead>
+										<TableBody>
+											{mappedDiscrepancies.map((d) => (
+												<TableRow key={d.id}>
+													<TableCell>{d.discrepancy_number}</TableCell>
+													<TableCell>{d.part_number || '—'}</TableCell>
+													<TableCell>{d.aircraft || '—'}</TableCell>
+													<TableCell>{d.description || '—'}</TableCell>
+												</TableRow>
+											))}
+											{mappedDiscrepancies.length === 0 ? (
+												<TableRow>
+													<TableCell colSpan={4} sx={{ color: 'text.secondary' }}>
+														No discrepancies found.
+													</TableCell>
+												</TableRow>
+											) : null}
+										</TableBody>
+									</Table>
+								)}
+							</CardContent>
+						</Card>
+					</Grid>
+				</Grid>
+
+				{/* Modals */}
+				<AddWorkOrderForm
+					isOpen={isAddWorkOrderOpen}
+					onClose={() => setIsAddWorkOrderOpen(false)}
+				/>
+				<AddDiscrepancyForm
+					isOpen={isAddDiscrepancyOpen}
+					onClose={() => setIsAddDiscrepancyOpen(false)}
+				/>
+			</Container>
+		</Box>
+	);
 }
 export default Maintenance;
