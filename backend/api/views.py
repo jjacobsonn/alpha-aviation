@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 from rest_framework import viewsets, permissions
+from django.db.models import BooleanField, Case, When, Value, Exists, OuterRef
 from .models import (
     Company, Profile, Aircraft, Part,
     Discrepancy, WorkOrder, Flight
@@ -148,8 +149,27 @@ class ProfileViewSet(viewsets.ModelViewSet):
 
 
 class AircraftViewSet(viewsets.ModelViewSet):
-    queryset = Aircraft.objects.all()
     serializer_class = AircraftSerializer
+
+    def get_queryset(self):
+        has_open_work_orders = WorkOrder.objects.filter(
+            aircraft=OuterRef('pk'),
+            status__in=['open', 'in_progress', 'awaiting_parts'],
+        )
+        has_pending_discrepancies = Discrepancy.objects.filter(
+            aircraft=OuterRef('pk'),
+            status='pending',
+        )
+        return Aircraft.objects.annotate(
+            is_ready_to_fly=Case(
+                When(
+                    Exists(has_open_work_orders) | Exists(has_pending_discrepancies),
+                    then=Value(False),
+                ),
+                default=Value(True),
+                output_field=BooleanField(),
+            )
+        ).order_by('-is_ready_to_fly', 'id')
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -168,7 +188,7 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
     serializer_class = DiscrepancySerializer
 
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'list', 'retrieve']:
             return [IsAuthenticated()]
         return [IsMechanicOrManager()]
 

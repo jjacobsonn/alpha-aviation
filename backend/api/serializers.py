@@ -41,11 +41,13 @@ class ProfileSerializer(serializers.ModelSerializer):
 class AircraftSerializer(serializers.ModelSerializer):
     # display field added - CHECK - Not yet included in fields
     company_name = serializers.CharField(source='company.name', read_only=True)
+    is_ready_to_fly = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = Aircraft
         fields = [
             'id', 'registration_number', 'model', 'manufacturer',
-            'engine_type', 'year_built', 'company',
+            'engine_type', 'year_built', 'company', 'is_ready_to_fly',
         ]
 
 
