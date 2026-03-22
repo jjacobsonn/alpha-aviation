@@ -9,7 +9,7 @@ from .models import (
 # User Profile
 ####
 
-
+#
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company

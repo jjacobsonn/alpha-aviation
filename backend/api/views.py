@@ -277,6 +277,7 @@ def company_role_view(request):
     data = company.get_company_role_data(role)
     return Response(data)
 
+
 ####
 # User Profile
 ####
@@ -322,3 +323,14 @@ class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.all().order_by('-departure_time')
     serializer_class = FlightSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            self.perform_create(serializer)
+        except ValidationError as e:
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

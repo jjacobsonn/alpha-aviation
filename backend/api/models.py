@@ -16,9 +16,9 @@ class Company(models.Model):
     def __str__(self):
         return self.name
     
-    #seeing what aircraft are available for a given time period, can check just one aircraft or all aircrafts
+    #seeing what aircraft are available for a given time period, can check just one aircraft or all aircrafts uses datetimefield
     def availability(self, start_date, end_date, aircraft_id=None):
-        if not aircraft_id:
+        if aircraft_id is None:
             # Check all aircraft
             available_aircraft = []
             for aircraft in self.aircraft.all():
@@ -41,7 +41,7 @@ class Company(models.Model):
                     return []
             return [aircraft]
 
-    #To give day/week/month view
+    #To give day/week/month view uses datefield
     def calendar_flights(self, start_date, end_date):
         flights = self.flights.all()
         valid_flights = []
@@ -210,6 +210,7 @@ class Company(models.Model):
                     'company_role': profile.company_role,
                 })
         return role_out
+
 #Profile models, assigned to a company, with a role in the company, and basic profile information. Has functions for is_(company_role).
 class Profile(AbstractUser):
     role_choices = [
@@ -446,6 +447,12 @@ class Flight(models.Model):
     ]
     status = models.CharField(max_length= 255, choices=status_type_options, default='pending approval' )
     
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+    #verification when adding flights
     def clean(self):
         errors = {}
         
@@ -461,6 +468,7 @@ class Flight(models.Model):
         elif self.arrival_time < self.departure_time:
             errors["arrival_time"] = ("Arrival time can not be before departure time.")
         
+        #check to see if the pilots have requirements, company medically cleared.
         def check_pilot(pilot, which_pilot):
             if not pilot:
                 return
@@ -478,6 +486,16 @@ class Flight(models.Model):
                 errors[which_pilot] = (f"{pilot.first_name} is not cleared to fly until {self.arrival_time.date()}")
             if not pilot.pilot_info.is_certified(self.pilot_requirement):
                 errors[which_pilot] = (f"{pilot.first_name} is not a high enough certification")
+        
+        def check_aircraft():
+            #check flights and maintenance
+            #check maintenance
+            if self.aircraft.work_orders.filter(status__in=['open', 'in_progress', 'awaiting_parts']).exists():
+                errors['aircraft'] = (f"{self.aircraft} has pending work orders.")
+            if (self.company.availability(self.departure_time, self.arrival_time, self.aircraft.id) == []):
+                errors['aircraft'] = (f"{self.aircraft} has a conflicting flight")
+                
+        check_aircraft()
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
 
