@@ -934,6 +934,100 @@ Returns a single flight by ID.
     * Code: 404 NOT FOUND — `{ "detail": "No Flight matches the given query." }`
 
 ---
+### POST /api/flights/
+Creates a new flight. Runs full validation on save.
+* URL Params: None
+* Data Params:
+```json
+    {
+        "company": 1,
+        "aircraft": 1,
+        "flight_number": "ACM-002",
+        "origin": "KSLC",
+        "destination": "KOGD",
+        "departure_time": "2026-04-01T09:00:00Z",
+        "arrival_time": "2026-04-01T10:30:00Z",
+        "route": "Direct",
+        "flight_type": "charter",
+        "primary_pilot": 2,
+        "secondary_pilot": 3,
+        "dispatcher": 4,
+        "pilot_requirement": "commercial",
+        "status": "scheduled"
+    }
+```
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 201
+    * Content: Flight object (same as GET /api/flights/<id>/)
+* Error Response:
+    * Code: 400 BAD REQUEST — validation failed:
+```json
+        {
+            "departure_time": ["Departure time does not exist"],
+            "arrival_time": ["Arrival time can not be before departure time."],
+            "secondary_pilot": ["Secondary pilot cannot be the same person as Primary pilot!"],
+            "primary_pilot": ["Kyle is not a pilot"],
+            "primary_pilot": ["Kyle is not of company Acme Aviation"],
+            "primary_pilot": ["Kyle is not cleared to fly until 2026-04-01"],
+            "primary_pilot": ["Kyle is not a high enough certification"],
+            "aircraft": ["1 (Cessna 172) has pending work orders."],
+            "aircraft": ["1 (Cessna 172) has a conflicting flight"]
+        }
+```
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+
+---
+
+### PUT /api/flights/<id>/
+Full update of a flight. Runs full validation on save.
+* URL Params: `id=[integer]`
+* Data Params: Full Flight object (same as POST)
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content: Flight object (same as GET /api/flights/<id>/)
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors (same as POST)
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Flight matches the given query." }`
+
+---
+
+### PATCH /api/flights/<id>/
+Partial update of a flight. Runs full validation on save.
+* URL Params: `id=[integer]`
+* Data Params: Any subset of Flight fields
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content: Flight object (same as GET /api/flights/<id>/)
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors (same as POST)
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Flight matches the given query." }`
+
+---
+
+### DELETE /api/flights/<id>/
+Deletes a flight.
+* URL Params: `id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 204 NO CONTENT
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Flight matches the given query." }`
+---
 
 ### GET /api/flights/calendar/
 Returns all flights whose departure date falls within the given date range. Optionally filter by aircraft.
