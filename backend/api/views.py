@@ -41,6 +41,18 @@ from .serializers import (
     InventorySerializer,
 )
 
+from rest_framework import viewsets, permissions
+from django.db.models import BooleanField, Case, When, Value, Exists, OuterRef
+from .models import (
+    Company, Profile, Aircraft, Part,
+    Discrepancy, WorkOrder, Flight
+)
+from .permissions import IsMechanicOrManager, IsManagerOrOwner, IsOwner, IsOwnProfileOrManager
+from .serializers import (
+    CompanySerializer, ProfileSerializer, AircraftSerializer,
+    PartSerializer, DiscrepancySerializer, WorkOrderSerializer, FlightSerializer
+)
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):

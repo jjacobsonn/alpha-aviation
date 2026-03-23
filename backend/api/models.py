@@ -122,6 +122,10 @@ class Mechanic(models.Model):
     authentication_img = models.ImageField(upload_to='faa_auth/', null=True, blank=True)
 
 
+####
+# Maintenance Dashboard
+####
+
 class Aircraft(models.Model):
     registration_number = models.CharField(max_length=50)
     model = models.CharField(max_length=200)
@@ -170,33 +174,6 @@ class Inventory(models.Model):
 
     def __str__(self):
         return f"{self.part.name} with {self.in_stock} in stock"
-
-class Flight(models.Model):
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True)
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True)
-    flight_number = models.CharField(max_length= 250, null = True)
-    origin = models.CharField(max_length= 250, null = True)
-    destination = models.CharField(max_length=250, null = True)
-    departure_time = models.DateTimeField(null = True)
-    arrival_time = models.DateTimeField(null = True)
-    route = models.CharField(blank= True, null= True)
-    flight_type_options = [
-        ('training', 'Training'),
-        ('charter', 'Charter'),
-        ('positioning', 'Positioning'),
-        ('maintenance ferry', 'Maintenance Ferry'),
-    ]
-    flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='training' )
-    primary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "primary_flights")
-    secondary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "secondary_flights")
-    pilot_req_options =[
-        ('student', 'Student'),#1
-        ('private', 'Private'),#2
-        ('commercial', 'Commercial'),#3
-        ('airline', 'Airline'),#4
-    ]
-    pilot_requirement = models.CharField(max_length= 255, choices=pilot_req_options, default = "private")
-    approved = models.BooleanField(default=False)
 
 
     def clean(self):

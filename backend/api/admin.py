@@ -4,13 +4,39 @@ from django.utils import timezone
 from .models import *
 from django.utils.html import format_html
 # Register your models here.
+class DiscrepancyAdmin(admin.ModelAdmin):
+    list_display = ('id', 'aircraft', 'status', 'date_reported', 'reporter')
+    list_filter = ('status', 'aircraft')
+    search_fields = ('description', 'ata_code', 'component_affected')
+
+class DiscrepancyInline(admin.TabularInline):
+      model = Discrepancy
+      extra = 0
+      fields = ('id', 'aircraft', 'status', 'description')
+
+class WorkOrderPartInline(admin.TabularInline):
+      model = WorkOrderPart
+      extra = 1
+
+class WorkOrderAdmin(admin.ModelAdmin):
+    list_display = ('id', 'aircraft', 'status', 'created_by', 'created_at', 'due_by', 'tach_time', 'hobbs_time', 'ATA_code', 'components_affected', 'signed_by', 'signature_date', 'signature')
+    list_filter = ('status', 'aircraft')
+    inlines = [WorkOrderPartInline]
+    search_fields = ('title', 'description')
+
+class WorkOrderInline(admin.TabularInline):
+      model = WorkOrder
+      extra = 0
+      fields = ('id', 'aircraft', 'status', 'description')
+
 
 class AircraftInline(admin.TabularInline):
     model = Aircraft
     extra = 1
+    inlines = [WorkOrderInline, DiscrepancyInline]
 
-@admin.register(Aircraft)
 class AircraftAdmin(admin.ModelAdmin):
+      inlines = [WorkOrderInline, DiscrepancyInline]
       search_fields = ["registration_number", "model"]
 
 
@@ -105,10 +131,12 @@ class PartInline(admin.TabularInline):
       extra = 0
 
 
-@admin.register(Part)
+
 class PartAdmin(admin.ModelAdmin):
       search_fields = ["part_number", "name"]
 
+class InventoryAdmin(admin.ModelAdmin):
+      search_fields = ["part__part_number", "part__name", "shop_location"]
 
 class InventoryInline(admin.TabularInline):
       model = Inventory
@@ -120,7 +148,8 @@ class InventoryInline(admin.TabularInline):
 
 
 class FlightAdmin(admin.ModelAdmin):
-    fields = ['company', 'aircraft', 'primary_pilot', "secondary_pilot" 'origin', 'destination', 'departure_time', 'arrival_time']
+    fields = ['company', 'aircraft', 'primary_pilot', "secondary_pilot", 'origin', 'destination', 'departure_time', 'arrival_time']
+    search_fields = ['aircraft__registration_number', 'aircraft__model', 'origin', 'destination']
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
           if db_field.name == "primary_pilot":
                 kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
@@ -157,8 +186,17 @@ class CompanyAdmin(admin.ModelAdmin):
             js = ('api/admin_inventory.js',)
 
 
+
+
+def clear_expired_medical_dates():
+      Profile.objects.filter(medically_cleared_until__lt = timezone.now().date()).update(medically_cleared_until=None)
+
 admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
+admin.site.register(Aircraft, AircraftAdmin)
+admin.site.register(Part, PartAdmin)
+admin.site.register(Inventory, InventoryAdmin)
+admin.site.register(Flight, FlightAdmin)
 
 
 @admin.register(Inventory)
