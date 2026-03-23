@@ -15,7 +15,7 @@ from .models import (
 # User Profile
 ####
 
-
+#
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
@@ -26,7 +26,6 @@ class CompanySerializer(serializers.ModelSerializer):
             "updated_at",
             "locations",
         ]
-
 
 class ProfileSerializer(serializers.ModelSerializer):
     # ProfileSerializer shape is inherited from dev-ek/serializers and may rely
@@ -49,6 +48,19 @@ class ProfileSerializer(serializers.ModelSerializer):
             "AP_certificate_number",
             "inspector_authentication",
         ]
+    #if user is not pilot or not mechanic it will remove those fields from the response.
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if not instance.is_pilot():
+            data.pop('medically_cleared_until', None)
+            data.pop('pilot_certificate', None)
+        
+        if not instance.is_mechanic():
+            data.pop('AP_certificate_number', None)
+            data.pop('inspector_authentication', None)
+
+        return data
 
 
 ####
@@ -72,7 +84,6 @@ class AircraftSerializer(serializers.ModelSerializer):
             "company_name",
         ]
 
-
 class PartSerializer(serializers.ModelSerializer):
     aircraft_name = serializers.CharField(source="aircraft.model", read_only=True)
 
@@ -86,7 +97,6 @@ class PartSerializer(serializers.ModelSerializer):
             "aircraft",
             "aircraft_name",
         ]
-
 
 class DiscrepancySerializer(serializers.ModelSerializer):
     reporter_name = serializers.CharField(source="reporter.username", read_only=True)
@@ -105,7 +115,6 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             "tach_time",
             "status",
         ]
-
 
 class WorkOrderSerializer(serializers.ModelSerializer):
     class Meta:
@@ -130,7 +139,6 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "signature",
             "signature_date",
         ]
-
 
 class FlightSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.name", read_only=True)

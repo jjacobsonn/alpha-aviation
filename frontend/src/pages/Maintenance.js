@@ -27,63 +27,23 @@ import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
 import { fetchCompanyDiscrepancies, fetchCompanyWorkorders } from '../shared/Api';
 
 
+//KPI CARD DEFINITION  this pay get replaced but is a decent placeholder atm
 const KPICard = ({ title, color, trend }) => (
-	<>
-		<div className='KPIcard' style={{
-			//KPI Card Styling
-			backgroundColor: color,
-			width: '7em',
-			height: '7em',
-			textAlign: 'center',
-			fontWeight: "bold",
-		}}>
-			<p>{title}</p>
-			<p>{trend}</p>
-		</div>
-	</>
+    //TODO: idk what hapens with the colors, but they get messed up with double clicking
+    <div className='KPIcard' style={{
+        backgroundColor: color,
+        borderRadius: '10px',
+        width: '7em',
+        height: '7em',
+        textAlign: 'center',
+        fontWeight: "bold",
+    }}>
+        <p>{title}</p>
+        <p>{trend}</p>
+    </div>
 );
-
-const Discrepancy = ({ discrepancy_number, part_number, aircraft, description }) => (
-	<>
-		<div style={{
-			//work order styles
-			bacground: 'grey',
-			display: 'flex',
-		}}>
-			<p style={{ padding: '2em 4em', width: '15%', border: 'solid' }}>{discrepancy_number}</p>
-			<p style={{ padding: '2em 4em', width: '15%', border: 'solid' }}>{part_number}</p>
-			<p style={{ padding: '2em 4em', width: '15%', border: 'solid' }}>{aircraft}</p>
-			<p style={{ padding: '2em 4em', width: '55%', border: 'solid' }}>{description}</p>
-
-		</div>
-	</>
-);
-
-const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_to, due_date }) => (
-	<div style={{
-		display: 'flex',
-		flexDirection: 'column',
-		gap: '0px',
-		border: 'solid',
-		margin: '2em'
-	}}>
-		<div style={{
-			//work order styles
-			background: 'grey',
-			display: 'flex',
-
-		}}>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{order_number}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{part_number}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{aircraft}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>assigned to: {assigned_to}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>due: {due_date}</p>
-		</div>
-		<div>
-			<p style={{ padding: '2em 2em' }}>{description}</p>
-		</div>
-	</div>
-);
+    
+// --- MAIN COMPONENT ---
 
 const Maintenance = () => {
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
