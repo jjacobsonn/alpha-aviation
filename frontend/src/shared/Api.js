@@ -275,3 +275,64 @@ export const fetchCompanyAircrafts = async () => {
 export const fetchCompanyFlights = async () => {
 	return await makeApiRequest('GET', '/company/flights/');
 };
+
+// Site admin (global scope)
+export const fetchCompanies = async () => {
+	return await makeApiRequest('GET', '/companies/');
+};
+
+export const createCompany = async (payload) => {
+	return await makeApiRequest('POST', '/companies/', payload);
+};
+
+export const fetchProfiles = async () => {
+	return await makeApiRequest('GET', '/profiles/');
+};
+
+export const fetchAircraft = async () => {
+	return await makeApiRequest('GET', '/aircraft/');
+};
+
+export const createProfile = async (payload) => {
+	return await makeApiRequest('POST', '/profiles/', payload);
+};
+
+export const updateProfile = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/profiles/${id}/`, payload);
+};
+
+export const deleteProfile = async (id) => {
+	return await makeApiRequest('DELETE', `/profiles/${id}/`);
+};
+
+export const createAircraft = async (payload) => {
+	return await makeApiRequest('POST', '/aircraft/', payload);
+};
+
+export const updateAircraft = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/aircraft/${id}/`, payload);
+};
+
+export const deleteAircraft = async (id) => {
+	return await makeApiRequest('DELETE', `/aircraft/${id}/`);
+};
+
+export const fetchFlights = async () => {
+	return await makeApiRequest('GET', '/flights/');
+};
+
+export const createFlight = async (payload) => {
+	return await makeApiRequest('POST', '/flights/', payload);
+};
+
+export const updateFlight = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/flights/${id}/`, payload);
+};
+
+export const deleteFlight = async (id) => {
+	return await makeApiRequest('DELETE', `/flights/${id}/`);
+};
+
+export const createDiscrepancy = async (payload) => {
+	return await makeApiRequest('POST', '/discrepancies/', payload);
+};

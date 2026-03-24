@@ -28,6 +28,7 @@ class CompanySerializer(serializers.ModelSerializer):
         ]
 
 class ProfileSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     # ProfileSerializer shape is inherited from dev-ek/serializers and may rely
     # on related role-specific models (Pilot/Mechanic) for some fields.
     class Meta:
@@ -35,6 +36,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "username",
+            "password",
             "first_name",
             "last_name",
             "middle_name",
@@ -48,6 +50,25 @@ class ProfileSerializer(serializers.ModelSerializer):
             "AP_certificate_number",
             "inspector_authentication",
         ]
+
+    def create(self, validated_data):
+        raw_password = validated_data.pop("password", "")
+        user = Profile(**validated_data)
+        if raw_password:
+            user.set_password(raw_password)
+        else:
+            user.set_unusable_password()
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        raw_password = validated_data.pop("password", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if raw_password is not None and raw_password != "":
+            instance.set_password(raw_password)
+        instance.save()
+        return instance
     #if user is not pilot or not mechanic it will remove those fields from the response.
     def to_representation(self, instance):
         data = super().to_representation(instance)
