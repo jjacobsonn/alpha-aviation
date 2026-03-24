@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
 	Box,
 	Container,
@@ -17,7 +17,9 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { AppContext } from '../context/AppContext';
+import { ACTION_TYPES } from '../context/AppContext';
 import { loginUser, fetchCurrentUser } from '../shared/Api';
+import { getDefaultRouteForUser } from '../shared/rbac';
 
 const Login = () => {
 	const navigate = useNavigate();
@@ -34,21 +36,13 @@ const Login = () => {
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
-    if (accessToken && refreshToken && state.user?.role) {
-      const role = state.user.role;
-      const defaultPath =
-        role === 'owner' || role === 'manager'
-          ? '/management'
-          : role === 'mechanic'
-          ? '/maintenance'
-          : '/management';
-      // Always send the current user to their role-based default,
-      // rather than "last visited" route from some other user.
-      if (location.pathname !== defaultPath) {
+    if (accessToken && refreshToken && (state.user?.role || state.user?.isStaff || state.user?.isSuperuser)) {
+      const defaultPath = getDefaultRouteForUser(state.user);
+      if (defaultPath !== '/login' && location.pathname !== defaultPath) {
         navigate(defaultPath, { replace: true });
       }
     }
-  }, [navigate, state.user?.role, location.pathname]);
+  }, [navigate, state.user, location.pathname]);
 
 	const handleChange = (e) => {
 		setFormData({
@@ -67,13 +61,14 @@ const Login = () => {
 			await loginUser(formData, dispatch);
 			// Fetch the current user to get role/company and route accordingly
 			const userData = await fetchCurrentUser();
-			const role = userData.company_role;
-      const defaultPath =
-        role === 'owner' || role === 'manager'
-          ? '/management'
-          : role === 'mechanic'
-          ? '/maintenance'
-          : '/management';
+			dispatch({
+				type: ACTION_TYPES.UPDATE_USER,
+				payload: userData,
+			});
+			const defaultPath = getDefaultRouteForUser(userData);
+			if (defaultPath === '/login') {
+				throw new Error('Your account does not have a configured frontend role yet.');
+			}
 
 			// Always route to the role-based default after login;
       // don't reuse a previous user's "from" location.

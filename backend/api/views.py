@@ -154,6 +154,8 @@ def user_profile(request):
         'first_name': user.first_name,
         'last_name': user.last_name,
         'company_role': getattr(user, 'company_role', None),
+        'is_staff': bool(getattr(user, 'is_staff', False)),
+        'is_superuser': bool(getattr(user, 'is_superuser', False)),
         'company': getattr(user.company, 'id', None) if getattr(user, 'company', None) else None,
         'company_name': getattr(user.company, 'name', None) if getattr(user, 'company', None) else None,
     })

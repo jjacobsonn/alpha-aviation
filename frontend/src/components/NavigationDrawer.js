@@ -25,10 +25,11 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { useNavigate, useLocation } from "react-router";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
 import { ACTION_TYPES } from "../context/AppContext";
+import { isPlatformAdmin } from "../shared/rbac";
 
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
@@ -75,6 +76,7 @@ function NavigationDrawer() {
   }, [location]);
 
   const role = state.user?.role;
+  const platformAdmin = isPlatformAdmin(state.user);
 
   const allMenuItems = [
     {
@@ -106,9 +108,35 @@ function NavigationDrawer() {
       color: "#FF9800",
       allowedRoles: ["owner", "manager", "mechanic"],
     },
+    {
+      id: "pilot-dashboard",
+      title: "Pilot Dashboard",
+      icon: <FlightTakeoffIcon />,
+      color: "#7b1fa2",
+      allowedRoles: ["pilot"],
+      to: "/pilot-dashboard",
+    },
+    {
+      id: "dispatcher-dashboard",
+      title: "Dispatcher Dashboard",
+      icon: <DashboardIcon />,
+      color: "#00897b",
+      allowedRoles: ["dispatcher"],
+      to: "/dispatcher-dashboard",
+    },
+    {
+      id: "site-admin",
+      title: "Site Admin",
+      icon: <SettingsIcon />,
+      color: "#455a64",
+      allowedRoles: [],
+      onlyPlatformAdmin: true,
+      to: "/site-admin",
+    },
   ];
 
   const menuItems = allMenuItems.filter((item) => {
+    if (item.onlyPlatformAdmin && !platformAdmin) return false;
     if (!item.allowedRoles || item.allowedRoles.length === 0) return true;
     if (!role) return false;
     return item.allowedRoles.includes(role);

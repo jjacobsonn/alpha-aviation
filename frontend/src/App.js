@@ -1,5 +1,5 @@
 import './App.css';
-import { BrowserRouter as Router, Routes, Route } from 'react-router';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { AppProvider } from './context/AppContext';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -12,6 +12,9 @@ import PartsPage from './pages/PartsPage';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import Maintenance from './pages/Maintenance';
+import PilotDashboard from './pages/PilotDashboard';
+import DispatcherDashboard from './pages/DispatcherDashboard';
+import SiteAdminPortal from './pages/SiteAdminPortal';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -132,6 +135,36 @@ function App() {
 								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
 									<Layout>
 										<Maintenance />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/pilot-dashboard"
+							element={
+								<ProtectedRoute allowedRoles={['pilot']}>
+									<Layout>
+										<PilotDashboard />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/dispatcher-dashboard"
+							element={
+								<ProtectedRoute allowedRoles={['dispatcher']}>
+									<Layout>
+										<DispatcherDashboard />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/site-admin"
+							element={
+								<ProtectedRoute requirePlatformAdmin>
+									<Layout>
+										<SiteAdminPortal />
 									</Layout>
 								</ProtectedRoute>
 							}

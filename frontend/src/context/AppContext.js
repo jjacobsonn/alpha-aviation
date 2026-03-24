@@ -110,6 +110,8 @@ const reducer = (state, action) => {
           firstName: userObject.first_name ?? state.user.firstName,
           lastName: userObject.last_name ?? state.user.lastName,
           role: userObject.company_role ?? state.user.role,
+          isStaff: userObject.is_staff ?? state.user.isStaff,
+          isSuperuser: userObject.is_superuser ?? state.user.isSuperuser,
           companyId: userObject.company ?? state.user.companyId,
           companyName: userObject.company_name ?? state.user.companyName,
         },
