@@ -41,6 +41,9 @@ class ProfileSerializer(serializers.ModelSerializer):
     inspector_authentication = serializers.BooleanField(
         source="mechanic_info.inspector_authentication", required=False
     )
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
+    platform_role = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -56,11 +59,21 @@ class ProfileSerializer(serializers.ModelSerializer):
             "phone_number",
             "company",
             "company_role",
+            "is_staff",
+            "is_superuser",
+            "platform_role",
             "medically_cleared_until",
             "pilot_certificate",
             "AP_certificate_number",
             "inspector_authentication",
         ]
+
+    def get_platform_role(self, obj):
+        if getattr(obj, "is_superuser", False):
+            return "superuser"
+        if getattr(obj, "is_staff", False):
+            return "admin"
+        return getattr(obj, "company_role", None)
 
     def create(self, validated_data):
         pilot_data = validated_data.pop("pilot_info", None) or {}

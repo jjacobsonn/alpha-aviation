@@ -46,6 +46,23 @@ class Profile(AbstractUser):
                 })
     
     def save(self, *args, **kwargs):
+        # Enforce a single global superuser account.
+        # If you need to transfer superuser ownership, demote the old one first.
+        if getattr(self, "is_superuser", False):
+            existing = (
+                Profile.objects.filter(is_superuser=True)
+                .exclude(pk=self.pk)
+                .values_list("username", flat=True)
+            )
+            if existing.exists():
+                raise ValidationError(
+                    {
+                        "is_superuser": (
+                            "Only one superuser is allowed. "
+                            f"Existing superuser: {existing.first()}"
+                        )
+                    }
+                )
         super().save(*args, **kwargs)
         if self.company_role == "pilot":
             Pilot.objects.get_or_create(profile = self)

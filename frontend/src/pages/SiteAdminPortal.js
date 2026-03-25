@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogTitle,
   Grid,
+  IconButton,
   MenuItem,
   Table,
   TableBody,
@@ -21,6 +22,7 @@ import {
   Typography,
 } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import { useEffect, useMemo, useState } from "react";
 import {
   createCompany,
@@ -206,6 +208,20 @@ export default function SiteAdminPortal() {
       password: "",
     });
     setEditUserOpen(true);
+  };
+
+  const handleOpenCreateUser = (companyId = "") => {
+    setError("");
+    setNewUserForm({
+      username: "",
+      password: "",
+      first_name: "",
+      last_name: "",
+      email: "",
+      company: companyId ? String(companyId) : "",
+      company_role: "pilot",
+    });
+    setCreateUserOpen(true);
   };
 
   const handleCreateUser = async () => {
@@ -537,6 +553,7 @@ export default function SiteAdminPortal() {
                     <TableCell>Locations</TableCell>
                     <TableCell>Users</TableCell>
                     <TableCell>Aircraft</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -546,14 +563,20 @@ export default function SiteAdminPortal() {
                       <TableCell>{c.locations || "—"}</TableCell>
                       <TableCell>{userCountByCompany.get(c.id) || 0}</TableCell>
                       <TableCell>{aircraftCountByCompany.get(c.id) || 0}</TableCell>
+                      <TableCell align="right">
+                        <IconButton
+                          size="small"
+                          aria-label={`Add user to ${c.name}`}
+                          onClick={() => handleOpenCreateUser(c.id)}
+                        >
+                          <PersonAddAltIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
               <Stack direction="row" spacing={1}>
-                <Button variant="contained" onClick={() => setCreateUserOpen(true)}>
-                  Create User
-                </Button>
                 <Button
                   variant="outlined"
                   endIcon={<OpenInNewIcon />}
@@ -569,9 +592,14 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Users
-              </Typography>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Users
+                </Typography>
+                <Button variant="contained" onClick={() => handleOpenCreateUser()}>
+                  Create User
+                </Button>
+              </Stack>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -589,7 +617,7 @@ export default function SiteAdminPortal() {
                       <TableCell>{u.username}</TableCell>
                       <TableCell>{`${u.first_name || ""} ${u.last_name || ""}`.trim() || "—"}</TableCell>
                       <TableCell>{u.email || "—"}</TableCell>
-                      <TableCell>{u.company_role || "—"}</TableCell>
+                      <TableCell>{u.platform_role || u.company_role || "—"}</TableCell>
                       <TableCell>
                         {companies.find((c) => Number(c.id) === Number(u.company))?.name || "—"}
                       </TableCell>
