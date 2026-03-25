@@ -1,4 +1,4 @@
-""" Template for pytest-django backend tests """
+""" Unit tests for the 'seed' custom Django management command """
 
 from pathlib import Path
 import sys
@@ -32,4 +32,3 @@ class TestExample:
 
 		# Assert
 		assert response.status_code in {200, 302, 404}
-
