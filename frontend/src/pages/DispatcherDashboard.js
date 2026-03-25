@@ -1,9 +1,11 @@
 import { Box, Card, CardContent, Container, Stack, Typography } from "@mui/material";
+import AdminCompanyContextBar from "../components/AdminCompanyContextBar";
 
 export default function DispatcherDashboard() {
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
+        <AdminCompanyContextBar title="Admin test controls" roleFilter={["dispatcher"]} />
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
           <CardContent>
             <Stack spacing={1}>

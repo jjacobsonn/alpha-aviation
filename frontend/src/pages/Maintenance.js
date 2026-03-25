@@ -25,6 +25,9 @@ import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
 import { fetchCompanyDiscrepancies, fetchCompanyWorkorders } from '../shared/Api';
+import AdminCompanyContextBar from '../components/AdminCompanyContextBar';
+import { useAppContext } from '../context/AppContext';
+import { isPlatformAdmin } from '../shared/rbac';
 
 
 //KPI CARD DEFINITION  this pay get replaced but is a decent placeholder atm
@@ -46,6 +49,9 @@ const KPICard = ({ title, color, trend }) => (
 // --- MAIN COMPONENT ---
 
 const Maintenance = () => {
+	const { state } = useAppContext();
+	const platformAdmin = isPlatformAdmin(state.user);
+	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
 	const [isAddDiscrepancyOpen, setIsAddDiscrepancyOpen] = useState(false);
 	const [workOrders, setWorkOrders] = useState([]);
@@ -57,6 +63,10 @@ const Maintenance = () => {
 		let mounted = true;
 
 		const load = async () => {
+			if (platformAdmin && !hasCompanyContext) {
+				setIsLoading(false);
+				return;
+			}
 			setIsLoading(true);
 			setError('');
 			try {
@@ -81,7 +91,7 @@ const Maintenance = () => {
 		return () => {
 			mounted = false;
 		};
-	}, []);
+	}, [platformAdmin, hasCompanyContext]);
 
 	const today = useMemo(() => new Date(), []);
 
@@ -138,6 +148,10 @@ const Maintenance = () => {
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
+				<AdminCompanyContextBar
+					title="Admin test controls"
+					roleFilter={['mechanic']}
+				/>
 				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
 					<Box>
 						<Typography variant="h4" sx={{ fontWeight: 800 }}>

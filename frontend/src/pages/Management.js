@@ -23,8 +23,14 @@ import {
 	fetchCompanyWorkorders,
 	fetchCompanyDiscrepancies,
 } from '../shared/Api';
+import AdminCompanyContextBar from '../components/AdminCompanyContextBar';
+import { useAppContext } from '../context/AppContext';
+import { isPlatformAdmin } from '../shared/rbac';
 
 const Management = () => {
+	const { state } = useAppContext();
+	const platformAdmin = isPlatformAdmin(state.user);
+	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [aircraft, setAircraft] = useState([]);
@@ -35,6 +41,10 @@ const Management = () => {
 	useEffect(() => {
 		let mounted = true;
 		const load = async () => {
+			if (platformAdmin && !hasCompanyContext) {
+				setLoading(false);
+				return;
+			}
 			setLoading(true);
 			setError('');
 			try {
@@ -61,7 +71,7 @@ const Management = () => {
 		return () => {
 			mounted = false;
 		};
-	}, []);
+	}, [platformAdmin, hasCompanyContext]);
 
 	const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -147,6 +157,10 @@ const Management = () => {
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
+				<AdminCompanyContextBar
+					title="Admin test controls"
+					roleFilter={['owner', 'manager']}
+				/>
 				{/* Welcome Section */}
 				<Box sx={{ mb: 4 }}>
 					<Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>

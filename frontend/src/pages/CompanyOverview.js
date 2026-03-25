@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -13,6 +14,7 @@ import {
   TableBody,
   Alert,
   Chip,
+  Link,
 } from '@mui/material';
 
 import { useAppContext } from '../context/AppContext';
@@ -21,24 +23,69 @@ import {
   fetchCompanyAircrafts,
   fetchCompanyFlights,
   fetchCompanyLowStockInventoriesDetailed,
+  fetchCompanyById,
 } from '../shared/Api';
 
 const CompanyOverview = () => {
   const { state } = useAppContext();
+  const [searchParams] = useSearchParams();
+  const companyQuery = searchParams.get('company');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [displayCompanyName, setDisplayCompanyName] = useState('');
 
   const [users, setUsers] = useState([]);
   const [aircraft, setAircraft] = useState([]);
   const [lowStockInventories, setLowStockInventories] = useState([]);
   const [flights, setFlights] = useState([]);
+  const [awaitingCompanyContext, setAwaitingCompanyContext] = useState(false);
 
   useEffect(() => {
+    if (!state.initialized) {
+      return;
+    }
+
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError('');
+      setAwaitingCompanyContext(false);
+
+      if (companyQuery) {
+        localStorage.setItem('adminCompanyId', companyQuery);
+      }
+
+      const adminCompanyId = localStorage.getItem('adminCompanyId');
+      const isPlatformAdmin = Boolean(state.user?.isStaff || state.user?.isSuperuser);
+
+      if (isPlatformAdmin && !adminCompanyId) {
+        if (!mounted) return;
+        setUsers([]);
+        setAircraft([]);
+        setLowStockInventories([]);
+        setFlights([]);
+        setDisplayCompanyName('');
+        setAwaitingCompanyContext(true);
+        setLoading(false);
+        return;
+      }
+
+      let name = state.user?.companyName || '';
+      if (isPlatformAdmin && adminCompanyId) {
+        try {
+          const co = await fetchCompanyById(adminCompanyId);
+          if (mounted && co?.name) {
+            name = co.name;
+          }
+        } catch {
+          /* keep fallback name */
+        }
+      }
+      if (mounted) {
+        setDisplayCompanyName(name || 'Company');
+      }
+
       try {
         const [userData, aircraftData, lowStockData, flightData] =
           await Promise.all([
@@ -66,23 +113,38 @@ const CompanyOverview = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [
+    state.initialized,
+    companyQuery,
+    state.user?.isStaff,
+    state.user?.isSuperuser,
+    state.user?.companyId,
+    state.user?.companyName,
+  ]);
 
-  const companyName = state.user?.companyName || 'Company';
+  const companyName = displayCompanyName || state.user?.companyName || 'Company';
 
   const lowStockCount = useMemo(() => lowStockInventories.length, [lowStockInventories]);
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Stack spacing={2} sx={{ mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            Company Overview
+        <Stack spacing={1.5} sx={{ mb: 3 }}>
+          <Typography
+            variant="overline"
+            color="text.secondary"
+            sx={{ letterSpacing: 1.2, fontWeight: 600 }}
+          >
+            Company overview
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            component="h1"
+            variant="h3"
+            sx={{ fontWeight: 800, lineHeight: 1.15, letterSpacing: -0.5 }}
+          >
             {companyName}
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ pt: 0.5 }}>
             <Chip label={`Low Stock Items: ${lowStockCount}`} color={lowStockCount ? 'error' : 'success'} />
           </Stack>
         </Stack>
@@ -93,7 +155,17 @@ const CompanyOverview = () => {
           </Alert>
         )}
 
-        {loading ? (
+        {awaitingCompanyContext && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            As a platform admin, pick a tenant from{' '}
+            <Link component={RouterLink} to="/admin/companies" underline="hover">
+              Company Admin
+            </Link>{' '}
+            to send company context to the API (or open a company card).
+          </Alert>
+        )}
+
+        {!state.initialized || loading ? (
           <Typography color="text.secondary">Loading…</Typography>
         ) : (
           <Stack spacing={3}>

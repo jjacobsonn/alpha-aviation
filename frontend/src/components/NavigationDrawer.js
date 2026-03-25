@@ -77,6 +77,7 @@ function NavigationDrawer() {
 
   const role = state.user?.role;
   const platformAdmin = isPlatformAdmin(state.user);
+  const effectiveRole = role;
 
   const allMenuItems = [
     {
@@ -137,9 +138,10 @@ function NavigationDrawer() {
 
   const menuItems = allMenuItems.filter((item) => {
     if (item.onlyPlatformAdmin && !platformAdmin) return false;
+    if (platformAdmin) return true;
     if (!item.allowedRoles || item.allowedRoles.length === 0) return true;
-    if (!role) return false;
-    return item.allowedRoles.includes(role);
+    if (!effectiveRole) return false;
+    return item.allowedRoles.includes(effectiveRole);
   });
 
   return (

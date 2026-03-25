@@ -22,8 +22,15 @@ import {
   fetchCompanyFlights,
   fetchCurrentUser,
 } from "../shared/Api";
+import AdminCompanyContextBar from "../components/AdminCompanyContextBar";
+import { useAppContext } from "../context/AppContext";
+import { isPlatformAdmin } from "../shared/rbac";
 
 export default function PilotDashboard() {
+  const { state } = useAppContext();
+  const platformAdmin = isPlatformAdmin(state.user);
+  const hasCompanyContext =
+    Boolean(state.user?.companyId) || Boolean(localStorage.getItem("adminCompanyId"));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [flights, setFlights] = useState([]);
@@ -40,6 +47,10 @@ export default function PilotDashboard() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
+      if (platformAdmin && !hasCompanyContext) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
@@ -70,7 +81,7 @@ export default function PilotDashboard() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [platformAdmin, hasCompanyContext]);
 
   const pendingDiscrepancies = useMemo(
     () => discrepancies.filter((d) => d?.status === "pending").length,
@@ -113,6 +124,10 @@ export default function PilotDashboard() {
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
+        <AdminCompanyContextBar
+          title="Admin test controls"
+          roleFilter={["pilot"]}
+        />
         <Stack spacing={3}>
           <Stack spacing={1}>
             <Typography variant="h4" sx={{ fontWeight: 800 }}>

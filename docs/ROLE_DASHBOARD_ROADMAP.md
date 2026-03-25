@@ -49,11 +49,11 @@ Role landing pages to inventory:
 
 | Route | Exists | Sidebar | Tables/Links | Current API calls | Blockers |
 |------|--------|---------|--------------|-------------------|----------|
-| `/management` |  |  |  |  |  |
-| `/maintenance` |  |  |  |  |  |
-| `/pilot-dashboard` |  |  |  |  |  |
-| `/dispatcher-dashboard` |  |  |  |  |  |
-| `/site-admin` |  |  |  |  |  |
+| `/management` | Yes | Yes (owner/manager) | Stats + “Recent Activity” feed (no table links yet) | `GET /company/aircrafts/`, `GET /company/inventories/detailed/low-stock/`, `GET /company/workorders/`, `GET /company/discrepancies/` | Not using `GET /management/dashboard/` yet; no drill-down routes from page |
+| `/maintenance` | Yes | Yes (owner/manager/mechanic) | KPI cards + **Work Orders table** + **Discrepancies table** + modals | `GET /company/workorders/`, `GET /company/discrepancies/` | Inventory tables not on this page yet (`/company/inventories/detailed/*`) |
+| `/pilot-dashboard` | Yes | Yes (pilot) | **My Flights table**, **Submit Discrepancy form**, **My Discrepancies table** | `GET /users/me/`, `GET /company/flights/`, `GET /company/discrepancies/`, `POST /discrepancies/` | Uses company-wide endpoints then filters client-side; no pilot-specific endpoints |
+| `/dispatcher-dashboard` | Yes | Yes (dispatcher) | Placeholder card only (“coming soon”) | None | Needs real tables + endpoints |
+| `/site-admin` | Yes | Yes (platform admin) | Companies/Users/Aircraft/Flights tables + CRUD dialogs | `GET /companies/`, `GET /profiles/`, `GET /aircraft/`, `GET /flights/` (+ create/update/delete via same resources) | None observed (assuming logged in as platform admin) |
 
 ## Step B — Connect roles with endpoints that already exist (fast wins)
 

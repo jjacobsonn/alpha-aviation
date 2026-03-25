@@ -46,6 +46,14 @@ apiClient.interceptors.request.use(
 		if (tokens.accessToken) {
 			config.headers.Authorization = `Bearer ${tokens.accessToken}`;
 		}
+		// Custom header triggers CORS preflight; skip auth endpoints so login works
+		// even if older backend CORS config omitted x-company-id.
+		const path = String(config.url || '');
+		const isAuthPath = path.includes('/auth/');
+		const adminCompanyId = localStorage.getItem('adminCompanyId');
+		if (adminCompanyId && !isAuthPath) {
+			config.headers['X-Company-Id'] = adminCompanyId;
+		}
 		return config;
 	},
 	(error) => {
@@ -279,6 +287,10 @@ export const fetchCompanyFlights = async () => {
 // Site admin (global scope)
 export const fetchCompanies = async () => {
 	return await makeApiRequest('GET', '/companies/');
+};
+
+export const fetchCompanyById = async (id) => {
+	return await makeApiRequest('GET', `/companies/${id}/`);
 };
 
 export const createCompany = async (payload) => {
