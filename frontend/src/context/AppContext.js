@@ -97,46 +97,26 @@ const reducer = (state, action) => {
         ...state,
         siteAlerts: action.payload
       };
-    case ACTION_TYPES.UPDATE_USER:
+    case ACTION_TYPES.UPDATE_USER: {
+      // Backend /api/users/me/ returns:
+      // { id, username, email, first_name, last_name, company_role, company, company_name }
       const userObject = action.payload.user || action.payload;
       return {
         ...state,
         user: {
-          id: userObject.id || state.user.id,
-          email: userObject.email,
-          username: userObject.username,
-          firstName: userObject.first_name,
-          lastName: userObject.last_name,
-          verifiedEmail: userObject.verified_email || state.user.verifiedEmail,
-          phoneNumber: action.payload.user
-            ? action.payload.phone_number
-            : state.user.phoneNumber,
-          role: action.payload.user ? action.payload.role : state.user.role,
-          needsOnboarding: action.payload.user
-            ? action.payload.needs_onboarding
-            : state.user.needsOnboarding,
-          needsPassword: action.payload.user
-            ? action.payload.needs_password
-            : state.user.needsPassword,
-          companies: action.payload.user
-            ? action.payload.companies
-            : state.user.companies,
+          id: userObject.id ?? state.user.id,
+          email: userObject.email ?? state.user.email,
+          username: userObject.username ?? state.user.username,
+          firstName: userObject.first_name ?? state.user.firstName,
+          lastName: userObject.last_name ?? state.user.lastName,
+          role: userObject.company_role ?? state.user.role,
+          companyId: userObject.company ?? state.user.companyId,
+          companyName: userObject.company_name ?? state.user.companyName,
         },
-        monthStats: {
-          jobsCompletedMonth:
-            action.payload.month_jobs_count ||
-            state.monthStats.jobsCompletedMonth,
-          revisionCountMonth:
-            action.payload.month_revision_count ||
-            state.monthStats.revisionCountMonth,
-          previousShiftHours:
-            action.payload.prev_shift_hours ||
-            state.monthStats.previousShiftHours,
-          currentShiftStart: action.payload.current_shift_start
-            ? Date.parse(action.payload.current_shift_start)
-            : state.monthStats.currentShiftStart
-        }
+        // monthStats are not used in the current UI; keep them unchanged
+        monthStats: state.monthStats
       };
+    }
     default:
       return state;
   }

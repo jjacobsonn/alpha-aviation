@@ -1,327 +1,370 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+	Alert,
+	Box,
+	Card,
+	CardContent,
+	Container,
+	Button,
+	Grid,
+	Stack,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+	Typography,
+	CircularProgress,
+} from '@mui/material';
+
+import BuildIcon from '@mui/icons-material/Build';
+import WarningIcon from '@mui/icons-material/Warning';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
+
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
-
-//______________TEMPORARY DATA__________________
-
-const workOrdersData = [
-	{
-		order_number: "001",
-		part_number: "09234",
-		aircraft: "Boeing 747",
-		assigned_to: "John Doe",
-		due_date: "2025-12-10", // overdue
-		description: "Part is giving error code 9243 in software"
-	},
-	{
-		order_number: "002",
-		part_number: "04567",
-		aircraft: "Airbus A320",
-		assigned_to: "Jane Smith",
-		due_date: "2025-12-20", // soon
-		description: "Hydraulic system showing low pressure warning"
-	},
-	{
-		order_number: "003",
-		part_number: "07890",
-		aircraft: "Boeing 737",
-		assigned_to: "Alex Johnson",
-		due_date: "2026-01-05", // soon
-		description: "Engine temperature reading fluctuates"
-	},
-	{
-		order_number: "004",
-		part_number: "03456",
-		aircraft: "Embraer 190",
-		assigned_to: "Chris Lee",
-		due_date: "2026-03-20", // later
-		description: "Landing gear sensor malfunction"
-	},
-	{
-		order_number: "005",
-		part_number: "05678",
-		aircraft: "Boeing 777",
-		assigned_to: "Patricia Green",
-		due_date: "2025-11-30", // overdue
-		description: "Fuel pump not maintaining pressure"
-	},
-	{
-		order_number: "006",
-		part_number: "06789",
-		aircraft: "Airbus A380",
-		assigned_to: "Michael Brown",
-		due_date: "2026-06-15", // far in the future
-		description: "Autopilot disengages intermittently"
-	},
-	{
-		order_number: "007",
-		part_number: "02345",
-		aircraft: "Bombardier CS300",
-		assigned_to: "Linda White",
-		due_date: "2026-02-28", // later
-		description: "Cabin lighting flickering"
-	},
-	{
-		order_number: "008",
-		part_number: "08901",
-		aircraft: "Boeing 737 MAX",
-		assigned_to: "David Black",
-		due_date: "2025-12-18", // soon
-		description: "Landing gear hydraulics slow to respond"
-	},
-	{
-		order_number: "009",
-		part_number: "01234",
-		aircraft: "Embraer 175",
-		assigned_to: "Emma Stone",
-		due_date: "2026-07-01", // far in the future
-		description: "Avionics software requires update"
-	},
-	{
-		order_number: "010",
-		part_number: "04512",
-		aircraft: "Airbus A321",
-		assigned_to: "Robert King",
-		due_date: "2025-11-25", // overdue
-		description: "Engine oil temperature sensor failure"
-	}
-];
-
-const discrepanciesData = [
-	{
-		discrepancy_number: "D001",
-		part_number: "09234",
-		aircraft: "Boeing 747",
-		description: "Part is giving error code 9243 in software"
-	},
-	{
-		discrepancy_number: "D002",
-		part_number: "04567",
-		aircraft: "Airbus A320",
-		description: "Minor oil leak detected"
-	},
-	{
-		discrepancy_number: "D003",
-		part_number: "07890",
-		aircraft: "Boeing 737",
-		description: "Cabin pressure sensor faulty"
-	},
-	{
-		discrepancy_number: "D004",
-		part_number: "03456",
-		aircraft: "Embraer 190",
-		description: "Navigation system update required"
-	},
-	{
-		discrepancy_number: "D005",
-		part_number: "05678",
-		aircraft: "Boeing 777",
-		description: "Fuel pump pressure inconsistency"
-	},
-	{
-		discrepancy_number: "D006",
-		part_number: "06789",
-		aircraft: "Airbus A380",
-		description: "Autopilot disengages during turbulence"
-	},
-	{
-		discrepancy_number: "D007",
-		part_number: "02345",
-		aircraft: "Bombardier CS300",
-		description: "Cabin lights flicker intermittently"
-	},
-	{
-		discrepancy_number: "D008",
-		part_number: "08901",
-		aircraft: "Boeing 737 MAX",
-		description: "Landing gear hydraulics slow to respond"
-	},
-	{
-		discrepancy_number: "D009",
-		part_number: "01234",
-		aircraft: "Embraer 175",
-		description: "Avionics software outdated"
-	},
-	{
-		discrepancy_number: "D010",
-		part_number: "04512",
-		aircraft: "Airbus A321",
-		description: "Engine oil temperature sensor failure"
-	}
-];
-
-const today = new Date();
-
-const overdueWorkOrders = workOrdersData.filter(order => new Date(order.due_date) < today);
-
-const dueSoonWorkOrders = workOrdersData.filter(order => {
-	const dueDate = new Date(order.due_date);
-	const diffInTime = dueDate - today; // difference in milliseconds
-	const diffInDays = diffInTime / (1000 * 60 * 60 * 24); // convert to days
-	return diffInDays >= 0 && diffInDays <= 7;
-});
+import { fetchCompanyDiscrepancies, fetchCompanyWorkorders } from '../shared/Api';
 
 
+//KPI CARD DEFINITION  this pay get replaced but is a decent placeholder atm
 const KPICard = ({ title, color, trend }) => (
-	<>
-		<div className='KPIcard' style={{
-			//KPI Card Styling
-			backgroundColor: color,
-			width: '7em',
-			height: '7em',
-			textAlign: 'center',
-			fontWeight: "bold",
-		}}>
-			<p>{title}</p>
-			<p>{trend}</p>
-		</div>
-	</>
+    //TODO: idk what hapens with the colors, but they get messed up with double clicking
+    <div className='KPIcard' style={{
+        backgroundColor: color,
+        borderRadius: '10px',
+        width: '7em',
+        height: '7em',
+        textAlign: 'center',
+        fontWeight: "bold",
+    }}>
+        <p>{title}</p>
+        <p>{trend}</p>
+    </div>
 );
-
-const Discrepancy = ({ discrepancy_number, part_number, aircraft, description }) => (
-	<>
-		<div style={{
-			//work order styles
-			bacground: 'grey',
-			display: 'flex',
-		}}>
-			<p style={{ padding: '2em 4em', width: '15%', border: 'solid' }}>{discrepancy_number}</p>
-			<p style={{ padding: '2em 4em', width: '15%', border: 'solid' }}>{part_number}</p>
-			<p style={{ padding: '2em 4em', width: '15%', border: 'solid' }}>{aircraft}</p>
-			<p style={{ padding: '2em 4em', width: '55%', border: 'solid' }}>{description}</p>
-
-		</div>
-	</>
-);
-
-const WorkOrder = ({ order_number, part_number, aircraft, description, assigned_to, due_date }) => (
-	<div style={{
-		display: 'flex',
-		flexDirection: 'column',
-		gap: '0px',
-		border: 'solid',
-		margin: '2em'
-	}}>
-		<div style={{
-			//work order styles
-			background: 'grey',
-			display: 'flex',
-
-		}}>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{order_number}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{part_number}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>{aircraft}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>assigned to: {assigned_to}</p>
-			<p style={{ padding: '2em 2em', width: '20%', border: 'solid' }}>due: {due_date}</p>
-		</div>
-		<div>
-			<p style={{ padding: '2em 2em' }}>{description}</p>
-		</div>
-	</div>
-);
+    
+// --- MAIN COMPONENT ---
 
 const Maintenance = () => {
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
 	const [isAddDiscrepancyOpen, setIsAddDiscrepancyOpen] = useState(false);
-	return (
-		<>
-			{/* KPI CARD SECTION */}
-			<div style={{
-				//KPI card holder styles (mostly layout stuff)
-				display: 'flex',
-				justifyContent: 'space-evenly',
-				marginBottom: '5em',
-				marginTop: '1em',
-				padding: '1em',
-				backgroundColor: 'slategray',
-			}}>
-				<KPICard title="Pending" color="lightblue" trend={discrepanciesData.length} />
-				<KPICard title="Open" color="mediumpurple" trend={workOrdersData.length} />
-				<KPICard title="Overdue" color="firebrick" trend={overdueWorkOrders.length} />
-				<KPICard title="Due Soon" color="lightgreen" trend={dueSoonWorkOrders.length} />
-			</div >
+	const [workOrders, setWorkOrders] = useState([]);
+	const [discrepancies, setDiscrepancies] = useState([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState('');
 
-			{/* WORK ORDER SECTION */}
-			< div style={{
-				display: 'flex',
-				justifyContent: 'space-around',
-				padding: '1em',
+	useEffect(() => {
+		let mounted = true;
+
+		const load = async () => {
+			setIsLoading(true);
+			setError('');
+			try {
+				const [woData, discData] = await Promise.all([
+					fetchCompanyWorkorders(),
+					fetchCompanyDiscrepancies(),
+				]);
+				if (!mounted) return;
+				setWorkOrders(Array.isArray(woData) ? woData : []);
+				setDiscrepancies(Array.isArray(discData) ? discData : []);
+			} catch (e) {
+				if (!mounted) return;
+				setError(e?.message || 'Failed to load maintenance data.');
+			} finally {
+				if (!mounted) return;
+				setIsLoading(false);
 			}
-			}>
-				<button onClick={() => setIsAddWorkOrderOpen(true)}>
-					add work order
-				</button>
-				<AddWorkOrderForm isOpen={isAddWorkOrderOpen} onClose={() => setIsAddWorkOrderOpen(false)} />
-				<button onClick={() => setIsAddDiscrepancyOpen(true)}>
-					add discrepancy
-				</button>
-				<AddDiscrepancyForm isOpen={isAddDiscrepancyOpen} onClose={() => setIsAddDiscrepancyOpen(false)} />
-				<button>
-					sort by
-				</button>
-			</div >
+		};
 
-			<div style={{
-				display: 'flex',
-				flexDirection: 'column',
-				gap: '1em',
-				padding: '2em',
-			}}>
-				<h3>Open Work Orders</h3>
-				<div style={{
-					display: 'flex',
-					flexDirection: 'column',
-					overflow: 'auto',
-					border: 'solid',
-					padding: '1em',
-					height: '30vh',
-					overflow: 'auto',
-				}}>
-					{workOrdersData.map((order) => (
-						<WorkOrder
-							key={order.order_number} // React needs unique keys
-							order_number={order.order_number}
-							part_number={order.part_number}
-							aircraft={order.aircraft}
-							assigned_to={order.assigned_to}
-							due_date={order.due_date}
-							description={order.description}
-						/>
-					))}
-				</div>
-			</div >
+		load();
 
-			<div style={{
-				display: 'flex',
-				flexDirection: 'column',
-				gap: '1em',
-				padding: '2em',
-			}}>
-				<h3>Pending Work Orders</h3>
-				<div style={{
-					display: 'flex',
-					flexDirection: 'column',
-					gap: '1em',
-					overflow: 'auto',
-					border: 'solid',
-					padding: '1em',
-					height: '30vh',
-					overflow: 'auto',
-				}}>
-					{discrepanciesData.map((order) => (
-						<Discrepancy
-							key={order.discrepancy_number}
-							discrepancy_number={order.discrepancy_number}
-							part_number={order.part_number}
-							aircraft={order.aircraft}
-							description={order.description}
-						/>
-					))}
-				</div>
-			</div>
+		return () => {
+			mounted = false;
+		};
+	}, []);
 
+	const today = useMemo(() => new Date(), []);
 
-		</>
-	)
+	const overdueWorkOrders = useMemo(
+		() =>
+			workOrders.filter((wo) => {
+				if (!wo.due_by) return false;
+				const dueDate = new Date(wo.due_by);
+				return dueDate < today;
+			}),
+		[workOrders, today]
+	);
+
+	const dueSoonWorkOrders = useMemo(
+		() =>
+			workOrders.filter((wo) => {
+				if (!wo.due_by) return false;
+				const dueDate = new Date(wo.due_by);
+				const diffInTime = dueDate - today;
+				const diffInDays = diffInTime / (1000 * 60 * 60 * 24);
+				return diffInDays >= 0 && diffInDays <= 7;
+			}),
+		[workOrders, today]
+	);
+
+	const mappedWorkOrders = useMemo(
+		() =>
+			workOrders.map((wo) => ({
+				id: wo.id,
+				order_number: wo.id,
+				part_number: (wo.parts_needed && wo.parts_needed.length) ? wo.parts_needed[0] : '',
+				aircraft:
+					typeof wo.aircraft === 'object'
+						? wo.aircraft.model || wo.aircraft.registration_number
+						: wo.aircraft,
+				assigned_to: Array.isArray(wo.created_by) ? wo.created_by.join(' ') : wo.created_by,
+				due_date: wo.due_by,
+				description: wo.description,
+			})),
+		[workOrders]
+	);
+
+	const mappedDiscrepancies = useMemo(
+		() =>
+			discrepancies.map((d) => ({
+				id: d.id,
+				discrepancy_number: d.id,
+				part_number: d.ata_code || '',
+				aircraft: d.aircraft,
+				description: d.description,
+			})),
+		[discrepancies]
+	);
+	return (
+		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+			<Container maxWidth="xl" sx={{ py: 4 }}>
+				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+					<Box>
+						<Typography variant="h4" sx={{ fontWeight: 800 }}>
+							Maintenance
+						</Typography>
+						<Typography variant="body2" color="text.secondary">
+							Work orders and discrepancy reports (company-scoped)
+						</Typography>
+					</Box>
+					<Stack direction="row" spacing={1}>
+						<Button
+							variant="contained"
+							startIcon={<BuildIcon />}
+							onClick={() => setIsAddWorkOrderOpen(true)}
+						>
+							Add Work Order
+						</Button>
+						<Button
+							variant="outlined"
+							startIcon={<WarningIcon />}
+							onClick={() => setIsAddDiscrepancyOpen(true)}
+						>
+							Add Discrepancy
+						</Button>
+					</Stack>
+				</Stack>
+
+				{error ? (
+					<Alert severity="error" sx={{ mb: 2 }}>
+						{error}
+					</Alert>
+				) : null}
+
+				{/* KPI Cards */}
+				<Grid container spacing={3} sx={{ mb: 3 }}>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#2196F315', color: '#2196F3', p: 1.25, borderRadius: 2 }}>
+											<WorkHistoryIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Pending
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : discrepancies.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#FF980015', color: '#FF9800', p: 1.25, borderRadius: 2 }}>
+											<BuildIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Open
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : workOrders.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#F4433615', color: '#F44336', p: 1.25, borderRadius: 2 }}>
+											<WarningIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Overdue
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : overdueWorkOrders.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent>
+								<Stack spacing={1}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<Box sx={{ bgcolor: '#4CAF5015', color: '#4CAF50', p: 1.25, borderRadius: 2 }}>
+											<CheckCircleIcon />
+										</Box>
+										<Box sx={{ flexGrow: 1 }}>
+											<Typography variant="body2" color="text.secondary">
+												Due Soon
+											</Typography>
+											<Typography variant="h4" sx={{ fontWeight: 900 }}>
+												{isLoading ? '—' : dueSoonWorkOrders.length}
+											</Typography>
+										</Box>
+									</Stack>
+								</Stack>
+							</CardContent>
+						</Card>
+					</Grid>
+				</Grid>
+
+				{/* Tables */}
+				<Grid container spacing={3}>
+					<Grid item xs={12} lg={7}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent sx={{ p: 3 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+									Work Orders
+								</Typography>
+
+								{isLoading ? (
+									<Stack alignItems="center" sx={{ py: 4 }}>
+										<CircularProgress />
+									</Stack>
+								) : (
+									<Table size="small">
+										<TableHead>
+											<TableRow>
+												<TableCell>ID</TableCell>
+												<TableCell>Part</TableCell>
+												<TableCell>Aircraft</TableCell>
+												<TableCell>Assigned</TableCell>
+												<TableCell>Due</TableCell>
+												<TableCell>Description</TableCell>
+											</TableRow>
+										</TableHead>
+										<TableBody>
+											{mappedWorkOrders.map((order) => (
+												<TableRow key={order.id}>
+													<TableCell>{order.order_number}</TableCell>
+													<TableCell>{order.part_number || '—'}</TableCell>
+													<TableCell>{order.aircraft || '—'}</TableCell>
+													<TableCell>{order.assigned_to || '—'}</TableCell>
+													<TableCell>{order.due_date || '—'}</TableCell>
+													<TableCell>{order.description || '—'}</TableCell>
+												</TableRow>
+											))}
+											{mappedWorkOrders.length === 0 ? (
+												<TableRow>
+													<TableCell colSpan={6} sx={{ color: 'text.secondary' }}>
+														No work orders found.
+													</TableCell>
+												</TableRow>
+											) : null}
+										</TableBody>
+									</Table>
+								)}
+							</CardContent>
+						</Card>
+					</Grid>
+
+					<Grid item xs={12} lg={5}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+							<CardContent sx={{ p: 3 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+									Discrepancies (Pending)
+								</Typography>
+
+								{isLoading ? (
+									<Stack alignItems="center" sx={{ py: 4 }}>
+										<CircularProgress />
+									</Stack>
+								) : (
+									<Table size="small">
+										<TableHead>
+											<TableRow>
+												<TableCell>ID</TableCell>
+												<TableCell>ATA</TableCell>
+												<TableCell>Aircraft</TableCell>
+												<TableCell>Description</TableCell>
+											</TableRow>
+										</TableHead>
+										<TableBody>
+											{mappedDiscrepancies.map((d) => (
+												<TableRow key={d.id}>
+													<TableCell>{d.discrepancy_number}</TableCell>
+													<TableCell>{d.part_number || '—'}</TableCell>
+													<TableCell>{d.aircraft || '—'}</TableCell>
+													<TableCell>{d.description || '—'}</TableCell>
+												</TableRow>
+											))}
+											{mappedDiscrepancies.length === 0 ? (
+												<TableRow>
+													<TableCell colSpan={4} sx={{ color: 'text.secondary' }}>
+														No discrepancies found.
+													</TableCell>
+												</TableRow>
+											) : null}
+										</TableBody>
+									</Table>
+								)}
+							</CardContent>
+						</Card>
+					</Grid>
+				</Grid>
+
+				{/* Modals */}
+				<AddWorkOrderForm
+					isOpen={isAddWorkOrderOpen}
+					onClose={() => setIsAddWorkOrderOpen(false)}
+				/>
+				<AddDiscrepancyForm
+					isOpen={isAddDiscrepancyOpen}
+					onClose={() => setIsAddDiscrepancyOpen(false)}
+				/>
+			</Container>
+		</Box>
+	);
 }
 export default Maintenance;
