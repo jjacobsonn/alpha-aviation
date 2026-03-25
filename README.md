@@ -15,12 +15,12 @@ Monorepo for the Alpha Aviation application: backend API and web frontend.
 
 ## Table of Contents
 
-- [Live links](#-live-links)
-- [About](#-about)
-- [Repository structure](#-repository-structure)
-- [How to run](#-how-to-run)
-- [Deployment](#-deployment)
-- [License](#-license)
+- [Live links](#live-links)
+- [About](#about)
+- [Repository structure](#repository-structure)
+- [How to run](#how-to-run)
+- [Deployment](#deployment)
+- [License](#license)
 
 **Documentation** ([docs/](docs/)):
 
@@ -30,6 +30,8 @@ Monorepo for the Alpha Aviation application: backend API and web frontend.
 ---
 
 ## Live links
+
+> NOTE: These URLs point at the current live Render deployment. If you change or replace them, make sure you’re not breaking links that people or docs rely on.
 
 | Link | URL |
 |------|-----|

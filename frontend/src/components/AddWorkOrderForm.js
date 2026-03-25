@@ -1,5 +1,13 @@
 import Modal from "react-modal";
 import { useState } from "react";
+import {
+	Box,
+	Stack,
+	TextField,
+	Button,
+	Typography,
+	Alert,
+} from "@mui/material";
 
 Modal.setAppElement("#root");
 
@@ -72,85 +80,187 @@ export default function AddWorkOrderForm({ isOpen, onClose }) {
             isOpen={isOpen}
             onRequestClose={onClose}
             contentLabel="Add Work Order"
-            style={{ content: { maxWidth: "720px", margin: "auto", padding: "1.5rem" } }}
+			style={{
+				content: {
+					maxWidth: "720px",
+					margin: "auto",
+					padding: "24px",
+					borderRadius: 14,
+					border: "1px solid #e0e0e0",
+					background: "#fff",
+				},
+				overlay: {
+					backgroundColor: "rgba(0,0,0,0.45)",
+					zIndex: 1300,
+				},
+			}}
         >
-            <h2>Add Work Order</h2>
-            <form onSubmit={handleSubmit}>
-                <div>
-                    <label htmlFor="order_number">Order Number</label>
-                    <input id="order_number" name="order_number" value={formData.order_number} onChange={handleChange} />
-                    {errors.order_number && <div style={{ color: "red" }}>{errors.order_number}</div>}
-                </div>
+			<Box>
+				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+					<Typography variant="h6" sx={{ fontWeight: 900 }}>
+						Add Work Order
+					</Typography>
+					<Button variant="text" onClick={() => onClose()}>
+						Close
+					</Button>
+				</Stack>
 
-                <div>
-                    <label htmlFor="part_number">Part Number</label>
-                    <input id="part_number" name="part_number" value={formData.part_number} onChange={handleChange} />
-                    {errors.part_number && <div style={{ color: "red" }}>{errors.part_number}</div>}
-                </div>
+				{errorMessageFor(errors) ? (
+					<Alert severity="error" sx={{ mb: 2 }}>
+						{errorMessageFor(errors)}
+					</Alert>
+				) : null}
 
-                <div>
-                    <label htmlFor="assigned_to">Assigned To</label>
-                    <input id="assigned_to" name="assigned_to" value={formData.assigned_to} onChange={handleChange} />
-                    {errors.assigned_to && <div style={{ color: "red" }}>{errors.assigned_to}</div>}
-                </div>
+				<form onSubmit={handleSubmit}>
+					<Stack spacing={2}>
+						<TextField
+							label="Order Number"
+							name="order_number"
+							value={formData.order_number}
+							onChange={handleChange}
+							error={Boolean(errors.order_number)}
+							helperText={errors.order_number || ""}
+							fullWidth
+						/>
 
-                <div>
-                    <label htmlFor="due_date">Due Date</label>
-                    <input id="due_date" name="due_date" type="date" value={formData.due_date} onChange={handleChange} />
-                </div>
+						<TextField
+							label="Part Number"
+							name="part_number"
+							value={formData.part_number}
+							onChange={handleChange}
+							error={Boolean(errors.part_number)}
+							helperText={errors.part_number || ""}
+							fullWidth
+						/>
 
-                <div>
-                    <label htmlFor="date_reported">Date Reported</label>
-                    <input id="date_reported" name="date_reported" type="date" value={formData.date_reported} onChange={handleChange} />
-                </div>
+						<TextField
+							label="Assigned To"
+							name="assigned_to"
+							value={formData.assigned_to}
+							onChange={handleChange}
+							error={Boolean(errors.assigned_to)}
+							helperText={errors.assigned_to || ""}
+							fullWidth
+						/>
 
-                <div>
-                    <label htmlFor="tach_time">Tach Time</label>
-                    <input id="tach_time" name="tach_time" value={formData.tach_time} onChange={handleChange} />
-                </div>
+						<Stack direction="row" spacing={2}>
+							<TextField
+								label="Due Date"
+								name="due_date"
+								type="date"
+								value={formData.due_date}
+								onChange={handleChange}
+								InputLabelProps={{ shrink: true }}
+								fullWidth
+							/>
+							<TextField
+								label="Date Reported"
+								name="date_reported"
+								type="date"
+								value={formData.date_reported}
+								onChange={handleChange}
+								InputLabelProps={{ shrink: true }}
+								fullWidth
+							/>
+						</Stack>
 
-                <div>
-                    <label htmlFor="hobbs_time">Hobbs Time</label>
-                    <input id="hobbs_time" name="hobbs_time" value={formData.hobbs_time} onChange={handleChange} />
-                </div>
+						<Stack direction="row" spacing={2}>
+							<TextField
+								label="Tach Time"
+								name="tach_time"
+								value={formData.tach_time}
+								onChange={handleChange}
+								fullWidth
+							/>
+							<TextField
+								label="Hobbs Time"
+								name="hobbs_time"
+								value={formData.hobbs_time}
+								onChange={handleChange}
+								fullWidth
+							/>
+						</Stack>
 
-                <div>
-                    <label htmlFor="ATA_code">ATA Code</label>
-                    <input id="ATA_code" name="ATA_code" value={formData.ATA_code} onChange={handleChange} />
-                </div>
+						<Stack direction="row" spacing={2}>
+							<TextField
+								label="ATA Code"
+								name="ATA_code"
+								value={formData.ATA_code}
+								onChange={handleChange}
+								fullWidth
+							/>
+							<TextField
+								label="Component Affected"
+								name="component_affected"
+								value={formData.component_affected}
+								onChange={handleChange}
+								fullWidth
+							/>
+						</Stack>
 
-                <div>
-                    <label htmlFor="component_affected">Component Affected</label>
-                    <input id="component_affected" name="component_affected" value={formData.component_affected} onChange={handleChange} />
-                </div>
+						<TextField
+							label="Description"
+							name="description"
+							value={formData.description}
+							onChange={handleChange}
+							error={Boolean(errors.description)}
+							helperText={errors.description || ""}
+							multiline
+							rows={4}
+							fullWidth
+						/>
 
-                <div>
-                    <label htmlFor="description">Description</label>
-                    <textarea id="description" name="description" value={formData.description} onChange={handleChange} rows={4} />
-                    {errors.description && <div style={{ color: "red" }}>{errors.description}</div>}
-                </div>
+						<Stack direction="column" spacing={1}>
+							<Typography variant="body2" color="text.secondary">
+								Attachment (optional)
+							</Typography>
+							<Button variant="outlined" component="label">
+								Upload file
+								<input
+									type="file"
+									hidden
+									name="attachment"
+									onChange={handleFileChange}
+								/>
+							</Button>
+							{formData.attachment ? (
+								<Typography variant="caption" color="text.secondary">
+									Selected: {formData.attachment.name}
+								</Typography>
+							) : null}
+						</Stack>
 
-                <div>
-                    <label htmlFor="attachment">Attachment (file)</label>
-                    <input id="attachment" name="attachment" type="file" onChange={handleFileChange} />
-                </div>
+						<TextField
+							label="Digital Signature"
+							name="digital_signature"
+							value={formData.digital_signature}
+							onChange={handleChange}
+							placeholder="Signer name or signature data"
+							fullWidth
+						/>
 
-                <div>
-                    <label htmlFor="digital_signature">Digital Signature</label>
-                    <input
-                        id="digital_signature"
-                        name="digital_signature"
-                        value={formData.digital_signature}
-                        onChange={handleChange}
-                        placeholder="Signer name or signature data"
-                    />
-                </div>
-
-                <div style={{ marginTop: "1rem" }}>
-                    <button type="submit">Submit</button>
-                    <button type="button" onClick={() => { setFormData(initialForm); onClose(); }} style={{ marginLeft: "0.5rem" }}>Cancel</button>
-                </div>
-            </form>
+						<Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ pt: 1 }}>
+							<Button
+								variant="outlined"
+								onClick={() => {
+									setFormData(initialForm);
+									onClose();
+								}}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" variant="contained" color="primary">
+								Submit
+							</Button>
+						</Stack>
+					</Stack>
+				</form>
+			</Box>
         </Modal>
     );
+}
+
+function errorMessageFor(errors) {
+	const first = Object.values(errors || {})[0];
+	return first || "";
 }

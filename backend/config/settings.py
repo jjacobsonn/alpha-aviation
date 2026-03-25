@@ -36,6 +36,12 @@ AUTH_USER_MODEL = 'api.Profile'
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
+# Allow frontend origin for CSRF when posting to the API
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
 
 # Application definition
 
@@ -50,6 +56,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'api',
+
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
@@ -117,7 +125,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Prefer DATABASE_URL (e.g. Render Internal Database URL) if set and non-empty
+# NOTE: This DATABASE_URL (Render Internal Database URL) configuration is used by the live Render deployment.
+# Be extremely careful changing this logic; coordinate with the deployment owner before modifying.
 _db_url = (env('DATABASE_URL', default=None) or '').strip()
 if _db_url:
     DATABASES = {'default': dj_database_url.parse(_db_url, conn_max_age=600)}

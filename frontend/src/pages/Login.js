@@ -17,11 +17,11 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { AppContext } from '../context/AppContext';
-import { loginUser } from '../shared/Api';
+import { loginUser, fetchCurrentUser } from '../shared/Api';
 
 const Login = () => {
 	const navigate = useNavigate();
-	const { dispatch } = useContext(AppContext);
+	const { state, dispatch } = useContext(AppContext);
 	const location = useLocation();
 	const [formData, setFormData] = useState({
 		username: '',
@@ -34,10 +34,21 @@ const Login = () => {
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
-    if (accessToken && refreshToken) {
-      navigate('/management', { replace: true });
+    if (accessToken && refreshToken && state.user?.role) {
+      const role = state.user.role;
+      const defaultPath =
+        role === 'owner' || role === 'manager'
+          ? '/management'
+          : role === 'mechanic'
+          ? '/maintenance'
+          : '/management';
+      // Always send the current user to their role-based default,
+      // rather than "last visited" route from some other user.
+      if (location.pathname !== defaultPath) {
+        navigate(defaultPath, { replace: true });
+      }
     }
-  }, [navigate]);
+  }, [navigate, state.user?.role, location.pathname]);
 
 	const handleChange = (e) => {
 		setFormData({
@@ -54,7 +65,19 @@ const Login = () => {
 
 		try {
 			await loginUser(formData, dispatch);
-			navigate(location.state?.from?.pathname || '/management', {
+			// Fetch the current user to get role/company and route accordingly
+			const userData = await fetchCurrentUser();
+			const role = userData.company_role;
+      const defaultPath =
+        role === 'owner' || role === 'manager'
+          ? '/management'
+          : role === 'mechanic'
+          ? '/maintenance'
+          : '/management';
+
+			// Always route to the role-based default after login;
+      // don't reuse a previous user's "from" location.
+			navigate(defaultPath, {
 				replace: true,
 			});
 		} catch (err) {
