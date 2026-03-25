@@ -29,8 +29,19 @@ class CompanySerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    # ProfileSerializer shape is inherited from dev-ek/serializers and may rely
-    # on related role-specific models (Pilot/Mechanic) for some fields.
+    medically_cleared_until = serializers.DateField(
+        source="pilot_info.medically_cleared_until", required=False, allow_null=True
+    )
+    pilot_certificate = serializers.CharField(
+        source="pilot_info.pilot_certificate", required=False, allow_blank=True
+    )
+    AP_certificate_number = serializers.IntegerField(
+        source="mechanic_info.AP_certificate_number", required=False, allow_null=True
+    )
+    inspector_authentication = serializers.BooleanField(
+        source="mechanic_info.inspector_authentication", required=False
+    )
+
     class Meta:
         model = Profile
         fields = [
@@ -52,6 +63,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        pilot_data = validated_data.pop("pilot_info", None) or {}
+        mechanic_data = validated_data.pop("mechanic_info", None) or {}
         raw_password = validated_data.pop("password", "")
         user = Profile(**validated_data)
         if raw_password:
@@ -59,29 +72,46 @@ class ProfileSerializer(serializers.ModelSerializer):
         else:
             user.set_unusable_password()
         user.save()
+
+        # Only set role-specific data if it applies (and the related row exists).
+        if getattr(user, "company_role", None) == "pilot" and pilot_data and hasattr(
+            user, "pilot_info"
+        ):
+            for k, v in pilot_data.items():
+                setattr(user.pilot_info, k, v)
+            user.pilot_info.save()
+        if (
+            getattr(user, "company_role", None) == "mechanic"
+            and mechanic_data
+            and hasattr(user, "mechanic_info")
+        ):
+            for k, v in mechanic_data.items():
+                setattr(user.mechanic_info, k, v)
+            user.mechanic_info.save()
+
         return user
 
     def update(self, instance, validated_data):
+        pilot_data = validated_data.pop("pilot_info", None) or {}
+        mechanic_data = validated_data.pop("mechanic_info", None) or {}
         raw_password = validated_data.pop("password", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         if raw_password is not None and raw_password != "":
             instance.set_password(raw_password)
         instance.save()
+
+        # Update role-specific models when present.
+        if pilot_data and hasattr(instance, "pilot_info"):
+            for k, v in pilot_data.items():
+                setattr(instance.pilot_info, k, v)
+            instance.pilot_info.save()
+        if mechanic_data and hasattr(instance, "mechanic_info"):
+            for k, v in mechanic_data.items():
+                setattr(instance.mechanic_info, k, v)
+            instance.mechanic_info.save()
+
         return instance
-    #if user is not pilot or not mechanic it will remove those fields from the response.
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-
-        if not instance.is_pilot():
-            data.pop('medically_cleared_until', None)
-            data.pop('pilot_certificate', None)
-        
-        if not instance.is_mechanic():
-            data.pop('AP_certificate_number', None)
-            data.pop('inspector_authentication', None)
-
-        return data
 
 
 ####
