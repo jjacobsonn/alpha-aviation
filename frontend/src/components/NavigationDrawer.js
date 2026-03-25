@@ -24,6 +24,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
+import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
@@ -89,8 +90,8 @@ function NavigationDrawer() {
     },
     {
       id: "admin",
-      title: "Company Admin",
-      icon: <DashboardIcon />,
+      title: "Organizations",
+      icon: <DomainIcon />,
       color: "#00695c",
       allowedRoles: ["owner", "manager"],
       to: "/admin/companies",

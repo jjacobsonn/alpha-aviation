@@ -22,7 +22,6 @@ import {
   fetchCompanyFlights,
   fetchCurrentUser,
 } from "../shared/Api";
-import AdminCompanyContextBar from "../components/AdminCompanyContextBar";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
 
@@ -124,10 +123,6 @@ export default function PilotDashboard() {
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <AdminCompanyContextBar
-          title="Admin test controls"
-          roleFilter={["pilot"]}
-        />
         <Stack spacing={3}>
           <Stack spacing={1}>
             <Typography variant="h4" sx={{ fontWeight: 800 }}>

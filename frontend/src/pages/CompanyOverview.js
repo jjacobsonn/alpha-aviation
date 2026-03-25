@@ -102,7 +102,7 @@ const CompanyOverview = () => {
         setFlights(Array.isArray(flightData) ? flightData : []);
       } catch (e) {
         if (!mounted) return;
-        setError(e?.message || 'Failed to load company overview.');
+        setError(e?.message || 'Failed to load organization overview.');
       } finally {
         if (!mounted) return;
         setLoading(false);
@@ -135,7 +135,7 @@ const CompanyOverview = () => {
             color="text.secondary"
             sx={{ letterSpacing: 1.2, fontWeight: 600 }}
           >
-            Company overview
+            Organization overview
           </Typography>
           <Typography
             component="h1"
@@ -159,7 +159,7 @@ const CompanyOverview = () => {
           <Alert severity="info" sx={{ mb: 2 }}>
             As a platform admin, pick a tenant from{' '}
             <Link component={RouterLink} to="/admin/companies" underline="hover">
-              Company Admin
+              Organizations
             </Link>{' '}
             to send company context to the API (or open a company card).
           </Alert>

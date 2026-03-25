@@ -25,7 +25,6 @@ import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
 import { fetchCompanyDiscrepancies, fetchCompanyWorkorders } from '../shared/Api';
-import AdminCompanyContextBar from '../components/AdminCompanyContextBar';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
 
@@ -148,10 +147,6 @@ const Maintenance = () => {
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
-				<AdminCompanyContextBar
-					title="Admin test controls"
-					roleFilter={['mechanic']}
-				/>
 				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
 					<Box>
 						<Typography variant="h4" sx={{ fontWeight: 800 }}>

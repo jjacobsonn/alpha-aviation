@@ -284,6 +284,10 @@ export const fetchCompanyFlights = async () => {
 	return await makeApiRequest('GET', '/company/flights/');
 };
 
+export const fetchManagementDashboard = async () => {
+	return await makeApiRequest('GET', '/management/dashboard/');
+};
+
 // Site admin (global scope)
 export const fetchCompanies = async () => {
 	return await makeApiRequest('GET', '/companies/');

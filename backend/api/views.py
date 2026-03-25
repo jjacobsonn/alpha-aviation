@@ -1,3 +1,4 @@
+from django.db.models import Count
 from django.http import JsonResponse
 from django.contrib.auth import authenticate
 from django.utils import timezone
@@ -268,12 +269,54 @@ def flight_list_view(request):
 
 #endpoint for the management dashboard.
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsManagerOrOwner])
 def management_dashboard_view(request):
+    """
+    Summary for owner/manager (and platform admins with X-Company-Id).
+    Aligns with docs/RBAC_Plan.md: operational snapshot + team composition by role.
+    """
     company = get_request_company(request)
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
-    return Response({"company_id": company.id, "company_name": company.name})
+
+    aircraft_count = Aircraft.objects.filter(company=company).count()
+    flights_count = Flight.objects.filter(company=company).count()
+    open_work_orders = (
+        WorkOrder.objects.filter(aircraft__company=company).exclude(status="closed").count()
+    )
+    pending_discrepancies = Discrepancy.objects.filter(
+        aircraft__company=company, status="pending"
+    ).count()
+
+    inv_qs = Inventory.objects.filter(company=company).select_related("part")
+    low_stock_items = sum(1 for inv in inv_qs if inv.low_stock())
+
+    role_rows = (
+        Profile.objects.filter(company=company)
+        .values("company_role")
+        .annotate(headcount=Count("id"))
+    )
+    team_by_role = {row["company_role"]: row["headcount"] for row in role_rows}
+    for role in [c[0] for c in Profile.role_choices]:
+        team_by_role.setdefault(role, 0)
+
+    return Response(
+        {
+            "company": {
+                "id": company.id,
+                "name": company.name,
+                "locations": company.locations or "",
+            },
+            "counts": {
+                "aircraft": aircraft_count,
+                "flights": flights_count,
+                "work_orders_open": open_work_orders,
+                "discrepancies_pending": pending_discrepancies,
+                "low_stock_items": low_stock_items,
+            },
+            "team_by_role": team_by_role,
+        }
+    )
 ###
 #endpoints for all of the company submodels
 ###

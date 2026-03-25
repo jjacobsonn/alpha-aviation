@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
 	Box,
 	Container,
@@ -10,22 +11,38 @@ import {
 	Stack,
 	Chip,
 	Typography,
+	Button,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+	Link,
 } from '@mui/material';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
-import InventoryIcon from '@mui/icons-material/Inventory';
 import BuildIcon from '@mui/icons-material/Build';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RequestPageIcon from '@mui/icons-material/RequestPage';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import {
-	fetchCompanyAircrafts,
-	fetchCompanyLowStockInventoriesDetailed,
 	fetchCompanyWorkorders,
 	fetchCompanyDiscrepancies,
+	fetchCompanyUsers,
+	fetchManagementDashboard,
 } from '../shared/Api';
-import AdminCompanyContextBar from '../components/AdminCompanyContextBar';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
+
+const ROLE_LABELS = {
+	owner: 'Owner',
+	manager: 'Manager',
+	mechanic: 'Mechanic',
+	pilot: 'Pilot',
+	dispatcher: 'Dispatcher',
+};
 
 const Management = () => {
 	const { state } = useAppContext();
@@ -33,10 +50,10 @@ const Management = () => {
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
-	const [aircraft, setAircraft] = useState([]);
-	const [lowStockInventories, setLowStockInventories] = useState([]);
+	const [dashboard, setDashboard] = useState(null);
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
+	const [companyUsers, setCompanyUsers] = useState([]);
 
 	useEffect(() => {
 		let mounted = true;
@@ -48,17 +65,17 @@ const Management = () => {
 			setLoading(true);
 			setError('');
 			try {
-				const [ac, lowStock, wo, disc] = await Promise.all([
-					fetchCompanyAircrafts(),
-					fetchCompanyLowStockInventoriesDetailed(),
+				const [dash, wo, disc, users] = await Promise.all([
+					fetchManagementDashboard(),
 					fetchCompanyWorkorders(),
 					fetchCompanyDiscrepancies(),
+					fetchCompanyUsers(),
 				]);
 				if (!mounted) return;
-				setAircraft(Array.isArray(ac) ? ac : []);
-				setLowStockInventories(Array.isArray(lowStock) ? lowStock : []);
+				setDashboard(dash && typeof dash === 'object' ? dash : null);
 				setWorkOrders(Array.isArray(wo) ? wo : []);
 				setDiscrepancies(Array.isArray(disc) ? disc : []);
+				setCompanyUsers(Array.isArray(users) ? users : []);
 			} catch (e) {
 				if (!mounted) return;
 				setError(e?.message || 'Failed to load management dashboard.');
@@ -75,12 +92,18 @@ const Management = () => {
 
 	const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-	const pendingTasksCount = useMemo(() => {
-		const openWOs = (workOrders || []).filter((wo) => wo?.status !== 'closed').length;
-		return openWOs + (discrepancies || []).length;
-	}, [workOrders, discrepancies]);
+	const counts = dashboard?.counts;
 
-	const lowStockCount = useMemo(() => (lowStockInventories || []).length, [lowStockInventories]);
+	const pendingTasksCount = useMemo(() => {
+		if (counts) {
+			return (counts.work_orders_open || 0) + (counts.discrepancies_pending || 0);
+		}
+		const openWOs = (workOrders || []).filter((wo) => wo?.status !== 'closed').length;
+		const pendingDisc = (discrepancies || []).filter((d) => d?.status === 'pending').length;
+		return openWOs + pendingDisc;
+	}, [counts, workOrders, discrepancies]);
+
+	const lowStockCount = useMemo(() => counts?.low_stock_items ?? 0, [counts]);
 
 	const completedTodayCount = useMemo(() => {
 		return (workOrders || []).filter((wo) => {
@@ -95,7 +118,7 @@ const Management = () => {
 		() => [
 			{
 				label: 'Active Aircraft',
-				value: aircraft.length,
+				value: counts?.aircraft ?? '—',
 				trend: 'Live',
 				icon: <FlightTakeoffIcon sx={{ fontSize: 32 }} />,
 				color: '#273469',
@@ -122,7 +145,7 @@ const Management = () => {
 				color: '#4CAF50',
 			},
 		],
-		[aircraft.length, completedTodayCount, lowStockCount, pendingTasksCount]
+		[counts?.aircraft, completedTodayCount, lowStockCount, pendingTasksCount]
 	);
 
 	const recentActivity = useMemo(() => {
@@ -154,14 +177,37 @@ const Management = () => {
 		});
 	}, [discrepancies, workOrders]);
 
+	const teamByRole = dashboard?.team_by_role || {};
+	const sortedUsers = useMemo(() => {
+		const list = [...(companyUsers || [])];
+		list.sort((a, b) => {
+			const r = String(a.company_role || '').localeCompare(String(b.company_role || ''));
+			if (r !== 0) return r;
+			return String(a.last_name || '').localeCompare(String(b.last_name || ''));
+		});
+		return list;
+	}, [companyUsers]);
+
+	const companyBlock = dashboard?.company;
+	const displayCompanyName =
+		companyBlock?.name || state.user?.companyName || 'Your company';
+
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
-				<AdminCompanyContextBar
-					title="Admin test controls"
-					roleFilter={['owner', 'manager']}
-				/>
-				{/* Welcome Section */}
+				{platformAdmin && !hasCompanyContext && (
+					<Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+						<Typography variant="body2" color="text.secondary">
+							Select a company from{' '}
+							<Link component={RouterLink} to="/admin/companies" underline="hover">
+								Organizations
+							</Link>{' '}
+							to load management data for that tenant.
+						</Typography>
+					</Box>
+				)}
+
+				{/* Welcome + company context (module: managers see their company; inventory access) */}
 				<Box sx={{ mb: 4 }}>
 					<Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
 						Welcome Back
@@ -176,6 +222,66 @@ const Management = () => {
 					</Typography>
 				</Box>
 
+				{companyBlock && !loading && (
+					<Card
+						elevation={0}
+						sx={{
+							mb: 4,
+							border: '1px solid',
+							borderColor: 'divider',
+							background: 'linear-gradient(135deg, #27346908 0%, #ffffff 100%)',
+						}}
+					>
+						<CardContent sx={{ p: 3 }}>
+							<Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }} justifyContent="space-between">
+								<Stack direction="row" spacing={2} alignItems="center">
+									<Box
+										sx={{
+											bgcolor: '#27346915',
+											color: '#273469',
+											p: 1.5,
+											borderRadius: 2,
+											display: 'flex',
+										}}
+									>
+										<BusinessOutlinedIcon sx={{ fontSize: 40 }} />
+									</Box>
+									<Box>
+										<Typography variant="overline" color="text.secondary">
+											Your organization
+										</Typography>
+										<Typography variant="h5" sx={{ fontWeight: 800 }}>
+											{displayCompanyName}
+										</Typography>
+										{companyBlock.locations ? (
+											<Typography variant="body2" color="text.secondary">
+												{companyBlock.locations}
+											</Typography>
+										) : null}
+										<Typography variant="caption" color="text.secondary">
+											Company ID {companyBlock.id}
+										</Typography>
+									</Box>
+								</Stack>
+								<Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+									<Button
+										variant="contained"
+										component={RouterLink}
+										to="/parts"
+										startIcon={<Inventory2OutlinedIcon />}
+										sx={{ bgcolor: '#273469', '&:hover': { bgcolor: '#1a2545' } }}
+									>
+										Inventory & parts
+									</Button>
+									<Button variant="outlined" component={RouterLink} to="/admin/companies/current">
+										Organization overview
+									</Button>
+								</Stack>
+							</Stack>
+						</CardContent>
+					</Card>
+				)}
+
 				{/* Error */}
 				{error && (
 					<Stack sx={{ mb: 3 }}>
@@ -185,7 +291,7 @@ const Management = () => {
 					</Stack>
 				)}
 
-				{/* Quick Stats */}
+				{/* Quick Stats — from GET /management/dashboard/ counts */}
 				<Grid container spacing={3} sx={{ mb: 5 }}>
 					{quickStats.map((stat, index) => (
 						<Grid item xs={12} sm={6} md={3} key={index}>
@@ -244,8 +350,78 @@ const Management = () => {
 					))}
 				</Grid>
 
+				{/* Team by role — pilots, mechanics, dispatchers, etc. (docs/RBAC_Plan.md) */}
+				{!loading && teamByRole && Object.keys(teamByRole).length > 0 && (
+					<Box sx={{ mb: 4 }}>
+						<Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+							<GroupsOutlinedIcon color="primary" />
+							<Typography variant="h6" sx={{ fontWeight: 600 }}>
+								Team by role
+							</Typography>
+						</Stack>
+						<Stack direction="row" flexWrap="wrap" gap={1}>
+							{Object.entries(teamByRole)
+								.filter(([, n]) => n > 0)
+								.sort((a, b) => a[0].localeCompare(b[0]))
+								.map(([role, n]) => (
+									<Chip
+										key={role}
+										label={`${ROLE_LABELS[role] || role}: ${n}`}
+										variant="outlined"
+										sx={{ fontWeight: 600 }}
+									/>
+								))}
+						</Stack>
+					</Box>
+				)}
+
+				{/* Roster */}
+				<Box sx={{ mb: 5 }}>
+					<Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+						Company roster
+					</Typography>
+					<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+						<CardContent sx={{ p: 0 }}>
+							{loading ? (
+								<Typography sx={{ p: 3 }} color="text.secondary">
+									Loading…
+								</Typography>
+							) : sortedUsers.length === 0 ? (
+								<Typography sx={{ p: 3 }} color="text.secondary">
+									No users in this company yet.
+								</Typography>
+							) : (
+								<Table size="small">
+									<TableHead>
+										<TableRow>
+											<TableCell>Name</TableCell>
+											<TableCell>Username</TableCell>
+											<TableCell>Role</TableCell>
+											<TableCell>Email</TableCell>
+										</TableRow>
+									</TableHead>
+									<TableBody>
+										{sortedUsers.map((u) => (
+											<TableRow key={u.id}>
+												<TableCell>
+													{[u.first_name, u.middle_name, u.last_name].filter(Boolean).join(' ') || '—'}
+												</TableCell>
+												<TableCell>{u.username}</TableCell>
+												<TableCell>
+													<Chip size="small" label={ROLE_LABELS[u.company_role] || u.company_role || '—'} />
+												</TableCell>
+												<TableCell>{u.email || '—'}</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							)}
+						</CardContent>
+					</Card>
+				</Box>
+
 				{/* Recent Activity Section */}
-				<Box sx={{ mt: 5 }}>
+				<Box sx={{ mt: 2 }}>
 					<Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
 						Recent Activity
 					</Typography>
