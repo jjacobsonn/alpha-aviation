@@ -4,7 +4,7 @@ from rest_framework import status
 
 @pytest.mark.django_db
 class TestAuthenticationAPI:
-    def test_login_success(self, api_client, test_user):
+    def test_login_success(self, api_client, sample_user):
         """Test successful login"""
         url = reverse('login')
         data = {
@@ -28,7 +28,7 @@ class TestAuthenticationAPI:
 
 @pytest.mark.django_db
 class TestPartAPI:
-    def test_list_parts_authenticated(self, authenticated_client, test_part):
+    def test_list_parts_authenticated(self, authenticated_client, sample_part):
         """Test listing parts with authentication"""
         url = reverse('part-list')
         response = authenticated_client.get(url)
