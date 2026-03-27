@@ -30,3 +30,15 @@ package-mode = false
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = ["api/testing"]
+addopts = [
+    "--reuse-db",  # Reuse test DB between runs (faster)
+    "--create-db",  # Force create test DB
+    "-v",  # Verbose output
+]
