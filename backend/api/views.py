@@ -1,6 +1,7 @@
 from django.db.models import Count
 from django.http import JsonResponse
 from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 from django.views.decorators.csrf import csrf_exempt
@@ -545,6 +546,17 @@ class FlightViewSet(viewsets.ModelViewSet):
     serializer_class = FlightSerializer
     permission_classes = [IsManagerOrOwner]
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            self.perform_create(serializer)
+        except ValidationError as e:
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 class InventoryViewSet(viewsets.ModelViewSet):
     """
@@ -566,19 +578,3 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(company=get_request_company(self.request))
-
-class FlightViewSet(viewsets.ModelViewSet):
-    queryset = Flight.objects.all().order_by('-departure_time')
-    serializer_class = FlightSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data = request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        try:
-            self.perform_create(serializer)
-        except ValidationError as e:
-            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
