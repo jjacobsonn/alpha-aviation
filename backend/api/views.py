@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 from django.views.decorators.csrf import csrf_exempt
+from django.core.exceptions import ValidationError
 
 from rest_framework import status, generics, viewsets, permissions
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -157,167 +158,6 @@ def user_profile(request):
         'company': getattr(user.company, 'id', None) if getattr(user, 'company', None) else None,
         'company_name': getattr(user.company, 'name', None) if getattr(user, 'company', None) else None,
     })
-
-#Endpoint to check the availability of aircraft given a start date and end date, and optionally to check a specific aircraft if given aircraft_id. Returns all of the flights that are available. If checking for specifc aircraft, will return just that aircraft or return empty json response if it is not available.
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def available_aircraft_view(request):
-    """ given start date/time and end date/time return list of flights that fall within that time range start_date and end_date are both required to be datetime strings
-    optional if you give an aircraft id, only return flights for that aircraft
-    """
-    start_date_str = request.GET.get('start_date')
-    end_date_str = request.GET.get('end_date')
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    
-    aircraft_id = request.GET.get('aircraft_id')#optional
-
-    start_date = parse_datetime(start_date_str)
-    end_date = parse_datetime(end_date_str)
-
-
-    if start_date and timezone.is_naive(start_date):
-        start_date = timezone.make_aware(start_date, timezone.get_current_timezone())
-    if end_date and timezone.is_naive(end_date):
-        end_date = timezone.make_aware(end_date, timezone.get_current_timezone())
-    if not start_date or not end_date:
-        return Response({'error': 'start_date and end_date are required'}, status=400)
-    if start_date > end_date:
-        return Response({'error': 'start_date must be before end_date'}, status=400)
-
-    if aircraft_id:
-        try:
-            aircraft_id = int(aircraft_id)
-        except ValueError:
-            return Response({'error': 'aircraft_id must be an integer'}, status=400)
-        available_aircraft = company.availability(start_date, end_date, aircraft_id=aircraft_id)
-    else:
-        available_aircraft = company.availability(start_date, end_date)
-
-    serializer = AircraftSerializer(available_aircraft, many=True)
-    return Response(serializer.data)
-
-#Gets the flights for the calendar view, given start date and end date, and optionally an aircraft id, returns all the flights that fall within that date range.
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def flight_list_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    start_date_str = request.GET.get('start_date')
-    end_date_str = request.GET.get('end_date')
-    aircraft_id = request.GET.get('aircraft_id')
-
-    start_date = parse_date(start_date_str)
-    end_date = parse_date(end_date_str)
-    if not start_date or not end_date:
-        return Response({'error': 'start_date and end_date are required'}, status=400)
-    if start_date > end_date:
-        return Response({'error': 'start_date must be before end_date'}, status=400)
-    
-    if aircraft_id:
-        try:
-            aircraft_id = int(aircraft_id)
-        except ValueError:
-            return Response({'error': 'aircraft_id must be an integer'}, status=400)
-        flights = company.calendar_flights(start_date, end_date, aircraft_id=aircraft_id)
-    else:
-        flights = company.calendar_flights(start_date, end_date)
-    
-    serializer = FlightSerializer(flights, many=True)
-    return Response(serializer.data)
-
-#endpoint for the management dashboard.
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def management_dashboard_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    data = company.get_management_dashboard_data()
-    return Response(data)
-###
-#endpoints for all of the company submodels
-###
-
-#endpoint for company's users
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def company_user_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    data = company.get_user_data()
-    return Response(data)
-
-#endpoint for company's aircrafts
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def company_aircraft_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    data = company.get_aircraft_data()
-    return Response(data)
-
-#endpoint for company's flights
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def company_flights_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    data = company.get_flight_data()
-    return Response(data)
-
-#endpoint for company's inventories
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def company_inventory_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    data = company.get_inventory_data()
-    return Response(data)
-
-#endpoint for company's workorders
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def company_workorders_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    data = company.get_workorders_data()
-    return Response(data)
-
-#endpoint for company's discrepancies
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def company_discrepancies_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    data = company.get_discrepancy_data()
-    return Response(data)
-
-#endpoint that takes in the role that is wanted and checks the user in the company that is that role
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def company_role_view(request):
-    company = request.user.company
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    role = request.GET.get("role")
-    if not role:
-        return Response({'error': 'Role parameter is required'}, status=400)
-    valid_roles = [r[0] for r in Profile.role_choices]
-
-    if role not in valid_roles:
-        return Response({'error': 'Given role is not a valid role.'}, status=400)
-    data = company.get_company_role_data(role)
-    return Response(data)
-
 
 class CompanyInventoryListView(generics.ListCreateAPIView):
     """
@@ -668,6 +508,17 @@ class FlightViewSet(viewsets.ModelViewSet):
     serializer_class = FlightSerializer
     permission_classes = [IsManagerOrOwner]
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            self.perform_create(serializer)
+        except ValidationError as e:
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 class InventoryViewSet(viewsets.ModelViewSet):
     """
@@ -689,19 +540,3 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user.company)
-
-class FlightViewSet(viewsets.ModelViewSet):
-    queryset = Flight.objects.all().order_by('-departure_time')
-    serializer_class = FlightSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data = request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        try:
-            self.perform_create(serializer)
-        except ValidationError as e:
-            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(serializer.data, status=status.HTTP_201_CREATED)

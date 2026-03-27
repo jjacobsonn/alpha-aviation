@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Q
@@ -365,38 +366,97 @@ class InventoryPart(models.Model):
         return f"{self.part.name} with {self.in_stock} in stock"
 
 
+class Flight(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, related_name="flights")
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null=True, related_name="flights")
+    flight_number = models.CharField(max_length=250, null=True)
+    origin = models.CharField(max_length=250, null=True)
+    destination = models.CharField(max_length=250, null=True)
+    departure_time = models.DateTimeField(null=True)
+    arrival_time = models.DateTimeField(null=True)
+    route = models.CharField(blank=True, null=True)
+    flight_type_options = [
+        ("training", "Training"),
+        ("charter", "Charter"),
+        ("positioning", "Positioning"),
+        ("maintenance ferry", "Maintenance Ferry"),
+    ]
+    flight_type = models.CharField(max_length=255, choices=flight_type_options, default="training")
+    primary_pilot = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="primary_pilot",
+    )
+    secondary_pilot = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="secondary_pilot",
+    )
+    pilot_req_options = [
+        ("student", "Student"),
+        ("private", "Private"),
+        ("commercial", "Commercial"),
+        ("airline", "Airline"),
+    ]
+    pilot_requirement = models.CharField(max_length=255, choices=pilot_req_options, default="private")
+    dispatcher = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="flight_dispatcher",
+    )
+    status_type_options = [
+        ("scheduled", "Scheduled"),
+        ("approved", "Approved"),
+        ("pending approval", "Pending Approval"),
+        ("delayed", "Delayed"),
+        ("cancelled", "Cancelled"),
+        ("completed", "Completed"),
+    ]
+    status = models.CharField(max_length=255, choices=status_type_options, default="pending approval")
+
     def clean(self):
         errors = {}
-        
-        if self.primary_pilot and self.secondary_pilot:
-            if self.primary_pilot == self.secondary_pilot:
-                errors["secondary_pilot"] = ("Secondary pilot cannot be the same person as Primary pilot!") 
+
+        if self.primary_pilot and self.secondary_pilot and self.primary_pilot == self.secondary_pilot:
+            errors["secondary_pilot"] = (
+                "Secondary pilot cannot be the same person as Primary pilot!"
+            )
+
         if not self.departure_time:
-            errors["departure_time"] = ("Departure time does not exist")
+            errors["departure_time"] = "Departure time does not exist"
 
         if not self.arrival_time:
-            errors["arrival_time"] = ("Arrival time does not exist")
-            
-        elif self.arrival_time < self.departure_time:
-            errors["arrival_time"] = ("Arrival time can not be before departure time.")
-        
+            errors["arrival_time"] = "Arrival time does not exist"
+        elif self.departure_time and self.arrival_time < self.departure_time:
+            errors["arrival_time"] = "Arrival time can not be before departure time."
+
         def check_pilot(pilot, which_pilot):
             if not pilot:
                 return
-            if pilot.company_role != "pilot":
-                errors[which_pilot] = (f"{pilot.first_name} is not a pilot")
+            if getattr(pilot, "company_role", None) != "pilot":
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a pilot"
                 return
-            
-            if pilot.company != self.company:
-                errors[which_pilot] = (f"{pilot.first_name} is not of company {self.company}")
+            if getattr(pilot, "company", None) != self.company:
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not of company {self.company}"
                 return
-            if not hasattr(pilot, "pilot_info"):
-                errors[which_pilot] = (f"{pilot.first_name} does not have attribute \'pilot_info\'")
+            pilot_info = getattr(pilot, "pilot_info", None)
+            if not pilot_info:
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is missing pilot_info"
                 return
-            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
-                errors[which_pilot] = (f"{pilot.first_name} is not cleared to fly until {self.arrival_time.date()}")
-            if not pilot.pilot_info.is_certified(self.pilot_requirement):
-                errors[which_pilot] = (f"{pilot.first_name} is not a high enough certification")
+            if (
+                not getattr(pilot_info, "medically_cleared_until", None)
+                or (self.arrival_time and pilot_info.medically_cleared_until < self.arrival_time.date())
+            ):
+                errors[which_pilot] = (
+                    f"{getattr(pilot, 'first_name', 'Pilot')} is not cleared to fly until {self.arrival_time.date() if self.arrival_time else 'N/A'}"
+                )
+            if hasattr(pilot_info, "is_certified") and not pilot_info.is_certified(self.pilot_requirement):
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a high enough certification"
+
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
 
