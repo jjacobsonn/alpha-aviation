@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from api.models import Company, Profile, Pilot, Mechanic, Aircraft, Part, Inventory, Flight, WorkOrder, WorkOrderPart, Discrepancy
+from api.models import Company, Profile, Pilot, Mechanic, Aircraft, Part, Inventory, InventoryPart, Flight, WorkOrder, WorkOrderPart, Discrepancy
 from datetime import date, timedelta
 
 
@@ -139,45 +139,40 @@ class Command(BaseCommand):
         )
 
         # Inventory
-        Inventory.objects.create(
-            company = GammaCorp,
+        GammaCorp_Inventory = Inventory.objects.create(company = GammaCorp)
+        EpsilonAir_Inventory = Inventory.objects.create(company = EpsilonAir)
+
+        InventoryPart.objects.create(
+            inventory = GammaCorp_Inventory,
             part = THydraulic,
-            last_inspected = date(2026, 1, 15),
-            inspection_due_in = 180,
-            in_stock = 3,
+            quantity = 3,
             stock_alert = 2,
             stock_alert_percentage = 0.20,
             shop_location = "Hangar A"
         )
 
-        Inventory.objects.create(
-            company = GammaCorp,
+        InventoryPart.objects.create(
+            inventory = GammaCorp_Inventory,
             part = TAvionics,
-            last_inspected = date(2026, 2, 1),
-            inspection_due_in = 365,
-            in_stock = 1,
+            quantity = 1,
             stock_alert = 1,
             stock_alert_percentage = 0.10,
             shop_location = "Hangar A"
         )
 
-        Inventory.objects.create(
-            company = EpsilonAir,
+        InventoryPart.objects.create(
+            inventory = EpsilonAir_Inventory,
             part = SFuel,
-            last_inspected = date(2026, 1, 20),
-            inspection_due_in = 120,
-            in_stock = 4,
+            quantity = 4,
             stock_alert = 2,
             stock_alert_percentage = 0.15,
             shop_location = "Hangar B"
         )
 
-        Inventory.objects.create(
-            company = EpsilonAir,
+        InventoryPart.objects.create(
+            inventory = EpsilonAir_Inventory,
             part = SBrake,
-            last_inspected = date(2026, 2, 5),
-            inspection_due_in = 90,
-            in_stock = 2,
+            quantity = 2,
             stock_alert = 2,
             stock_alert_percentage = 0.10,
             shop_location = "Hangar B"
@@ -264,7 +259,7 @@ class Command(BaseCommand):
             flight_type = "training",
             primary_pilot = PilotProfile,
             pilot_requirement = "private",
-            approved = True
+            status = "approved"
         )
 
         Flight.objects.create(
@@ -279,7 +274,7 @@ class Command(BaseCommand):
             flight_type = "charter",
             primary_pilot = PilotProfile,
             pilot_requirement = "private",
-            approved = False
+            status = "pending approval"
         )
 
         Flight.objects.create(
@@ -293,7 +288,7 @@ class Command(BaseCommand):
             route = "SLC-SEA",
             flight_type = "positioning",
             pilot_requirement = "private",
-            approved = True
+            status = "approved"
         )
 
         Flight.objects.create(
@@ -307,5 +302,5 @@ class Command(BaseCommand):
             route = "SEA-SLC",
             flight_type = "maintenance ferry",
             pilot_requirement = "private",
-            approved = False
+            status = "pending approval"
         )

@@ -152,11 +152,6 @@ class InventoryPartInline(admin.TabularInline):
       model = InventoryPart
       extra = 1
 
-#Admin display for inventories
-class InventoryAdmin(admin.ModelAdmin):
-      search_fields = ["shop_location"]
-      inlines = [InventoryPartInline]
-
 #Inline display used when refrenced on other page for inventories
 class InventoryInline(admin.TabularInline):
       model = Inventory
@@ -220,7 +215,6 @@ admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Aircraft, AircraftAdmin)
 admin.site.register(Part, PartAdmin)
-admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(Flight, FlightAdmin)
 
 
