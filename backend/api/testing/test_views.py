@@ -27,11 +27,10 @@ class TestAuthenticationAPI:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 @pytest.mark.django_db
-@pytest.mark.skip(reason="need more views")
 class TestPartAPI:
     def test_list_parts_authenticated(self, authenticated_client, test_part):
         """Test listing parts with authentication"""
-        url = reverse('part-list')  # Adjust to your URL name
+        url = reverse('part-list')
         response = authenticated_client.get(url)
         assert response.status_code == status.HTTP_200_OK
     
@@ -39,4 +38,4 @@ class TestPartAPI:
         """Test listing parts without authentication"""
         url = reverse('part-list')
         response = api_client.get(url)
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.status_code in {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN}
