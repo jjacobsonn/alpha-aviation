@@ -1,4 +1,4 @@
-from django.db.models import Count
+from django.db.models import Count, F
 from django.http import JsonResponse
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
@@ -6,58 +6,40 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 from django.views.decorators.csrf import csrf_exempt
 
-from rest_framework import status, generics, viewsets, permissions
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from django.utils.dateparse import parse_datetime, parse_date
-
-from rest_framework import viewsets, permissions
-from .models import *
-from .serializers import *
-
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 from .models import (
-    Company,
-    Profile,
     Aircraft,
-    Part,
+    Company,
     Discrepancy,
-    WorkOrder,
     Flight,
     Inventory,
+    InventoryPart,
+    Part,
+    Profile,
+    WorkOrder,
 )
 from .permissions import (
-    IsCompanyMember,
     HasCompanyRole,
-    IsOwner,
+    IsCompanyMember,
     IsManagerOrOwner,
     IsMechanicOrManager,
     IsOwnProfileOrManager,
 )
 from .serializers import (
-    CompanySerializer,
-    ProfileSerializer,
     AircraftSerializer,
-    PartSerializer,
+    CompanySerializer,
     DiscrepancySerializer,
-    WorkOrderSerializer,
     FlightSerializer,
     InventorySerializer,
-)
-
-from rest_framework import viewsets, permissions
-from django.db.models import BooleanField, Case, When, Value, Exists, OuterRef
-from .models import (
-    Company, Profile, Aircraft, Part,
-    Discrepancy, WorkOrder, Flight
-)
-from .permissions import IsMechanicOrManager, IsManagerOrOwner, IsOwner, IsOwnProfileOrManager
-from .serializers import (
-    CompanySerializer, ProfileSerializer, AircraftSerializer,
-    PartSerializer, DiscrepancySerializer, WorkOrderSerializer, FlightSerializer
+    PartSerializer,
+    ProfileSerializer,
+    WorkOrderSerializer,
 )
 
 def _is_platform_admin(user):
@@ -289,7 +271,9 @@ def management_dashboard_view(request):
         aircraft__company=company, status="pending"
     ).count()
 
-    inv_qs = Inventory.objects.filter(company=company).select_related("part")
+    inv_qs = InventoryPart.objects.filter(inventory__company=company).select_related(
+        "part", "inventory"
+    )
     low_stock_items = sum(1 for inv in inv_qs if inv.low_stock())
 
     role_rows = (
@@ -380,8 +364,8 @@ def company_inventory_view(request):
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
     inventories = (
-        Inventory.objects.filter(company=company)
-        .select_related("part")
+        InventoryPart.objects.filter(inventory__company=company)
+        .select_related("part", "inventory")
         .order_by("part__part_number")
     )
     serializer = InventorySerializer(inventories, many=True)
@@ -452,23 +436,25 @@ class CompanyInventoryListView(generics.ListCreateAPIView):
     """
 
     serializer_class = InventorySerializer
-    queryset = Inventory.objects.select_related("company", "part")
+    queryset = InventoryPart.objects.select_related("inventory__company", "part")
     permission_classes = [IsAuthenticated, IsCompanyMember, HasCompanyRole]
     allowed_roles = ["owner", "manager", "mechanic"]
 
     def get_queryset(self):
         user_company = get_request_company(self.request)
         if not user_company:
-            return Inventory.objects.none()
+            return InventoryPart.objects.none()
         return (
             super()
             .get_queryset()
-            .filter(company=user_company)
+            .filter(inventory__company=user_company)
             .order_by("part__part_number")
         )
 
     def perform_create(self, serializer):
-        serializer.save(company=get_request_company(self.request))
+        company = get_request_company(self.request)
+        inv, _ = Inventory.objects.get_or_create(company=company)
+        serializer.save(inventory=inv)
 
 
 class CompanyLowStockInventoryListView(generics.ListAPIView):
@@ -477,24 +463,22 @@ class CompanyLowStockInventoryListView(generics.ListAPIView):
     """
 
     serializer_class = InventorySerializer
-    queryset = Inventory.objects.select_related("company", "part")
+    queryset = InventoryPart.objects.select_related("inventory__company", "part")
     permission_classes = [IsAuthenticated, IsCompanyMember, HasCompanyRole]
     allowed_roles = ["owner", "manager", "mechanic"]
 
     def get_queryset(self):
         user_company = get_request_company(self.request)
         if not user_company:
-            return Inventory.objects.none()
+            return InventoryPart.objects.none()
 
-        base_qs = (
+        return (
             super()
             .get_queryset()
-            .filter(company=user_company)
+            .filter(inventory__company=user_company)
+            .filter(quantity__lte=F("stock_alert"))
             .order_by("part__part_number")
         )
-
-        # low_stock is a method, so filter in Python for now.
-        return [inv for inv in base_qs if inv.low_stock()]
 
 
 
@@ -560,8 +544,7 @@ class FlightViewSet(viewsets.ModelViewSet):
 
 class InventoryViewSet(viewsets.ModelViewSet):
     """
-    CRUD for Inventory records, scoped to the authenticated user's company.
-    Used by the frontend for edit/delete operations.
+    CRUD for inventory line items (InventoryPart), scoped to the user's company.
     """
 
     serializer_class = InventorySerializer
@@ -571,10 +554,12 @@ class InventoryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user_company = get_request_company(self.request)
         if not user_company:
-            return Inventory.objects.none()
-        return Inventory.objects.select_related("company", "part").filter(
-            company=user_company
+            return InventoryPart.objects.none()
+        return InventoryPart.objects.select_related("inventory__company", "part").filter(
+            inventory__company=user_company
         )
 
     def perform_create(self, serializer):
-        serializer.save(company=get_request_company(self.request))
+        company = get_request_company(self.request)
+        inv, _ = Inventory.objects.get_or_create(company=company)
+        serializer.save(inventory=inv)

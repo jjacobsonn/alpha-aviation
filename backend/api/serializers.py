@@ -8,6 +8,7 @@ from .models import (
     WorkOrder,
     Flight,
     Inventory,
+    InventoryPart,
 )
 
 
@@ -207,6 +208,8 @@ class WorkOrderSerializer(serializers.ModelSerializer):
 class FlightSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.name", read_only=True)
     aircraft_name = serializers.CharField(source="aircraft.model", read_only=True)
+    # Frontend still uses `approved`; DB stores workflow as `status`.
+    approved = serializers.SerializerMethodField()
 
     class Meta:
         model = Flight
@@ -224,10 +227,25 @@ class FlightSerializer(serializers.ModelSerializer):
             "primary_pilot",
             "secondary_pilot",
             "pilot_requirement",
+            "dispatcher",
+            "status",
             "approved",
             "company_name",
             "aircraft_name",
         ]
+
+    def get_approved(self, obj):
+        return getattr(obj, "status", None) == "approved"
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        initial = getattr(self, "initial_data", None) or {}
+        if "approved" in initial:
+            if initial.get("approved") is True:
+                attrs["status"] = "approved"
+            elif initial.get("approved") is False and "status" not in attrs:
+                attrs.setdefault("status", "pending approval")
+        return attrs
 
 
 ####
@@ -236,21 +254,27 @@ class FlightSerializer(serializers.ModelSerializer):
 
 
 class InventorySerializer(serializers.ModelSerializer):
-    company = CompanySerializer(read_only=True)
+    """
+    One row per part line (InventoryPart). Exposes `company` and `in_stock` names
+    the frontend already expects.
+    """
+
+    company = CompanySerializer(source="inventory.company", read_only=True)
     part = PartSerializer(read_only=True)
     part_id = serializers.PrimaryKeyRelatedField(
         source="part", queryset=Part.objects.all(), write_only=True
     )
+    in_stock = serializers.IntegerField(source="quantity", read_only=True)
 
     class Meta:
-        model = Inventory
+        model = InventoryPart
         fields = [
             "id",
+            "inventory",
             "company",
             "part",
             "part_id",
-            "last_inspected",
-            "inspection_due_in",
+            "quantity",
             "in_stock",
             "stock_alert",
             "stock_alert_percentage",
