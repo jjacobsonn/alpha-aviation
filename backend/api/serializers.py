@@ -5,11 +5,21 @@ from .models import (
     Aircraft,
     Part,
     Discrepancy,
+    DiscrepancyActivity,
     WorkOrder,
+    WorkOrderActivity,
     WorkOrderPart,
     Flight,
     Inventory,
     InventoryPart,
+)
+from .maintenance_activity import (
+    log_discrepancy_created,
+    log_discrepancy_updated,
+    log_work_order_created,
+    log_work_order_updated,
+    snapshot_discrepancy,
+    snapshot_work_order,
 )
 
 
@@ -134,6 +144,40 @@ class ProfileSerializer(serializers.ModelSerializer):
 ####
 
 
+class WorkOrderActivitySerializer(serializers.ModelSerializer):
+    actor_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkOrderActivity
+        fields = ["id", "actor", "actor_display", "created_at", "event_type", "summary"]
+
+    def get_actor_display(self, obj):
+        a = obj.actor
+        if not a:
+            return "System"
+        fn = (a.first_name or "").strip()
+        ln = (a.last_name or "").strip()
+        full = f"{fn} {ln}".strip()
+        return full or (a.username or "").strip() or str(a.id)
+
+
+class DiscrepancyActivitySerializer(serializers.ModelSerializer):
+    actor_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DiscrepancyActivity
+        fields = ["id", "actor", "actor_display", "created_at", "event_type", "summary"]
+
+    def get_actor_display(self, obj):
+        a = obj.actor
+        if not a:
+            return "System"
+        fn = (a.first_name or "").strip()
+        ln = (a.last_name or "").strip()
+        full = f"{fn} {ln}".strip()
+        return full or (a.username or "").strip() or str(a.id)
+
+
 class AircraftSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.name", read_only=True)
 
@@ -166,6 +210,7 @@ class PartSerializer(serializers.ModelSerializer):
 
 class DiscrepancySerializer(serializers.ModelSerializer):
     reporter_name = serializers.CharField(source="reporter.username", read_only=True)
+    activities = DiscrepancyActivitySerializer(many=True, read_only=True)
 
     class Meta:
         model = Discrepancy
@@ -180,7 +225,31 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             "ata_code",
             "tach_time",
             "status",
+            "activities",
         ]
+
+    def create(self, validated_data):
+        instance = super().create(validated_data)
+        log_discrepancy_created(instance, self.context.get("request"))
+        return instance
+
+    def update(self, instance, validated_data):
+        before = snapshot_discrepancy(instance)
+        request = self.context.get("request")
+        user = getattr(request, "user", None) if request else None
+        if (
+            user
+            and user.is_authenticated
+            and getattr(user, "company_role", None) == "mechanic"
+            and not (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+        ):
+            validated_data.pop("aircraft", None)
+            validated_data.pop("reporter", None)
+            validated_data.pop("work_order", None)
+        instance = super().update(instance, validated_data)
+        log_discrepancy_updated(instance, before, snapshot_discrepancy(instance), request)
+        return instance
+
 
 class WorkOrderSerializer(serializers.ModelSerializer):
     """
@@ -191,6 +260,7 @@ class WorkOrderSerializer(serializers.ModelSerializer):
     parts_needed = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Part.objects.all(), required=False, allow_empty=True
     )
+    activities = WorkOrderActivitySerializer(many=True, read_only=True)
 
     class Meta:
         model = WorkOrder
@@ -213,6 +283,7 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "signed_by",
             "signature",
             "signature_date",
+            "activities",
         ]
 
     def validate(self, data):
@@ -233,10 +304,24 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         work_order = WorkOrder.objects.create(**validated_data)
         for part in parts:
             WorkOrderPart.objects.create(work_order=work_order, part=part, quantity=1)
+        log_work_order_created(work_order, self.context.get("request"))
         return work_order
 
     def update(self, instance, validated_data):
+        before = snapshot_work_order(instance)
         parts = validated_data.pop("parts_needed", None)
+        request = self.context.get("request")
+        user = getattr(request, "user", None) if request else None
+        if (
+            user
+            and user.is_authenticated
+            and getattr(user, "company_role", None) == "mechanic"
+            and not (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+        ):
+            # Mechanics update execution (progress, parts, dates); supervisors own assignment & structure.
+            validated_data.pop("created_by", None)
+            validated_data.pop("aircraft", None)
+            validated_data.pop("title", None)
         work_order = super().update(instance, validated_data)
         if parts is not None:
             WorkOrderPart.objects.filter(work_order=work_order).delete()
@@ -244,6 +329,9 @@ class WorkOrderSerializer(serializers.ModelSerializer):
                 WorkOrderPart.objects.create(
                     work_order=work_order, part=part, quantity=1
                 )
+        work_order.refresh_from_db()
+        after = snapshot_work_order(work_order)
+        log_work_order_updated(work_order, before, after, request)
         return work_order
 
 

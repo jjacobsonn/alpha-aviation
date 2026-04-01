@@ -88,8 +88,6 @@ const AdminCompanies = () => {
                   cursor: 'pointer',
                   '&:hover': { boxShadow: 3 },
                 }}
-                // Owners/managers should land on a tenant overview that is wired
-                // to the backend API. "New organization" remains create-only.
                 onClick={() => {
                   localStorage.setItem('adminCompanyId', String(co.id));
                   navigate(`/admin/companies/current?company=${co.id}`);

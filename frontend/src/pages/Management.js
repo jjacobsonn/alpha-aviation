@@ -202,12 +202,11 @@ const Management = () => {
 							<Link component={RouterLink} to="/admin/companies" underline="hover">
 								Organizations
 							</Link>{' '}
-							to load management data for that tenant.
+							to load this dashboard for that company.
 						</Typography>
 					</Box>
 				)}
 
-				{/* Welcome + company context (module: managers see their company; inventory access) */}
 				<Box sx={{ mb: 4 }}>
 					<Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
 						Welcome Back
@@ -291,7 +290,6 @@ const Management = () => {
 					</Stack>
 				)}
 
-				{/* Quick Stats — from GET /management/dashboard/ counts */}
 				<Grid container spacing={3} sx={{ mb: 5 }}>
 					{quickStats.map((stat, index) => (
 						<Grid item xs={12} sm={6} md={3} key={index}>
@@ -350,7 +348,6 @@ const Management = () => {
 					))}
 				</Grid>
 
-				{/* Team by role — pilots, mechanics, dispatchers, etc. (docs/RBAC_Plan.md) */}
 				{!loading && teamByRole && Object.keys(teamByRole).length > 0 && (
 					<Box sx={{ mb: 4 }}>
 						<Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>

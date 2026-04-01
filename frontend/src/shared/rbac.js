@@ -15,6 +15,18 @@ export function isPlatformAdmin(user) {
   );
 }
 
+/** Owner / manager — create & assign work orders, delete maintenance records (supervisor per product spec). */
+export function canSuperviseMaintenance(user) {
+  if (isPlatformAdmin(user)) return true;
+  const r = user?.company_role ?? user?.role;
+  return r === "owner" || r === "manager";
+}
+
+export function isMechanicRole(user) {
+  const r = user?.company_role ?? user?.role;
+  return r === "mechanic";
+}
+
 export function getDefaultRouteForUser(user) {
   if (isPlatformAdmin(user)) return "/site-admin";
   const role = user?.company_role || user?.role;

@@ -780,9 +780,6 @@ export default function SiteAdminPortal() {
           <Typography variant="h4" sx={{ fontWeight: 800 }}>
             Site Admin
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Global administration workspace connected to backend APIs.
-          </Typography>
           {error ? <Alert severity="error">{error}</Alert> : null}
         </Stack>
 

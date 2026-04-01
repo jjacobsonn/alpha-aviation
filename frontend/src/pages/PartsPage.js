@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
+  Chip,
+  Divider,
   IconButton,
   Stack,
   Table,
@@ -17,50 +19,41 @@ import {
   Card,
   CardContent,
   Grid,
-  Alert,
 } from "@mui/material";
-import { useAppContext } from "../context/AppContext";
-import { isPlatformAdmin } from "../shared/rbac";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
+import HandymanIcon from "@mui/icons-material/Handyman";
+import WorkHistoryIcon from "@mui/icons-material/WorkHistory";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
-import Inventory2Icon from "@mui/icons-material/Inventory2";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import RemoveShoppingCartIcon from "@mui/icons-material/RemoveShoppingCart";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import {
   deleteInventory,
   fetchCompanyInventoriesDetailed,
   updateInventory,
+  updatePart,
 } from "../shared/Api";
 
-function lineQty(inv) {
-  return Number(inv?.in_stock ?? inv?.quantity ?? 0);
-}
-
 function PartsPage() {
-  const { state } = useAppContext();
-  const viewerIsPlatformAdmin = isPlatformAdmin(state.user);
-  const adminCompanyFilter =
-    typeof window !== "undefined" ? localStorage.getItem("adminCompanyId") : null;
-
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [inventories, setInventories] = useState([]);
+  const [search, setSearch] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editValues, setEditValues] = useState({
     inStock: "",
     stockAlert: "",
-    stockAlertPercentage: "",
     shopLocation: "",
     partId: null,
+    partNumber: "",
+    partName: "",
+    partDescription: "",
   });
 
   const openMenu = (event, part) => {
@@ -104,9 +97,11 @@ function PartsPage() {
     setEditValues({
       inStock: String(invRow?.inStock ?? ""),
       stockAlert: String(invRow?.stockAlert ?? ""),
-      stockAlertPercentage: String(invRow?.stockAlertPercentage ?? ""),
       shopLocation: String(invRow?.shopLocation ?? ""),
       partId: invRow?.partId ?? null,
+      partNumber: invRow?.partNumber ?? "",
+      partName: invRow?.partName ?? "",
+      partDescription: invRow?.partDescription ?? "",
     });
     setEditOpen(true);
     setMenuAnchor(null);
@@ -117,10 +112,16 @@ function PartsPage() {
     setIsSavingEdit(true);
     setError("");
     try {
+      if (editValues.partId != null) {
+        await updatePart(editValues.partId, {
+          part_number: editValues.partNumber,
+          name: editValues.partName,
+          description: editValues.partDescription,
+        });
+      }
       const payload = {
         in_stock: Number(editValues.inStock),
         stock_alert: Number(editValues.stockAlert),
-        stock_alert_percentage: Number(editValues.stockAlertPercentage),
         shop_location: editValues.shopLocation,
         part_id: editValues.partId,
       };
@@ -129,7 +130,7 @@ function PartsPage() {
       setInventories(Array.isArray(data) ? data : []);
       setEditOpen(false);
     } catch (e) {
-      setError(e?.message || "Failed to update inventory item.");
+      setError(e?.message || "Failed to save.");
     } finally {
       setIsSavingEdit(false);
     }
@@ -137,123 +138,90 @@ function PartsPage() {
 
   const lowStockCount = useMemo(() => {
     return inventories.filter((inv) => {
-      const inStock = lineQty(inv);
+      const inStock = Number(inv?.in_stock ?? 0);
       const alert = Number(inv?.stock_alert ?? 0);
       return inStock <= alert;
     }).length;
   }, [inventories]);
 
   const partsInStockCount = useMemo(() => {
-    return inventories.filter((inv) => lineQty(inv) > 0).length;
-  }, [inventories]);
-
-  const totalUnitsInStock = useMemo(() => {
-    return inventories.reduce((sum, inv) => sum + lineQty(inv), 0);
-  }, [inventories]);
-
-  const outOfStockCount = useMemo(() => {
-    return inventories.filter((inv) => lineQty(inv) <= 0).length;
+    return inventories.filter((inv) => Number(inv?.in_stock ?? 0) > 0).length;
   }, [inventories]);
 
   const dashboardNumbers = useMemo(() => {
     return [
       {
-        title: "Inventory Lines",
-        icon: <Inventory2Icon />,
-        number: isLoading ? "—" : inventories.length,
-      },
-      {
-        title: "Units On Hand",
+        title: "Parts in Stock",
         icon: <PendingActionsIcon />,
-        number: isLoading ? "—" : totalUnitsInStock,
+        number: isLoading ? "—" : partsInStockCount,
       },
       {
-        title: "Low Stock Alerts",
-        icon: <WarningAmberIcon />,
+        title: "Low Stock Alert",
+        icon: <HandymanIcon />,
         number: isLoading ? "—" : lowStockCount,
       },
       {
-        title: "Out of Stock",
-        icon: <RemoveShoppingCartIcon />,
-        number: isLoading ? "—" : outOfStockCount,
+        title: "Parts on Order",
+        icon: <WorkHistoryIcon />,
+        number: "—",
+      },
+      {
+        title: "Tools Due for Calibration",
+        icon: <WorkHistoryIcon />,
+        number: "—",
       },
     ];
-  }, [isLoading, inventories.length, lowStockCount, outOfStockCount, totalUnitsInStock]);
+  }, [isLoading, lowStockCount, partsInStockCount]);
 
-  const inventoryFields = useMemo(() => {
-    const row = [
-      "P/N",
-      "Part Name",
-      ...(viewerIsPlatformAdmin ? ["Company"] : []),
-      "# in Stock",
-      "Stock Alert",
-      "Alert %",
-      "Location",
-      "Actions",
-    ];
-    return row;
-  }, [viewerIsPlatformAdmin]);
-
-  const columnWidths = {
-    pn: 120,
-    partName: 150,
-    oem: 120,
-    vendor: 120,
-    inStock: 90,
-    minMax: 110,
-    location: 140,
-    condition: 120,
-    expiration: 140,
-    actions: 120,
-  };
+  const inventoryFields = [
+    "P/N",
+    "Part name",
+    "Description",
+    "In stock",
+    "Reorder at",
+    "Location",
+    "Low stock",
+    "Actions",
+  ];
 
   const inventoryData = useMemo(() => {
     return inventories.map((inv) => {
       const part = inv?.part || {};
-      const min = Number(inv?.stock_alert ?? 0);
-      const max = "";
-      const qty = lineQty(inv);
+      const qty = Number(inv?.in_stock ?? inv?.quantity ?? 0);
+      const alert = Number(inv?.stock_alert ?? 0);
+      const lowStock = alert > 0 && qty <= alert;
       return {
         id: inv?.id,
         pn: part?.part_number ?? "",
         partName: part?.name ?? "",
-        companyName: inv?.company?.name ?? "—",
+        partDescription: part?.description ?? "",
+        partNumber: part?.part_number ?? "",
         inStock: qty,
-        stockAlert: Number(inv?.stock_alert ?? 0),
-        stockAlertPercentage: Number(inv?.stock_alert_percentage ?? 0),
-        minMax: `${min}${max ? ` / ${max}` : ""}`,
-        shopLocation: inv?.shop_location ?? "—",
-        location: inv?.shop_location ?? "—",
+        stockAlert: alert,
+        shopLocation: inv?.shop_location ?? "",
+        location: inv?.shop_location || "—",
+        lowStock,
         partId: part?.id ?? null,
       };
     });
   }, [inventories]);
 
-  const currentStatus = (amount, minMax, expiration) => {
-    const [min, max] = minMax.split(" / ").map(Number);
-
-    if (amount <= 0) return "OUT";
-
-    if (!expiration || expiration === "N/A") {
-      if (amount === 0) return "OUT";
-      if (amount > min) return "LOW";
-      return "OK";
-    }
-
-    const expirationDate = new Date(expiration);
-    const today = new Date();
-
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const daysTilExp = Math.ceil((expirationDate - today) / msPerDay);
-
-    if (daysTilExp <= 0) return "EXPIRED";
-    if (daysTilExp < 10) return "EXPIRING";
-    if (amount < min) return "LOW";
-    return "OK";
-  };
-
-  // Keep table rows neutral while preserving the computed status logic.
-  const getStatusColor = () => "transparent";
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return inventoryData;
+    return inventoryData.filter((row) => {
+      const blob = [
+        row.pn,
+        row.partName,
+        row.partDescription,
+        row.location,
+        row.shopLocation,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [inventoryData, search]);
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -265,18 +233,10 @@ function PartsPage() {
                 Parts
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Inventory and low stock alerts
+                Part catalog and quantities for your company.
               </Typography>
             </Box>
           </Stack>
-
-          {viewerIsPlatformAdmin && (
-            <Alert severity="info">
-              {adminCompanyFilter
-                ? `Inventory is filtered to company id ${adminCompanyFilter} (set from Site Admin / Companies). Clear the selection there to see all companies.`
-                : "As a platform admin you are viewing inventory lines for all companies. Open Site Admin → Companies and select a company to filter this list."}
-            </Alert>
-          )}
 
           <Grid container spacing={3}>
             {dashboardNumbers.map((item) => (
@@ -307,7 +267,9 @@ function PartsPage() {
                   fullWidth
                   size="small"
                   variant="outlined"
-                  placeholder="Search..."
+                  placeholder="Search part number, name, description, location…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
 
                 {error && (
@@ -337,29 +299,41 @@ function PartsPage() {
                     </TableRow>
                   </TableHead>
 
-                  {inventoryData.map((item) => {
-                    return (
-                      <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
-                        <TableCell>{item.pn}</TableCell>
-                        <TableCell>{item.partName}</TableCell>
-                        {viewerIsPlatformAdmin ? (
-                          <TableCell>{item.companyName}</TableCell>
-                        ) : null}
-                        <TableCell>{item.inStock}</TableCell>
-                        <TableCell>{item.stockAlert}</TableCell>
-                        <TableCell>{Math.round(item.stockAlertPercentage * 100)}%</TableCell>
-                        <TableCell>{item.location}</TableCell>
-                        <TableCell>
-                          <IconButton
-                            onClick={(e) => openMenu(e, item)}
-                            disabled={isLoading}
-                          >
-                            <MoreVertIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {filteredRows.map((item) => (
+                    <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
+                      <TableCell>{item.pn}</TableCell>
+                      <TableCell>{item.partName}</TableCell>
+                      <TableCell
+                        sx={{
+                          maxWidth: 280,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={item.partDescription || ""}
+                      >
+                        {item.partDescription || "—"}
+                      </TableCell>
+                      <TableCell>{item.inStock}</TableCell>
+                      <TableCell>{item.stockAlert}</TableCell>
+                      <TableCell>{item.location}</TableCell>
+                      <TableCell>
+                        {item.lowStock ? (
+                          <Chip size="small" color="warning" label="Yes" />
+                        ) : (
+                          <Chip size="small" variant="outlined" label="No" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <IconButton
+                          onClick={(e) => openMenu(e, item)}
+                          disabled={isLoading}
+                        >
+                          <MoreVertIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </Table>
 
                 <Menu
@@ -405,17 +379,42 @@ function PartsPage() {
                   maxWidth="sm"
                   fullWidth
                 >
-                  <DialogTitle>Edit Inventory</DialogTitle>
+                  <DialogTitle>Edit part &amp; stock</DialogTitle>
                   <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Part (catalog)
+                      </Typography>
                       <TextField
-                        label="Part"
-                        value={`${selectedPart?.pn || ''}${
-                          selectedPart?.partName ? ` - ${selectedPart.partName}` : ''
-                        }`}
-                        disabled
+                        label="Part number"
+                        value={editValues.partNumber}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partNumber: e.target.value }))
+                        }
                         fullWidth
                       />
+                      <TextField
+                        label="Name"
+                        value={editValues.partName}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partName: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Description"
+                        value={editValues.partDescription}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partDescription: e.target.value }))
+                        }
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                      <Divider />
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Stock (this warehouse row)
+                      </Typography>
                       <TextField
                         label="In stock"
                         type="number"
@@ -426,21 +425,11 @@ function PartsPage() {
                         fullWidth
                       />
                       <TextField
-                        label="Stock alert"
+                        label="Reorder at (quantity)"
                         type="number"
                         value={editValues.stockAlert}
                         onChange={(e) =>
                           setEditValues((p) => ({ ...p, stockAlert: e.target.value }))
-                        }
-                        fullWidth
-                      />
-                      <TextField
-                        label="Alert percentage (0 to 1)"
-                        type="number"
-                        inputProps={{ min: 0, max: 1, step: 0.01 }}
-                        value={editValues.stockAlertPercentage}
-                        onChange={(e) =>
-                          setEditValues((p) => ({ ...p, stockAlertPercentage: e.target.value }))
                         }
                         fullWidth
                       />

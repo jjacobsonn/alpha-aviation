@@ -287,6 +287,14 @@ export const fetchCompanyFlights = async () => {
 	return await makeApiRequest('GET', '/company/flights/');
 };
 
+export const createCompanyFlightRequest = async (payload) => {
+	return await makeApiRequest('POST', '/company/flights/request/', payload);
+};
+
+export const patchCompanyFlightDispatch = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/company/flights/${id}/dispatch/`, payload);
+};
+
 export const fetchManagementDashboard = async () => {
 	return await makeApiRequest('GET', '/management/dashboard/');
 };

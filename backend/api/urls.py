@@ -14,6 +14,8 @@ from .views import (
     company_inventory_view,
     company_aircraft_view,
     company_flights_view,
+    company_flight_request_view,
+    company_flight_dispatch_view,
     company_workorders_view,
     company_discrepancies_view,
     company_role_view,
@@ -66,6 +68,16 @@ urlpatterns = [
     path("company/inventories/", company_inventory_view, name="company-inventory"),
     path("company/aircrafts/", company_aircraft_view, name="company-aircraft"),
     path("company/flights/", company_flights_view, name="company-flights"),
+    path(
+        "company/flights/request/",
+        company_flight_request_view,
+        name="company-flight-request",
+    ),
+    path(
+        "company/flights/<int:pk>/dispatch/",
+        company_flight_dispatch_view,
+        name="company-flight-dispatch",
+    ),
     path("company/workorders/", company_workorders_view, name="company-workorders"),
     path(
         "company/discrepancies/",

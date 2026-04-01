@@ -157,11 +157,11 @@ const CompanyOverview = () => {
 
         {awaitingCompanyContext && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            As a platform admin, pick a tenant from{' '}
+            Choose an organization from{' '}
             <Link component={RouterLink} to="/admin/companies" underline="hover">
               Organizations
             </Link>{' '}
-            to send company context to the API (or open a company card).
+            to set company context for this page.
           </Alert>
         )}
 

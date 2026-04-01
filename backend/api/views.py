@@ -1,5 +1,6 @@
-from django.db.models import Count, F
+from django.db.models import Count, F, Prefetch, Q
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -18,12 +19,14 @@ from .models import (
     Aircraft,
     Company,
     Discrepancy,
+    DiscrepancyActivity,
     Flight,
     Inventory,
     InventoryPart,
     Part,
     Profile,
     WorkOrder,
+    WorkOrderActivity,
 )
 from .permissions import (
     HasCompanyRole,
@@ -42,6 +45,7 @@ from .serializers import (
     ProfileSerializer,
     WorkOrderSerializer,
 )
+
 
 def _is_platform_admin(user):
     return bool(
@@ -149,21 +153,57 @@ def company_scoped_aircraft_queryset(request):
 
 
 def company_scoped_workorder_queryset(request):
+    """
+    Company (or platform-admin) scope via aircraft.
+
+    Mechanics only see work orders assigned to them (`created_by` is used as assignee).
+    Owners/managers see all work orders for the company aircraft set.
+    """
     qs = (
         WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
-        .prefetch_related("parts_needed")
+        .prefetch_related(
+            "parts_needed",
+            Prefetch(
+                "activities",
+                queryset=WorkOrderActivity.objects.select_related("actor"),
+            ),
+        )
         .order_by("-created_at")
     )
     aircraft_qs = company_scoped_aircraft_queryset(request).values_list("id", flat=True)
-    return qs.filter(aircraft_id__in=aircraft_qs)
+    qs = qs.filter(aircraft_id__in=aircraft_qs)
+    user = request.user
+    if _is_platform_admin(user):
+        return qs
+    if getattr(user, "company_role", None) == "mechanic":
+        return qs.filter(created_by_id=user.id)
+    return qs
 
 
 def company_scoped_discrepancy_queryset(request):
-    qs = Discrepancy.objects.select_related("aircraft", "reporter", "work_order").order_by(
-        "-date_reported"
+    """
+    Mechanics only see discrepancies they reported or linked to their assigned work orders.
+    """
+    qs = (
+        Discrepancy.objects.select_related("aircraft", "reporter", "work_order")
+        .prefetch_related(
+            Prefetch(
+                "activities",
+                queryset=DiscrepancyActivity.objects.select_related("actor"),
+            ),
+        )
+        .order_by("-date_reported")
     )
     aircraft_qs = company_scoped_aircraft_queryset(request).values_list("id", flat=True)
-    return qs.filter(aircraft_id__in=aircraft_qs)
+    qs = qs.filter(aircraft_id__in=aircraft_qs)
+    user = request.user
+    if _is_platform_admin(user):
+        return qs
+    if getattr(user, "company_role", None) == "mechanic":
+        return qs.filter(
+            Q(reporter_id=user.id) | Q(work_order__created_by_id=user.id)
+        )
+    return qs
 
 
 @api_view(['GET'])
@@ -349,10 +389,6 @@ def flight_list_view(request):
 @api_view(['GET'])
 @permission_classes([IsManagerOrOwner])
 def management_dashboard_view(request):
-    """
-    Summary for owner/manager (and platform admins with X-Company-Id).
-    Aligns with docs/RBAC_Plan.md: operational snapshot + team composition by role.
-    """
     company = get_request_company(request)
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
@@ -451,6 +487,113 @@ def company_flights_view(request):
     serializer = FlightSerializer(flights, many=True)
     return Response(serializer.data)
 
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def company_flight_request_view(request):
+    """
+    Pilot submits a flight request (status: pending approval).
+    """
+    user = request.user
+    if getattr(user, "company_role", None) != "pilot" and not _is_platform_admin(user):
+        return Response(
+            {"error": "Only pilot users can submit flight requests."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    company = get_request_company(request)
+    if company is None:
+        return Response(
+            {"error": "User does not have an associated company"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    aircraft_id = request.data.get("aircraft")
+    if aircraft_id in (None, ""):
+        return Response({"error": "aircraft is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        aircraft = Aircraft.objects.get(pk=int(aircraft_id), company=company)
+    except (ValueError, TypeError, Aircraft.DoesNotExist):
+        return Response({"error": "Invalid aircraft for this company."}, status=status.HTTP_400_BAD_REQUEST)
+
+    dep_raw = request.data.get("departure_time")
+    arr_raw = request.data.get("arrival_time")
+    departure_time = parse_datetime(dep_raw) if dep_raw else None
+    arrival_time = parse_datetime(arr_raw) if arr_raw else None
+    if not departure_time or not arrival_time:
+        return Response(
+            {"error": "departure_time and arrival_time are required (ISO-8601)."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if timezone.is_naive(departure_time):
+        departure_time = timezone.make_aware(departure_time, timezone.get_current_timezone())
+    if timezone.is_naive(arrival_time):
+        arrival_time = timezone.make_aware(arrival_time, timezone.get_current_timezone())
+    if arrival_time < departure_time:
+        return Response(
+            {"error": "arrival_time must be after departure_time."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    sec_raw = request.data.get("secondary_pilot")
+    secondary_pilot_id = None
+    if sec_raw not in (None, ""):
+        try:
+            sp = Profile.objects.get(pk=int(sec_raw), company=company, company_role="pilot")
+            if sp.id != user.id:
+                secondary_pilot_id = sp.id
+        except (ValueError, TypeError, Profile.DoesNotExist):
+            return Response({"error": "Invalid secondary pilot."}, status=status.HTTP_400_BAD_REQUEST)
+
+    flight = Flight.objects.create(
+        company=company,
+        aircraft=aircraft,
+        flight_number=request.data.get("flight_number") or None,
+        origin=request.data.get("origin") or "",
+        destination=request.data.get("destination") or "",
+        departure_time=departure_time,
+        arrival_time=arrival_time,
+        route=request.data.get("route") or "",
+        flight_type=request.data.get("flight_type") or "training",
+        primary_pilot=user,
+        secondary_pilot_id=secondary_pilot_id,
+        pilot_requirement=request.data.get("pilot_requirement") or "private",
+        status="pending approval",
+    )
+    serializer = FlightSerializer(flight)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def company_flight_dispatch_view(request, pk):
+    """
+    Dispatcher or management: approve/reject/schedule flights for the company.
+    """
+    company = get_request_company(request)
+    if company is None:
+        return Response(
+            {"error": "User does not have an associated company"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    role = getattr(request.user, "company_role", None)
+    if role not in ("dispatcher", "manager", "owner") and not _is_platform_admin(request.user):
+        return Response(
+            {"error": "Dispatcher or management role required."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    flight = get_object_or_404(Flight.objects.filter(company=company), pk=pk)
+    serializer = FlightSerializer(flight, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    inst = serializer.save()
+    new_status = request.data.get("status")
+    if new_status == "approved" and inst.dispatcher_id is None:
+        inst.dispatcher = request.user
+        inst.save(update_fields=["dispatcher"])
+    return Response(FlightSerializer(inst).data)
+
+
 #endpoint for company's inventories
 @api_view(['GET'])
 @permission_classes([IsMechanicOrManager])
@@ -466,12 +609,7 @@ def company_workorders_view(request):
     company = get_request_company(request)
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
-    workorders = (
-        WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
-        .prefetch_related("parts_needed")
-        .filter(aircraft__company=company)
-        .order_by("-created_at")
-    )
+    workorders = company_scoped_workorder_queryset(request)
     serializer = WorkOrderSerializer(workorders, many=True)
     return Response(serializer.data)
 
@@ -482,11 +620,7 @@ def company_discrepancies_view(request):
     company = get_request_company(request)
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
-    discrepancies = (
-        Discrepancy.objects.select_related("aircraft", "reporter", "work_order")
-        .filter(aircraft__company=company)
-        .order_by("-date_reported")
-    )
+    discrepancies = company_scoped_discrepancy_queryset(request)
     serializer = DiscrepancySerializer(discrepancies, many=True)
     return Response(serializer.data)
 
@@ -624,9 +758,11 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
         return company_scoped_discrepancy_queryset(self.request)
 
     def get_permissions(self):
-        # Anyone authenticated can create; mechanics/managers/owners manage.
+        # Pilots/mechanics can create discrepancy reports; only managers/owners delete.
         if self.action == "create":
             return [IsAuthenticated()]
+        if self.action == "destroy":
+            return [IsManagerOrOwner()]
         return [IsMechanicOrManager()]
 
     def perform_create(self, serializer):
@@ -638,10 +774,15 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
     serializer_class = WorkOrderSerializer
-    permission_classes = [IsMechanicOrManager]
 
     def get_queryset(self):
         return company_scoped_workorder_queryset(self.request)
+
+    def get_permissions(self):
+        # Supervisors (manager/owner) create and delete work orders; mechanics execute assigned work.
+        if self.action in ("create", "destroy"):
+            return [IsManagerOrOwner()]
+        return [IsMechanicOrManager()]
 
     def perform_create(self, serializer):
         created_by = serializer.validated_data.get("created_by")
