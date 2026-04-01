@@ -249,7 +249,10 @@ export const fetchCurrentUser = async () => {
 };
 
 export const fetchCompanyInventoriesDetailed = async () => {
-	return await makeApiRequest('GET', '/company/inventories/detailed/');
+	const data = await makeApiRequest('GET', '/company/inventories/detailed/');
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
 };
 
 export const fetchCompanyLowStockInventoriesDetailed = async () => {
@@ -335,6 +338,58 @@ export const deleteAircraft = async (id) => {
 
 export const fetchFlights = async () => {
 	return await makeApiRequest('GET', '/flights/');
+};
+
+export const fetchParts = async () => {
+	return await makeApiRequest('GET', '/parts/');
+};
+
+export const createPart = async (payload) => {
+	return await makeApiRequest('POST', '/parts/', payload);
+};
+
+export const updatePart = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/parts/${id}/`, payload);
+};
+
+export const deletePart = async (id) => {
+	return await makeApiRequest('DELETE', `/parts/${id}/`);
+};
+
+export const fetchInventories = async () => {
+	return await makeApiRequest('GET', '/inventories/');
+};
+
+export const createInventory = async (payload) => {
+	return await makeApiRequest('POST', '/inventories/', payload);
+};
+
+export const fetchWorkorders = async () => {
+	return await makeApiRequest('GET', '/workorders/');
+};
+
+export const createWorkorder = async (payload) => {
+	return await makeApiRequest('POST', '/workorders/', payload);
+};
+
+export const updateWorkorder = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/workorders/${id}/`, payload);
+};
+
+export const deleteWorkorder = async (id) => {
+	return await makeApiRequest('DELETE', `/workorders/${id}/`);
+};
+
+export const fetchDiscrepancies = async () => {
+	return await makeApiRequest('GET', '/discrepancies/');
+};
+
+export const updateDiscrepancy = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/discrepancies/${id}/`, payload);
+};
+
+export const deleteDiscrepancy = async (id) => {
+	return await makeApiRequest('DELETE', `/discrepancies/${id}/`);
 };
 
 export const createFlight = async (payload) => {

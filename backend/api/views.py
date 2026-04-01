@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -70,6 +71,64 @@ def get_request_company(request):
                 return None
 
     return None
+
+
+def _optional_company_id_from_header(request):
+    raw = request.headers.get("X-Company-Id") or request.META.get("HTTP_X_COMPANY_ID")
+    if raw in (None, ""):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def inventory_parts_queryset_for_request(request):
+    """
+    Platform admins: all inventory lines system-wide, optionally narrowed by X-Company-Id.
+    Tenant users: only lines for their profile company (header ignored).
+    """
+    base = InventoryPart.objects.select_related("inventory__company", "part")
+    user = request.user
+    if _is_platform_admin(user):
+        qs = base
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            qs = qs.filter(inventory__company_id=cid)
+        return qs.order_by("inventory__company_id", "part__part_number")
+    company = getattr(user, "company", None)
+    if company is None:
+        return base.none()
+    return base.filter(inventory__company=company).order_by("part__part_number")
+
+
+def resolve_company_for_inventory_create(request):
+    """Company bucket used when creating an InventoryPart (POST)."""
+    user = request.user
+    if _is_platform_admin(user):
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            try:
+                return Company.objects.get(pk=cid)
+            except Company.DoesNotExist:
+                pass
+        body_c = request.data.get("company")
+        if body_c is not None:
+            try:
+                return Company.objects.get(pk=int(body_c))
+            except (TypeError, ValueError, Company.DoesNotExist):
+                pass
+        raise DRFValidationError(
+            {
+                "detail": "Platform admin must send X-Company-Id or a numeric "
+                "`company` field when creating inventory lines."
+            }
+        )
+    company = getattr(user, "company", None)
+    if company is None:
+        raise DRFValidationError({"detail": "Your account has no company assignment."})
+    return company
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -360,14 +419,7 @@ def company_flights_view(request):
 @api_view(['GET'])
 @permission_classes([IsMechanicOrManager])
 def company_inventory_view(request):
-    company = get_request_company(request)
-    if company is None:
-        return Response({'error': 'User does not have an associated company'}, status=403)
-    inventories = (
-        InventoryPart.objects.filter(inventory__company=company)
-        .select_related("part", "inventory")
-        .order_by("part__part_number")
-    )
+    inventories = inventory_parts_queryset_for_request(request)
     serializer = InventorySerializer(inventories, many=True)
     return Response(serializer.data)
 
@@ -440,6 +492,31 @@ class CompanyInventoryListView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsCompanyMember, HasCompanyRole]
     allowed_roles = ["owner", "manager", "mechanic"]
 
+    def _company_or_bad_request(self):
+        """
+        Platform admins pass IsCompanyMember without a DB company; avoid a silent [].
+        """
+        company = get_request_company(self.request)
+        if company is not None:
+            return company, None
+        detail = (
+            "No company context for inventory. Add a company to your user, or as staff/superuser "
+            "pick a tenant (frontend sends X-Company-Id after you choose a company in Site Admin)."
+        )
+        return None, Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+
+    def list(self, request, *args, **kwargs):
+        _company, err = self._company_or_bad_request()
+        if err is not None:
+            return err
+        return super().list(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        _company, err = self._company_or_bad_request()
+        if err is not None:
+            return err
+        return super().create(request, *args, **kwargs)
+
     def get_queryset(self):
         user_company = get_request_company(self.request)
         if not user_company:
@@ -459,7 +536,7 @@ class CompanyInventoryListView(generics.ListCreateAPIView):
 
 class CompanyLowStockInventoryListView(generics.ListAPIView):
     """
-    Return low-stock inventory items for the authenticated user's company.
+    Low-stock lines: same scope as list (all companies for admins, optionally filtered by header).
     """
 
     serializer_class = InventorySerializer
@@ -468,16 +545,10 @@ class CompanyLowStockInventoryListView(generics.ListAPIView):
     allowed_roles = ["owner", "manager", "mechanic"]
 
     def get_queryset(self):
-        user_company = get_request_company(self.request)
-        if not user_company:
-            return InventoryPart.objects.none()
-
         return (
-            super()
-            .get_queryset()
-            .filter(inventory__company=user_company)
-            .filter(quantity__lte=F("stock_alert"))
-            .order_by("part__part_number")
+            inventory_parts_queryset_for_request(self.request).filter(
+                quantity__lte=F("stock_alert")
+            )
         )
 
 
@@ -544,7 +615,8 @@ class FlightViewSet(viewsets.ModelViewSet):
 
 class InventoryViewSet(viewsets.ModelViewSet):
     """
-    CRUD for inventory line items (InventoryPart), scoped to the user's company.
+    CRUD for inventory line items (InventoryPart). Tenants: company scope.
+    Platform admins: full access; create requires X-Company-Id or `company` in body.
     """
 
     serializer_class = InventorySerializer
@@ -552,14 +624,9 @@ class InventoryViewSet(viewsets.ModelViewSet):
     allowed_roles = ["owner", "manager", "mechanic"]
 
     def get_queryset(self):
-        user_company = get_request_company(self.request)
-        if not user_company:
-            return InventoryPart.objects.none()
-        return InventoryPart.objects.select_related("inventory__company", "part").filter(
-            inventory__company=user_company
-        )
+        return inventory_parts_queryset_for_request(self.request)
 
     def perform_create(self, serializer):
-        company = get_request_company(self.request)
+        company = resolve_company_for_inventory_create(self.request)
         inv, _ = Inventory.objects.get_or_create(company=company)
         serializer.save(inventory=inv)

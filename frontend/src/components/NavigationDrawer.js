@@ -82,6 +82,15 @@ function NavigationDrawer() {
 
   const allMenuItems = [
     {
+      id: "site-admin",
+      title: "Site Admin",
+      icon: <SettingsIcon />,
+      color: "#455a64",
+      allowedRoles: [],
+      onlyPlatformAdmin: true,
+      to: "/site-admin",
+    },
+    {
       id: "management",
       title: "Management",
       icon: <DashboardIcon />,
@@ -125,15 +134,6 @@ function NavigationDrawer() {
       color: "#00897b",
       allowedRoles: ["dispatcher"],
       to: "/dispatcher-dashboard",
-    },
-    {
-      id: "site-admin",
-      title: "Site Admin",
-      icon: <SettingsIcon />,
-      color: "#455a64",
-      allowedRoles: [],
-      onlyPlatformAdmin: true,
-      to: "/site-admin",
     },
   ];
 

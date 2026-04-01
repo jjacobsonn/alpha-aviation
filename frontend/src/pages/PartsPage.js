@@ -17,16 +17,20 @@ import {
   Card,
   CardContent,
   Grid,
+  Alert,
 } from "@mui/material";
+import { useAppContext } from "../context/AppContext";
+import { isPlatformAdmin } from "../shared/rbac";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
-import HandymanIcon from "@mui/icons-material/Handyman";
-import WorkHistoryIcon from "@mui/icons-material/WorkHistory";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import RemoveShoppingCartIcon from "@mui/icons-material/RemoveShoppingCart";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import {
   deleteInventory,
@@ -34,7 +38,16 @@ import {
   updateInventory,
 } from "../shared/Api";
 
+function lineQty(inv) {
+  return Number(inv?.in_stock ?? inv?.quantity ?? 0);
+}
+
 function PartsPage() {
+  const { state } = useAppContext();
+  const viewerIsPlatformAdmin = isPlatformAdmin(state.user);
+  const adminCompanyFilter =
+    typeof window !== "undefined" ? localStorage.getItem("adminCompanyId") : null;
+
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +58,7 @@ function PartsPage() {
   const [editValues, setEditValues] = useState({
     inStock: "",
     stockAlert: "",
+    stockAlertPercentage: "",
     shopLocation: "",
     partId: null,
   });
@@ -90,6 +104,7 @@ function PartsPage() {
     setEditValues({
       inStock: String(invRow?.inStock ?? ""),
       stockAlert: String(invRow?.stockAlert ?? ""),
+      stockAlertPercentage: String(invRow?.stockAlertPercentage ?? ""),
       shopLocation: String(invRow?.shopLocation ?? ""),
       partId: invRow?.partId ?? null,
     });
@@ -105,6 +120,7 @@ function PartsPage() {
       const payload = {
         in_stock: Number(editValues.inStock),
         stock_alert: Number(editValues.stockAlert),
+        stock_alert_percentage: Number(editValues.stockAlertPercentage),
         shop_location: editValues.shopLocation,
         part_id: editValues.partId,
       };
@@ -121,53 +137,62 @@ function PartsPage() {
 
   const lowStockCount = useMemo(() => {
     return inventories.filter((inv) => {
-      const inStock = Number(inv?.in_stock ?? 0);
+      const inStock = lineQty(inv);
       const alert = Number(inv?.stock_alert ?? 0);
       return inStock <= alert;
     }).length;
   }, [inventories]);
 
   const partsInStockCount = useMemo(() => {
-    return inventories.filter((inv) => Number(inv?.in_stock ?? 0) > 0).length;
+    return inventories.filter((inv) => lineQty(inv) > 0).length;
+  }, [inventories]);
+
+  const totalUnitsInStock = useMemo(() => {
+    return inventories.reduce((sum, inv) => sum + lineQty(inv), 0);
+  }, [inventories]);
+
+  const outOfStockCount = useMemo(() => {
+    return inventories.filter((inv) => lineQty(inv) <= 0).length;
   }, [inventories]);
 
   const dashboardNumbers = useMemo(() => {
     return [
       {
-        title: "Parts in Stock",
-        icon: <PendingActionsIcon />,
-        number: isLoading ? "—" : partsInStockCount,
+        title: "Inventory Lines",
+        icon: <Inventory2Icon />,
+        number: isLoading ? "—" : inventories.length,
       },
       {
-        title: "Low Stock Alert",
-        icon: <HandymanIcon />,
+        title: "Units On Hand",
+        icon: <PendingActionsIcon />,
+        number: isLoading ? "—" : totalUnitsInStock,
+      },
+      {
+        title: "Low Stock Alerts",
+        icon: <WarningAmberIcon />,
         number: isLoading ? "—" : lowStockCount,
       },
       {
-        title: "Parts on Order",
-        icon: <WorkHistoryIcon />,
-        number: "—",
-      },
-      {
-        title: "Tools Due for Calibration",
-        icon: <WorkHistoryIcon />,
-        number: "—",
+        title: "Out of Stock",
+        icon: <RemoveShoppingCartIcon />,
+        number: isLoading ? "—" : outOfStockCount,
       },
     ];
-  }, [isLoading, lowStockCount, partsInStockCount]);
+  }, [isLoading, inventories.length, lowStockCount, outOfStockCount, totalUnitsInStock]);
 
-  const inventoryFields = [
-    "P/N",
-    "Part Name",
-    "OEM",
-    "Vendor",
-    "# in Stock",
-    "Min/Max lvl",
-    "Location",
-    "Condition",
-    "Expiration Date",
-    "Actions",
-  ];
+  const inventoryFields = useMemo(() => {
+    const row = [
+      "P/N",
+      "Part Name",
+      ...(viewerIsPlatformAdmin ? ["Company"] : []),
+      "# in Stock",
+      "Stock Alert",
+      "Alert %",
+      "Location",
+      "Actions",
+    ];
+    return row;
+  }, [viewerIsPlatformAdmin]);
 
   const columnWidths = {
     pn: 120,
@@ -187,19 +212,18 @@ function PartsPage() {
       const part = inv?.part || {};
       const min = Number(inv?.stock_alert ?? 0);
       const max = "";
+      const qty = lineQty(inv);
       return {
         id: inv?.id,
         pn: part?.part_number ?? "",
         partName: part?.name ?? "",
-        oem: "—",
-        vendor: "—",
-        inStock: Number(inv?.in_stock ?? 0),
+        companyName: inv?.company?.name ?? "—",
+        inStock: qty,
         stockAlert: Number(inv?.stock_alert ?? 0),
+        stockAlertPercentage: Number(inv?.stock_alert_percentage ?? 0),
         minMax: `${min}${max ? ` / ${max}` : ""}`,
         shopLocation: inv?.shop_location ?? "—",
         location: inv?.shop_location ?? "—",
-        condition: "—",
-        expiration: "—",
         partId: part?.id ?? null,
       };
     });
@@ -245,6 +269,14 @@ function PartsPage() {
               </Typography>
             </Box>
           </Stack>
+
+          {viewerIsPlatformAdmin && (
+            <Alert severity="info">
+              {adminCompanyFilter
+                ? `Inventory is filtered to company id ${adminCompanyFilter} (set from Site Admin / Companies). Clear the selection there to see all companies.`
+                : "As a platform admin you are viewing inventory lines for all companies. Open Site Admin → Companies and select a company to filter this list."}
+            </Alert>
+          )}
 
           <Grid container spacing={3}>
             {dashboardNumbers.map((item) => (
@@ -306,19 +338,17 @@ function PartsPage() {
                   </TableHead>
 
                   {inventoryData.map((item) => {
-                    const status = currentStatus(item.inStock, item.minMax, item.expiration);
-                    const color = getStatusColor(status);
                     return (
                       <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
                         <TableCell>{item.pn}</TableCell>
                         <TableCell>{item.partName}</TableCell>
-                        <TableCell>{item.oem}</TableCell>
-                        <TableCell>{item.vendor}</TableCell>
+                        {viewerIsPlatformAdmin ? (
+                          <TableCell>{item.companyName}</TableCell>
+                        ) : null}
                         <TableCell>{item.inStock}</TableCell>
-                        <TableCell>{item.minMax}</TableCell>
+                        <TableCell>{item.stockAlert}</TableCell>
+                        <TableCell>{Math.round(item.stockAlertPercentage * 100)}%</TableCell>
                         <TableCell>{item.location}</TableCell>
-                        <TableCell>{item.condition}</TableCell>
-                        <TableCell>{item.expiration}</TableCell>
                         <TableCell>
                           <IconButton
                             onClick={(e) => openMenu(e, item)}
@@ -401,6 +431,16 @@ function PartsPage() {
                         value={editValues.stockAlert}
                         onChange={(e) =>
                           setEditValues((p) => ({ ...p, stockAlert: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Alert percentage (0 to 1)"
+                        type="number"
+                        inputProps={{ min: 0, max: 1, step: 0.01 }}
+                        value={editValues.stockAlertPercentage}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, stockAlertPercentage: e.target.value }))
                         }
                         fullWidth
                       />
