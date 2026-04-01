@@ -2,17 +2,23 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
 	Alert,
 	Box,
+	Button,
 	Card,
 	CardContent,
 	Container,
-	Button,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
 	Grid,
+	MenuItem,
 	Stack,
 	Table,
 	TableBody,
 	TableCell,
 	TableHead,
 	TableRow,
+	TextField,
 	Typography,
 	CircularProgress,
 } from '@mui/material';
@@ -22,12 +28,67 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 
-import AddWorkOrderForm from '../components/AddWorkOrderForm';
-import AddDiscrepancyForm from '../components/AddDiscrepancyForm';
-import { fetchCompanyDiscrepancies, fetchCompanyWorkorders } from '../shared/Api';
+import {
+	createDiscrepancy,
+	createWorkorder,
+	deleteDiscrepancy,
+	deleteWorkorder,
+	fetchCompanyAircrafts,
+	fetchCompanyDiscrepancies,
+	fetchCompanyUsers,
+	fetchCompanyWorkorders,
+	fetchParts,
+	updateDiscrepancy,
+	updateWorkorder,
+} from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
 
+/** Matches backend `WorkOrder.STATUS_CHOICES` — value stored, label shown in UI */
+const WORK_ORDER_STATUS_OPTIONS = [
+	{ value: 'open', label: 'Open' },
+	{ value: 'in_progress', label: 'In Progress' },
+	{ value: 'awaiting_parts', label: 'Awaiting Parts' },
+	{ value: 'closed', label: 'Closed' },
+];
+
+/** Matches backend `Discrepancy.STATUS_CHOICES` */
+const DISCREPANCY_STATUS_OPTIONS = [
+	{ value: 'pending', label: 'Pending' },
+	{ value: 'closed', label: 'Closed' },
+];
+
+function labelForWorkOrderStatus(value) {
+	if (value == null || value === '') return '—';
+	return WORK_ORDER_STATUS_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
+}
+
+function labelForDiscrepancyStatus(value) {
+	if (value == null || value === '') return '—';
+	return DISCREPANCY_STATUS_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
+}
+
+/** Profile / company user row: prefer real name, fall back to username (no role suffix). */
+function profileDisplayName(u) {
+	if (!u) return '';
+	const fn = (u.first_name || '').trim();
+	const ln = (u.last_name || '').trim();
+	const full = `${fn} ${ln}`.trim();
+	return full || (u.username || '').trim() || '';
+}
+
+function partAircraftId(p) {
+	if (!p) return null;
+	const a = p.aircraft;
+	if (typeof a === 'object' && a != null) return a.id;
+	return a;
+}
+
+function unwrapApiList(data) {
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+}
 
 //KPI CARD DEFINITION  this pay get replaced but is a decent placeholder atm
 const KPICard = ({ title, color, trend }) => (
@@ -47,14 +108,43 @@ const KPICard = ({ title, color, trend }) => (
     
 // --- MAIN COMPONENT ---
 
+const initialWorkorderForm = {
+	title: '',
+	aircraft: '',
+	created_by: '',
+	parts_needed: [],
+	description: '',
+	status: 'open',
+	due_by: '',
+};
+
+const initialDiscrepancyForm = {
+	aircraft: '',
+	reporter: '',
+	description: '',
+	ata_code: '',
+	tach_time: '',
+	status: 'pending',
+	work_order: '',
+};
+
 const Maintenance = () => {
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
 	const [isAddDiscrepancyOpen, setIsAddDiscrepancyOpen] = useState(false);
+	const [editWorkOrderOpen, setEditWorkOrderOpen] = useState(false);
+	const [editDiscrepancyOpen, setEditDiscrepancyOpen] = useState(false);
+	const [selectedWorkOrder, setSelectedWorkOrder] = useState(null);
+	const [selectedDiscrepancy, setSelectedDiscrepancy] = useState(null);
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
+	const [aircraft, setAircraft] = useState([]);
+	const [allParts, setAllParts] = useState([]);
+	const [companyUsers, setCompanyUsers] = useState([]);
+	const [workorderForm, setWorkorderForm] = useState(initialWorkorderForm);
+	const [discrepancyForm, setDiscrepancyForm] = useState(initialDiscrepancyForm);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 
@@ -69,13 +159,19 @@ const Maintenance = () => {
 			setIsLoading(true);
 			setError('');
 			try {
-				const [woData, discData] = await Promise.all([
+				const [woData, discData, aircraftData, userData, partsData] = await Promise.all([
 					fetchCompanyWorkorders(),
 					fetchCompanyDiscrepancies(),
+					fetchCompanyAircrafts(),
+					fetchCompanyUsers(),
+					fetchParts(),
 				]);
 				if (!mounted) return;
 				setWorkOrders(Array.isArray(woData) ? woData : []);
 				setDiscrepancies(Array.isArray(discData) ? discData : []);
+				setAircraft(Array.isArray(aircraftData) ? aircraftData : []);
+				setCompanyUsers(Array.isArray(userData) ? userData : []);
+				setAllParts(unwrapApiList(partsData));
 			} catch (e) {
 				if (!mounted) return;
 				setError(e?.message || 'Failed to load maintenance data.');
@@ -92,6 +188,15 @@ const Maintenance = () => {
 		};
 	}, [platformAdmin, hasCompanyContext]);
 
+	const refreshMaintenanceData = async () => {
+		const [woData, discData] = await Promise.all([
+			fetchCompanyWorkorders(),
+			fetchCompanyDiscrepancies(),
+		]);
+		setWorkOrders(Array.isArray(woData) ? woData : []);
+		setDiscrepancies(Array.isArray(discData) ? discData : []);
+	};
+
 	const today = useMemo(() => new Date(), []);
 
 	const overdueWorkOrders = useMemo(
@@ -103,6 +208,21 @@ const Maintenance = () => {
 			}),
 		[workOrders, today]
 	);
+
+	const profileById = useMemo(() => {
+		const m = new Map();
+		companyUsers.forEach((u) => {
+			if (u?.id != null) m.set(u.id, u);
+		});
+		return m;
+	}, [companyUsers]);
+
+	const resolveProfileName = (profileRef) => {
+		if (profileRef == null) return '';
+		if (typeof profileRef === 'object') return profileDisplayName(profileRef);
+		const u = profileById.get(profileRef);
+		return profileDisplayName(u) || String(profileRef);
+	};
 
 	const dueSoonWorkOrders = useMemo(
 		() =>
@@ -116,21 +236,53 @@ const Maintenance = () => {
 		[workOrders, today]
 	);
 
+	const aircraftIdSet = useMemo(() => new Set(aircraft.map((a) => a.id)), [aircraft]);
+
+	const companyParts = useMemo(
+		() =>
+			allParts.filter((p) => {
+				const aid = partAircraftId(p);
+				return aid != null && aircraftIdSet.has(aid);
+			}),
+		[allParts, aircraftIdSet]
+	);
+
+	const partLabelById = useMemo(() => {
+		const m = new Map();
+		companyParts.forEach((p) => m.set(p.id, `${p.part_number} — ${p.name}`));
+		return m;
+	}, [companyParts]);
+
 	const mappedWorkOrders = useMemo(
 		() =>
-			workOrders.map((wo) => ({
-				id: wo.id,
-				order_number: wo.id,
-				part_number: (wo.parts_needed && wo.parts_needed.length) ? wo.parts_needed[0] : '',
-				aircraft:
-					typeof wo.aircraft === 'object'
-						? wo.aircraft.model || wo.aircraft.registration_number
-						: wo.aircraft,
-				assigned_to: Array.isArray(wo.created_by) ? wo.created_by.join(' ') : wo.created_by,
-				due_date: wo.due_by,
-				description: wo.description,
-			})),
-		[workOrders]
+			workOrders.map((wo) => {
+				const partIds = Array.isArray(wo.parts_needed) ? wo.parts_needed : [];
+				const parts_summary = partIds.length
+					? partIds
+							.map((raw) => {
+								const id = typeof raw === 'object' && raw != null ? raw.id : raw;
+								return partLabelById.get(id) || `#${id}`;
+							})
+							.join(', ')
+					: '';
+				return {
+					id: wo.id,
+					order_number: wo.id,
+					parts_summary,
+					aircraft:
+						typeof wo.aircraft === 'object' && wo.aircraft
+							? `${wo.aircraft.registration_number || ''} ${wo.aircraft.model || ''}`.trim() ||
+							  wo.aircraft.model ||
+							  wo.aircraft.registration_number
+							: wo.aircraft,
+					assigned_to: resolveProfileName(wo.created_by),
+					status: wo.status,
+					status_label: labelForWorkOrderStatus(wo.status),
+					due_date: wo.due_by,
+					description: wo.description,
+				};
+			}),
+		[workOrders, profileById, partLabelById]
 	);
 
 	const mappedDiscrepancies = useMemo(
@@ -139,11 +291,172 @@ const Maintenance = () => {
 				id: d.id,
 				discrepancy_number: d.id,
 				part_number: d.ata_code || '',
-				aircraft: d.aircraft,
+				aircraft:
+					typeof d.aircraft === 'object' && d.aircraft
+						? `${d.aircraft.registration_number || ''} ${d.aircraft.model || ''}`.trim() ||
+						  d.aircraft.model ||
+						  d.aircraft.registration_number
+						: d.aircraft,
+				status: d.status,
+				status_label: labelForDiscrepancyStatus(d.status),
 				description: d.description,
 			})),
 		[discrepancies]
 	);
+
+	const mechanicUsers = useMemo(
+		() => companyUsers.filter((u) => ['mechanic', 'manager', 'owner'].includes(u?.company_role)),
+		[companyUsers]
+	);
+
+	const partsForWorkorderAircraft = useMemo(() => {
+		if (!workorderForm.aircraft) return [];
+		const aid = Number(workorderForm.aircraft);
+		return companyParts.filter((p) => Number(partAircraftId(p)) === aid);
+	}, [companyParts, workorderForm.aircraft]);
+
+	const handleCreateWorkorder = async () => {
+		setError('');
+		try {
+			const payload = {
+				title: workorderForm.title,
+				aircraft: Number(workorderForm.aircraft),
+				description: workorderForm.description,
+				status: workorderForm.status,
+				due_by: workorderForm.due_by || null,
+				parts_needed: (workorderForm.parts_needed || []).map(Number),
+			};
+			if (workorderForm.created_by) {
+				payload.created_by = Number(workorderForm.created_by);
+			}
+			await createWorkorder(payload);
+			setIsAddWorkOrderOpen(false);
+			setWorkorderForm(initialWorkorderForm);
+			await refreshMaintenanceData();
+		} catch (e) {
+			setError(e?.message || 'Failed to create work order.');
+		}
+	};
+
+	const handleCreateDiscrepancy = async () => {
+		setError('');
+		try {
+			await createDiscrepancy({
+				...discrepancyForm,
+				aircraft: Number(discrepancyForm.aircraft),
+				reporter: discrepancyForm.reporter ? Number(discrepancyForm.reporter) : undefined,
+				work_order: discrepancyForm.work_order ? Number(discrepancyForm.work_order) : null,
+			});
+			setIsAddDiscrepancyOpen(false);
+			setDiscrepancyForm(initialDiscrepancyForm);
+			await refreshMaintenanceData();
+		} catch (e) {
+			setError(e?.message || 'Failed to create discrepancy.');
+		}
+	};
+
+	const handleOpenEditWorkorder = (wo) => {
+		setSelectedWorkOrder(wo);
+		const aircraftId =
+			typeof wo?.aircraft === 'object' && wo?.aircraft != null ? wo.aircraft.id : wo?.aircraft ?? '';
+		const createdById =
+			typeof wo?.created_by === 'object' && wo?.created_by != null ? wo.created_by.id : wo?.created_by ?? '';
+		const rawPartIds = Array.isArray(wo?.parts_needed)
+			? wo.parts_needed.map((x) => (typeof x === 'object' && x?.id != null ? x.id : x))
+			: [];
+		setWorkorderForm({
+			title: wo?.title || '',
+			aircraft: aircraftId === '' ? '' : aircraftId,
+			created_by: createdById === '' ? '' : createdById,
+			parts_needed: rawPartIds.map(Number),
+			description: wo?.description || '',
+			status: wo?.status || 'open',
+			due_by: wo?.due_by || '',
+		});
+		setEditWorkOrderOpen(true);
+	};
+
+	const handleSaveWorkorder = async () => {
+		if (!selectedWorkOrder?.id) return;
+		setError('');
+		try {
+			const payload = {
+				title: workorderForm.title,
+				aircraft: Number(workorderForm.aircraft),
+				description: workorderForm.description,
+				status: workorderForm.status,
+				due_by: workorderForm.due_by || null,
+				parts_needed: (workorderForm.parts_needed || []).map(Number),
+			};
+			if (workorderForm.created_by) {
+				payload.created_by = Number(workorderForm.created_by);
+			} else {
+				payload.created_by = null;
+			}
+			await updateWorkorder(selectedWorkOrder.id, payload);
+			setEditWorkOrderOpen(false);
+			await refreshMaintenanceData();
+		} catch (e) {
+			setError(e?.message || 'Failed to update work order.');
+		}
+	};
+
+	const handleDeleteWorkorder = async (id) => {
+		setError('');
+		try {
+			await deleteWorkorder(id);
+			await refreshMaintenanceData();
+		} catch (e) {
+			setError(e?.message || 'Failed to delete work order.');
+		}
+	};
+
+	const handleOpenEditDiscrepancy = (d) => {
+		setSelectedDiscrepancy(d);
+		const aircraftId =
+			typeof d?.aircraft === 'object' && d?.aircraft != null ? d.aircraft.id : d?.aircraft ?? '';
+		const reporterId =
+			typeof d?.reporter === 'object' && d?.reporter != null ? d.reporter.id : d?.reporter ?? '';
+		const woId =
+			typeof d?.work_order === 'object' && d?.work_order != null ? d.work_order.id : d?.work_order ?? '';
+		setDiscrepancyForm({
+			aircraft: aircraftId === '' ? '' : String(aircraftId),
+			reporter: reporterId === '' ? '' : String(reporterId),
+			description: d?.description || '',
+			ata_code: d?.ata_code || '',
+			tach_time: d?.tach_time || '',
+			status: d?.status || 'pending',
+			work_order: woId === '' ? '' : String(woId),
+		});
+		setEditDiscrepancyOpen(true);
+	};
+
+	const handleSaveDiscrepancy = async () => {
+		if (!selectedDiscrepancy?.id) return;
+		setError('');
+		try {
+			await updateDiscrepancy(selectedDiscrepancy.id, {
+				...discrepancyForm,
+				aircraft: Number(discrepancyForm.aircraft),
+				reporter: discrepancyForm.reporter ? Number(discrepancyForm.reporter) : undefined,
+				work_order: discrepancyForm.work_order ? Number(discrepancyForm.work_order) : null,
+			});
+			setEditDiscrepancyOpen(false);
+			await refreshMaintenanceData();
+		} catch (e) {
+			setError(e?.message || 'Failed to update discrepancy.');
+		}
+	};
+
+	const handleDeleteDiscrepancy = async (id) => {
+		setError('');
+		try {
+			await deleteDiscrepancy(id);
+			await refreshMaintenanceData();
+		} catch (e) {
+			setError(e?.message || 'Failed to delete discrepancy.');
+		}
+	};
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
@@ -286,27 +599,40 @@ const Maintenance = () => {
 										<TableHead>
 											<TableRow>
 												<TableCell>ID</TableCell>
-												<TableCell>Part</TableCell>
+												<TableCell>Parts</TableCell>
 												<TableCell>Aircraft</TableCell>
 												<TableCell>Assigned</TableCell>
+												<TableCell>Status</TableCell>
 												<TableCell>Due</TableCell>
 												<TableCell>Description</TableCell>
+												<TableCell>Actions</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
 											{mappedWorkOrders.map((order) => (
 												<TableRow key={order.id}>
 													<TableCell>{order.order_number}</TableCell>
-													<TableCell>{order.part_number || '—'}</TableCell>
+													<TableCell sx={{ maxWidth: 220, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{order.parts_summary || '—'}
+													</TableCell>
 													<TableCell>{order.aircraft || '—'}</TableCell>
 													<TableCell>{order.assigned_to || '—'}</TableCell>
+													<TableCell>{order.status_label}</TableCell>
 													<TableCell>{order.due_date || '—'}</TableCell>
 													<TableCell>{order.description || '—'}</TableCell>
+													<TableCell>
+														<Button size="small" onClick={() => handleOpenEditWorkorder(workOrders.find((w) => w.id === order.id))}>
+															Edit
+														</Button>
+														<Button size="small" color="error" onClick={() => handleDeleteWorkorder(order.id)}>
+															Delete
+														</Button>
+													</TableCell>
 												</TableRow>
 											))}
 											{mappedWorkOrders.length === 0 ? (
 												<TableRow>
-													<TableCell colSpan={6} sx={{ color: 'text.secondary' }}>
+													<TableCell colSpan={8} sx={{ color: 'text.secondary' }}>
 														No work orders found.
 													</TableCell>
 												</TableRow>
@@ -322,7 +648,7 @@ const Maintenance = () => {
 						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
-									Discrepancies (Pending)
+									Discrepancies
 								</Typography>
 
 								{isLoading ? (
@@ -336,7 +662,9 @@ const Maintenance = () => {
 												<TableCell>ID</TableCell>
 												<TableCell>ATA</TableCell>
 												<TableCell>Aircraft</TableCell>
+												<TableCell>Status</TableCell>
 												<TableCell>Description</TableCell>
+												<TableCell>Actions</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
@@ -345,12 +673,21 @@ const Maintenance = () => {
 													<TableCell>{d.discrepancy_number}</TableCell>
 													<TableCell>{d.part_number || '—'}</TableCell>
 													<TableCell>{d.aircraft || '—'}</TableCell>
+													<TableCell>{d.status_label}</TableCell>
 													<TableCell>{d.description || '—'}</TableCell>
+													<TableCell>
+														<Button size="small" onClick={() => handleOpenEditDiscrepancy(discrepancies.find((x) => x.id === d.id))}>
+															Edit
+														</Button>
+														<Button size="small" color="error" onClick={() => handleDeleteDiscrepancy(d.id)}>
+															Delete
+														</Button>
+													</TableCell>
 												</TableRow>
 											))}
 											{mappedDiscrepancies.length === 0 ? (
 												<TableRow>
-													<TableCell colSpan={4} sx={{ color: 'text.secondary' }}>
+													<TableCell colSpan={6} sx={{ color: 'text.secondary' }}>
 														No discrepancies found.
 													</TableCell>
 												</TableRow>
@@ -364,14 +701,222 @@ const Maintenance = () => {
 				</Grid>
 
 				{/* Modals */}
-				<AddWorkOrderForm
-					isOpen={isAddWorkOrderOpen}
-					onClose={() => setIsAddWorkOrderOpen(false)}
-				/>
-				<AddDiscrepancyForm
-					isOpen={isAddDiscrepancyOpen}
-					onClose={() => setIsAddDiscrepancyOpen(false)}
-				/>
+				<Dialog open={isAddWorkOrderOpen} onClose={() => setIsAddWorkOrderOpen(false)} maxWidth="sm" fullWidth>
+					<DialogTitle>Create Work Order</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField label="Title" value={workorderForm.title} onChange={(e) => setWorkorderForm((s) => ({ ...s, title: e.target.value }))} />
+							<TextField
+								select
+								label="Aircraft"
+								value={workorderForm.aircraft}
+								onChange={(e) => {
+									const newAc = e.target.value;
+									setWorkorderForm((s) => {
+										const aid = newAc === '' ? null : Number(newAc);
+										const nextParts = (s.parts_needed || []).filter((pid) => {
+											if (aid == null) return false;
+											const p = companyParts.find((x) => x.id === Number(pid));
+											return p && Number(partAircraftId(p)) === aid;
+										});
+										return { ...s, aircraft: newAc, parts_needed: nextParts };
+									});
+								}}
+							>
+								{aircraft.map((a) => (
+									<MenuItem key={a.id} value={a.id}>{a.registration_number} ({a.model})</MenuItem>
+								))}
+							</TextField>
+							<TextField
+								select
+								label="Parts needed"
+								SelectProps={{
+									multiple: true,
+									renderValue: (selected) =>
+										(selected || []).length
+											? (selected || []).map((id) => partLabelById.get(id) || `#${id}`).join(', ')
+											: '—',
+								}}
+								value={workorderForm.parts_needed || []}
+								onChange={(e) =>
+									setWorkorderForm((s) => ({
+										...s,
+										parts_needed:
+											typeof e.target.value === 'string'
+												? e.target.value.split(',').map(Number)
+												: e.target.value,
+									}))
+								}
+								helperText={
+									!workorderForm.aircraft
+										? 'Select an aircraft to see parts for that aircraft'
+										: partsForWorkorderAircraft.length === 0
+											? 'No parts are catalogued for this aircraft yet'
+											: 'Optional — inventory parts linked to this tail number'
+								}
+								disabled={!workorderForm.aircraft}
+							>
+								{partsForWorkorderAircraft.map((p) => (
+									<MenuItem key={p.id} value={p.id}>{p.part_number} — {p.name}</MenuItem>
+								))}
+							</TextField>
+							<TextField select label="Assigned To" value={workorderForm.created_by || ''} onChange={(e) => setWorkorderForm((s) => ({ ...s, created_by: e.target.value }))}>
+								<MenuItem value="">Current user</MenuItem>
+								{mechanicUsers.map((u) => (
+									<MenuItem key={u.id} value={u.id}>{profileDisplayName(u)}</MenuItem>
+								))}
+							</TextField>
+							<TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))}>
+								{WORK_ORDER_STATUS_OPTIONS.map((opt) => (
+									<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+								))}
+							</TextField>
+							<TextField type="date" label="Due Date" InputLabelProps={{ shrink: true }} value={workorderForm.due_by} onChange={(e) => setWorkorderForm((s) => ({ ...s, due_by: e.target.value }))} />
+							<TextField label="Description" multiline minRows={3} value={workorderForm.description} onChange={(e) => setWorkorderForm((s) => ({ ...s, description: e.target.value }))} />
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={() => setIsAddWorkOrderOpen(false)}>Cancel</Button>
+						<Button variant="contained" onClick={handleCreateWorkorder}>Create</Button>
+					</DialogActions>
+				</Dialog>
+
+				<Dialog open={editWorkOrderOpen} onClose={() => setEditWorkOrderOpen(false)} maxWidth="sm" fullWidth>
+					<DialogTitle>Edit Work Order</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField label="Title" value={workorderForm.title} onChange={(e) => setWorkorderForm((s) => ({ ...s, title: e.target.value }))} />
+							<TextField
+								select
+								label="Aircraft"
+								value={workorderForm.aircraft}
+								onChange={(e) => {
+									const newAc = e.target.value;
+									setWorkorderForm((s) => {
+										const aid = newAc === '' ? null : Number(newAc);
+										const nextParts = (s.parts_needed || []).filter((pid) => {
+											if (aid == null) return false;
+											const p = companyParts.find((x) => x.id === Number(pid));
+											return p && Number(partAircraftId(p)) === aid;
+										});
+										return { ...s, aircraft: newAc, parts_needed: nextParts };
+									});
+								}}
+							>
+								{aircraft.map((a) => (
+									<MenuItem key={a.id} value={a.id}>{a.registration_number} ({a.model})</MenuItem>
+								))}
+							</TextField>
+							<TextField
+								select
+								label="Parts needed"
+								SelectProps={{
+									multiple: true,
+									renderValue: (selected) =>
+										(selected || []).length
+											? (selected || []).map((id) => partLabelById.get(id) || `#${id}`).join(', ')
+											: '—',
+								}}
+								value={workorderForm.parts_needed || []}
+								onChange={(e) =>
+									setWorkorderForm((s) => ({
+										...s,
+										parts_needed:
+											typeof e.target.value === 'string'
+												? e.target.value.split(',').map(Number)
+												: e.target.value,
+									}))
+								}
+								helperText={
+									!workorderForm.aircraft
+										? 'Select an aircraft first'
+										: partsForWorkorderAircraft.length === 0
+											? 'No parts catalogued for this aircraft'
+											: 'Update parts tied to this work order'
+								}
+								disabled={!workorderForm.aircraft}
+							>
+								{partsForWorkorderAircraft.map((p) => (
+									<MenuItem key={p.id} value={p.id}>{p.part_number} — {p.name}</MenuItem>
+								))}
+							</TextField>
+							<TextField select label="Assigned To" value={workorderForm.created_by || ''} onChange={(e) => setWorkorderForm((s) => ({ ...s, created_by: e.target.value }))}>
+								<MenuItem value="">Unassigned</MenuItem>
+								{mechanicUsers.map((u) => (
+									<MenuItem key={u.id} value={u.id}>{profileDisplayName(u)}</MenuItem>
+								))}
+							</TextField>
+							<TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))}>
+								{WORK_ORDER_STATUS_OPTIONS.map((opt) => (
+									<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+								))}
+							</TextField>
+							<TextField type="date" label="Due Date" InputLabelProps={{ shrink: true }} value={workorderForm.due_by} onChange={(e) => setWorkorderForm((s) => ({ ...s, due_by: e.target.value }))} />
+							<TextField label="Description" multiline minRows={3} value={workorderForm.description} onChange={(e) => setWorkorderForm((s) => ({ ...s, description: e.target.value }))} />
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={() => setEditWorkOrderOpen(false)}>Cancel</Button>
+						<Button variant="contained" onClick={handleSaveWorkorder}>Save</Button>
+					</DialogActions>
+				</Dialog>
+
+				<Dialog open={isAddDiscrepancyOpen} onClose={() => setIsAddDiscrepancyOpen(false)} maxWidth="sm" fullWidth>
+					<DialogTitle>Create Discrepancy</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField select label="Aircraft" value={discrepancyForm.aircraft} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, aircraft: e.target.value }))}>
+								{aircraft.map((a) => (
+									<MenuItem key={a.id} value={a.id}>{a.registration_number} ({a.model})</MenuItem>
+								))}
+							</TextField>
+							<TextField select label="Reporter" value={discrepancyForm.reporter} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, reporter: e.target.value }))}>
+								<MenuItem value="">Current user</MenuItem>
+								{companyUsers.map((u) => (
+									<MenuItem key={u.id} value={u.id}>{profileDisplayName(u)}</MenuItem>
+								))}
+							</TextField>
+							<TextField select label="Work Order (optional)" value={discrepancyForm.work_order} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, work_order: e.target.value }))}>
+								<MenuItem value="">None</MenuItem>
+								{workOrders.map((wo) => (
+									<MenuItem key={wo.id} value={wo.id}>#{wo.id} - {wo.title}</MenuItem>
+								))}
+							</TextField>
+							<TextField label="ATA Code" value={discrepancyForm.ata_code} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, ata_code: e.target.value }))} />
+							<TextField label="Tach Time" value={discrepancyForm.tach_time} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, tach_time: e.target.value }))} />
+							<TextField select label="Status" value={discrepancyForm.status} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, status: e.target.value }))}>
+								{DISCREPANCY_STATUS_OPTIONS.map((opt) => (
+									<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+								))}
+							</TextField>
+							<TextField label="Description" multiline minRows={3} value={discrepancyForm.description} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, description: e.target.value }))} />
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={() => setIsAddDiscrepancyOpen(false)}>Cancel</Button>
+						<Button variant="contained" onClick={handleCreateDiscrepancy}>Create</Button>
+					</DialogActions>
+				</Dialog>
+
+				<Dialog open={editDiscrepancyOpen} onClose={() => setEditDiscrepancyOpen(false)} maxWidth="sm" fullWidth>
+					<DialogTitle>Edit Discrepancy</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField select label="Status" value={discrepancyForm.status} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, status: e.target.value }))}>
+								{DISCREPANCY_STATUS_OPTIONS.map((opt) => (
+									<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+								))}
+							</TextField>
+							<TextField label="ATA Code" value={discrepancyForm.ata_code} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, ata_code: e.target.value }))} />
+							<TextField label="Tach Time" value={discrepancyForm.tach_time} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, tach_time: e.target.value }))} />
+							<TextField label="Description" multiline minRows={3} value={discrepancyForm.description} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, description: e.target.value }))} />
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={() => setEditDiscrepancyOpen(false)}>Cancel</Button>
+						<Button variant="contained" onClick={handleSaveDiscrepancy}>Save</Button>
+					</DialogActions>
+				</Dialog>
 			</Container>
 		</Box>
 	);

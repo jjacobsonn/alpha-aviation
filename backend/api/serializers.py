@@ -6,6 +6,7 @@ from .models import (
     Part,
     Discrepancy,
     WorkOrder,
+    WorkOrderPart,
     Flight,
     Inventory,
     InventoryPart,
@@ -182,6 +183,15 @@ class DiscrepancySerializer(serializers.ModelSerializer):
         ]
 
 class WorkOrderSerializer(serializers.ModelSerializer):
+    """
+    `parts_needed` is a M2M through `WorkOrderPart` (each row requires a quantity).
+    API accepts a list of part PKs; each selected part is stored with quantity=1.
+    """
+
+    parts_needed = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Part.objects.all(), required=False, allow_empty=True
+    )
+
     class Meta:
         model = WorkOrder
         fields = [
@@ -204,6 +214,38 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "signature",
             "signature_date",
         ]
+
+    def validate(self, data):
+        aircraft = data.get("aircraft") or getattr(self.instance, "aircraft", None)
+        parts = data.get("parts_needed")
+        if parts is not None and aircraft:
+            invalid = [p for p in parts if p.aircraft_id and p.aircraft_id != aircraft.id]
+            if invalid:
+                raise serializers.ValidationError(
+                    {
+                        "parts_needed": "One or more parts are not catalogued for the selected aircraft."
+                    }
+                )
+        return data
+
+    def create(self, validated_data):
+        parts = validated_data.pop("parts_needed", [])
+        work_order = WorkOrder.objects.create(**validated_data)
+        for part in parts:
+            WorkOrderPart.objects.create(work_order=work_order, part=part, quantity=1)
+        return work_order
+
+    def update(self, instance, validated_data):
+        parts = validated_data.pop("parts_needed", None)
+        work_order = super().update(instance, validated_data)
+        if parts is not None:
+            WorkOrderPart.objects.filter(work_order=work_order).delete()
+            for part in parts:
+                WorkOrderPart.objects.create(
+                    work_order=work_order, part=part, quantity=1
+                )
+        return work_order
+
 
 class FlightSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.name", read_only=True)

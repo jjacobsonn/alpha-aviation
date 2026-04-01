@@ -130,6 +130,42 @@ def resolve_company_for_inventory_create(request):
     return company
 
 
+def company_scoped_aircraft_queryset(request):
+    """
+    Tenant users are scoped to their company aircraft.
+    Platform admins can view all, optionally narrowed with X-Company-Id.
+    """
+    qs = Aircraft.objects.all()
+    user = request.user
+    if _is_platform_admin(user):
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
+        return qs
+    company = getattr(user, "company", None)
+    if company is None:
+        return qs.none()
+    return qs.filter(company=company)
+
+
+def company_scoped_workorder_queryset(request):
+    qs = (
+        WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
+        .prefetch_related("parts_needed")
+        .order_by("-created_at")
+    )
+    aircraft_qs = company_scoped_aircraft_queryset(request).values_list("id", flat=True)
+    return qs.filter(aircraft_id__in=aircraft_qs)
+
+
+def company_scoped_discrepancy_queryset(request):
+    qs = Discrepancy.objects.select_related("aircraft", "reporter", "work_order").order_by(
+        "-date_reported"
+    )
+    aircraft_qs = company_scoped_aircraft_queryset(request).values_list("id", flat=True)
+    return qs.filter(aircraft_id__in=aircraft_qs)
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):
@@ -432,6 +468,7 @@ def company_workorders_view(request):
         return Response({'error': 'User does not have an associated company'}, status=403)
     workorders = (
         WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
+        .prefetch_related("parts_needed")
         .filter(aircraft__company=company)
         .order_by("-created_at")
     )
@@ -581,8 +618,10 @@ class PartViewSet(viewsets.ModelViewSet):
     permission_classes = [IsMechanicOrManager]
 
 class DiscrepancyViewSet(viewsets.ModelViewSet):
-    queryset = Discrepancy.objects.all().order_by("-date_reported")
     serializer_class = DiscrepancySerializer
+
+    def get_queryset(self):
+        return company_scoped_discrepancy_queryset(self.request)
 
     def get_permissions(self):
         # Anyone authenticated can create; mechanics/managers/owners manage.
@@ -590,10 +629,26 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         return [IsMechanicOrManager()]
 
+    def perform_create(self, serializer):
+        reporter = serializer.validated_data.get("reporter")
+        if reporter is None:
+            serializer.save(reporter=self.request.user)
+            return
+        serializer.save()
+
 class WorkOrderViewSet(viewsets.ModelViewSet):
-    queryset = WorkOrder.objects.all().order_by("-created_at")
     serializer_class = WorkOrderSerializer
     permission_classes = [IsMechanicOrManager]
+
+    def get_queryset(self):
+        return company_scoped_workorder_queryset(self.request)
+
+    def perform_create(self, serializer):
+        created_by = serializer.validated_data.get("created_by")
+        if created_by is None:
+            serializer.save(created_by=self.request.user)
+            return
+        serializer.save()
 
 
 class FlightViewSet(viewsets.ModelViewSet):
