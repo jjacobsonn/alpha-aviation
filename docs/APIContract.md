@@ -671,6 +671,8 @@ Discrepancy object
     ata_code: string (max_length=50, optional)
     tach_time: string (max_length=100, optional)
     status: string (choices: 'pending', 'closed')
+    signature: image (file type unrestricted, optional)
+    signature_date: date (YYYY-MM-DD, optional)
 }
 ```
 
@@ -735,6 +737,24 @@ Returns a single discrepancy by ID.
 
 ---
 
+### POST /api/discrepancies/\<id\>/open_work_order/
+Creates a new Work Order pre-filled from the discrepancy and links them together.
+* URL Params: `id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 201
+    * Content: WorkOrder object (same as GET /api/workorders/\<id\>/)
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — insufficient role
+    * Code: 404 NOT FOUND — `{ "detail": "No Discrepancy matches the given query." }`
+
+---
+
 # Work Orders
 
 WorkOrder object
@@ -758,6 +778,9 @@ WorkOrder object
     signed_by: <ForeignKey Profile> (optional)
     signature: image (file type unrestricted, optional)
     signature_date: date (YYYY-MM-DD, optional)
+    assignee: <ForeignKey Profile> (optional)
+    priority: string (choices: 'low', 'medium', 'high', 'critical', default: 'medium')
+    completion_notes: string (optional)
 }
 ```
 
@@ -835,6 +858,67 @@ Returns a single work order by ID.
 * Error Response:
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 404 NOT FOUND — `{ "detail": "No WorkOrder matches the given query." }`
+
+---
+
+### POST /api/workorders/\<id\>/close/
+Closes a Work Order, records the signer, and auto-closes all linked discrepancies.
+* URL Params: `id=[integer]`
+* Data Params: `{ "completion_notes": string }` (optional)
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Manager, Owner, or Mechanic with `inspector_authentication = True`
+* Success Response:
+    * Code: 200
+    * Content: WorkOrder object with `status: "closed"`, `signed_by`, and `signature_date` populated
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — insufficient role or mechanic lacks inspector authentication
+    * Code: 404 NOT FOUND — `{ "detail": "No WorkOrder matches the given query." }`
+
+---
+
+### GET /api/aircraft/\<id\>/work_order_history/
+Returns all work orders for a specific aircraft ordered by most recently created.
+* URL Params: `id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content: Array of WorkOrder objects (same as GET /api/workorders/)
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Aircraft matches the given query." }`
+
+---
+
+### GET /api/maintenance/dashboard/
+Returns KPI counters for the authenticated user's company scoped to maintenance.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        {
+            "pending_discrepancies": 4,
+            "open_work_orders": 7,
+            "overdue": 2,
+            "due_soon": 3
+        }
+        ```
+    * `overdue` — open WOs with a `due_by` date in the past
+    * `due_soon` — open WOs with a `due_by` date within the next 10 days
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — insufficient role
 
 ---
 

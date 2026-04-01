@@ -7,7 +7,7 @@ from django.utils.html import format_html
 class DiscrepancyAdmin(admin.ModelAdmin):
     list_display = ('id', 'aircraft', 'status', 'date_reported', 'reporter')
     list_filter = ('status', 'aircraft')
-    search_fields = ('description', 'ata_code', 'component_affected')
+    search_fields = ('description', 'ata_code')
 
 #Inline display used when refrenced on other page for discrepancies
 class DiscrepancyInline(admin.TabularInline):
@@ -161,10 +161,6 @@ class InventoryAdmin(admin.ModelAdmin):
 class InventoryInline(admin.TabularInline):
       model = Inventory
       extra = 0
-      # Show only the most important, easy-to-understand fields inline.
-      readonly_fields = ("low_stock",)
-      fields = ("part", "in_stock", "stock_alert", "shop_location", "low_stock")
-      autocomplete_fields = ["part"]
 
 
 #Admin display for flights
@@ -190,7 +186,6 @@ class FlightInline(admin.TabularInline):
             "departure_time",
             "arrival_time",
             "flight_type",
-            "approved",
       )
       autocomplete_fields = ["aircraft"]
       def formfield_for_foreignkey(self, db_field, request, **kwargs):
@@ -222,11 +217,4 @@ admin.site.register(Aircraft, AircraftAdmin)
 admin.site.register(Part, PartAdmin)
 admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(Flight, FlightAdmin)
-
-
-@admin.register(Inventory)
-class InventoryAdmin(admin.ModelAdmin):
-      list_display = ("part", "company", "in_stock", "stock_alert", "shop_location", "low_stock")
-      list_filter = ("company",)
-      search_fields = ("part__part_number", "part__name", "company__name", "shop_location")
 

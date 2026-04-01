@@ -27,6 +27,7 @@ from .views import (
     InventoryViewSet,
     CompanyInventoryListView,
     CompanyLowStockInventoryListView,
+    maintenance_dashboard_view,
 )
 
 
@@ -85,5 +86,6 @@ urlpatterns = [
         name="company_low_stock_inventories_detailed",
     ),
     path("", include(router.urls)),
+    path("maintenance/dashboard/", maintenance_dashboard_view, name="maintenance-dashboard"),
 ]
 

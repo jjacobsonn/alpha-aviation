@@ -45,7 +45,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "company_role",
             "medically_cleared_until",
             "pilot_certificate",
-            "AP_certificate_number",
+            "AP_certif icate_number",
             "inspector_authentication",
         ]
     #if user is not pilot or not mechanic it will remove those fields from the response.
@@ -114,6 +114,8 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             "ata_code",
             "tach_time",
             "status",
+            "signature",
+            "signature_date",
         ]
 
 class WorkOrderSerializer(serializers.ModelSerializer):
@@ -138,6 +140,9 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "signed_by",
             "signature",
             "signature_date",
+            "assignee",
+            "priority",
+            "completion_notes",
         ]
 
 class FlightSerializer(serializers.ModelSerializer):

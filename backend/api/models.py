@@ -412,6 +412,20 @@ class WorkOrder(models.Model):
         ("closed", "Closed"),
     ]
 
+    PRIORITY_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("critical", "Critical"),
+    ]
+
+    assignee = models.ForeignKey(
+        'Profile', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assigned_work_orders'
+    )
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="medium")
+    completion_notes = models.TextField(blank=True, null=True)
+
     aircraft = models.ForeignKey(
         Aircraft, on_delete=models.CASCADE, related_name="work_orders"
     )
@@ -486,6 +500,94 @@ class Discrepancy(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="pending"
     )
+    signature = models.ImageField(upload_to="discrepancies_signatures/", null=True, blank=True)
+    signature_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"Discrepancy on {self.aircraft} ({self.status})"
+
+
+class Flight(models.Model):
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('approved', 'Approved'),
+        ('pending approval', 'Pending Approval'),
+        ('delayed', 'Delayed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+
+    FLIGHT_TYPE_CHOICES = [
+        ('training', 'Training'),
+        ('charter', 'Charter'),
+        ('positioning', 'Positioning'),
+        ('maintenance ferry', 'Maintenance Ferry'),
+    ]
+
+    PILOT_REQUIREMENT_CHOICES = [
+        ('student', 'Student'),
+        ('private', 'Private'),
+        ('commercial', 'Commercial'),
+        ('airline', 'Airline'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='flights', null=True)
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name='flights', null=True)
+    flight_number = models.CharField(max_length=250, null=True)
+    origin = models.CharField(max_length=250, null=True)
+    destination = models.CharField(max_length=250, null=True)
+    departure_time = models.DateTimeField(null=True)
+    arrival_time = models.DateTimeField(null=True)
+    route = models.CharField(blank=True, null=True)
+    flight_type = models.CharField(max_length=255, choices=FLIGHT_TYPE_CHOICES, default='training')
+    pilot_requirement = models.CharField(max_length=255, choices=PILOT_REQUIREMENT_CHOICES, default='private')
+    primary_pilot = models.ForeignKey(
+        Profile, on_delete=models.CASCADE, null=True, related_name='primary_pilot'
+    )
+    secondary_pilot = models.ForeignKey(
+        Profile, on_delete=models.CASCADE, null=True, related_name='secondary_pilot'
+    )
+    dispatcher = models.ForeignKey(
+        Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name='flight_dispatcher'
+    )
+    status = models.CharField(max_length=255, choices=STATUS_CHOICES, default='pending approval')
+
+    def clean(self):
+        errors = {}
+
+        if self.primary_pilot and self.secondary_pilot:
+            if self.primary_pilot == self.secondary_pilot:
+                errors['secondary_pilot'] = 'Secondary pilot cannot be the same person as Primary pilot.'
+
+        if not self.departure_time:
+            errors['departure_time'] = 'Departure time does not exist.'
+        if not self.arrival_time:
+            errors['arrival_time'] = 'Arrival time does not exist.'
+        elif self.departure_time and self.arrival_time < self.departure_time:
+            errors['arrival_time'] = 'Arrival time cannot be before departure time.'
+
+        def check_pilot(pilot, field):
+            if not pilot:
+                return
+            if pilot.company_role != 'pilot':
+                errors[field] = f'{pilot.first_name} is not a pilot.'
+                return
+            if self.company and pilot.company != self.company:
+                errors[field] = f'{pilot.first_name} is not part of company {self.company}.'
+                return
+            if not hasattr(pilot, 'pilot_info'):
+                errors[field] = f'{pilot.first_name} does not have pilot info.'
+                return
+            if self.arrival_time and not pilot.pilot_info.is_cleared_to_fly(self.arrival_time.date()):
+                errors[field] = f'{pilot.first_name} is not medically cleared to fly.'
+            if not pilot.pilot_info.is_certified(self.pilot_requirement):
+                errors[field] = f'{pilot.first_name} does not meet the required certification level.'
+
+        check_pilot(self.primary_pilot, 'primary_pilot')
+        check_pilot(self.secondary_pilot, 'secondary_pilot')
+
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f"Flight {self.flight_number} ({self.origin} → {self.destination})"

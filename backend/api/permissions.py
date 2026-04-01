@@ -120,3 +120,21 @@ class IsOwnProfileOrManager(BasePermission):
 
         return getattr(obj, "id", None) == getattr(user, "id", None)
 
+class CanReportDiscrepancy(BasePermission):
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated)
+
+class CanSignWorkOrder(BasePermission):
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        role = getattr(user, "company_role", None)
+        if role in {"manager", "owner"}:
+            return True
+        if role == "mechanic":
+            return hasattr(user, "mechanic_info") and user.mechanic_info.inspector_authentication
+        return False
