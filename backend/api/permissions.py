@@ -125,6 +125,24 @@ class IsMechanicOrManager(BasePermission):
         )
 
 
+class IsMechanicOrManagerOrPilot(BasePermission):
+    """
+    Same as IsMechanicOrManager, plus pilot (e.g. list own discrepancy reports).
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                getattr(user, "company_role", None)
+                in {"mechanic", "manager", "owner", "pilot"}
+                or _is_platform_admin(user)
+            )
+        )
+
+
 class IsOwnProfileOrManager(BasePermission):
     """
     Allow a user to access their own Profile, or any Profile if manager/owner.

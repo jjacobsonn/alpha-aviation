@@ -33,6 +33,7 @@ from .permissions import (
     IsCompanyMember,
     IsManagerOrOwner,
     IsMechanicOrManager,
+    IsMechanicOrManagerOrPilot,
     IsOwnProfileOrManager,
 )
 from .serializers import (
@@ -203,6 +204,8 @@ def company_scoped_discrepancy_queryset(request):
         return qs.filter(
             Q(reporter_id=user.id) | Q(work_order__created_by_id=user.id)
         )
+    if getattr(user, "company_role", None) == "pilot":
+        return qs.filter(reporter_id=user.id)
     return qs
 
 
@@ -615,7 +618,7 @@ def company_workorders_view(request):
 
 #endpoint for company's discrepancies
 @api_view(['GET'])
-@permission_classes([IsMechanicOrManager])
+@permission_classes([IsMechanicOrManagerOrPilot])
 def company_discrepancies_view(request):
     company = get_request_company(request)
     if company is None:

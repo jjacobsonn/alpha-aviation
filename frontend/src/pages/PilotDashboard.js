@@ -79,6 +79,16 @@ export default function PilotDashboard() {
   const platformAdmin = isPlatformAdmin(state.user);
   const hasCompanyContext =
     Boolean(state.user?.companyId) || Boolean(localStorage.getItem("adminCompanyId"));
+  const companyName =
+    state.user?.companyName ||
+    (() => {
+      try {
+        const raw = localStorage.getItem("adminCompanyId");
+        return raw ? `Company #${raw}` : "";
+      } catch {
+        return "";
+      }
+    })();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -269,8 +279,15 @@ export default function PilotDashboard() {
               Pilot
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Assigned flights, flight requests, and post-flight discrepancy reports.
+              Flights and aircraft use your company in the database (same tenant as Organizations
+              and users). The table shows real flight rows where you are primary or secondary
+              pilot—not UI placeholders.
             </Typography>
+            {companyName ? (
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Organization: {companyName}
+              </Typography>
+            ) : null}
             {error ? <Alert severity="error">{error}</Alert> : null}
           </Stack>
 
@@ -324,8 +341,16 @@ export default function PilotDashboard() {
 
           <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
                 My flights
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                Rows are{" "}
+                <Typography component="span" variant="caption" fontWeight={600}>
+                  Flight
+                </Typography>{" "}
+                records returned from the backend for your company (e.g. created in Site Admin or
+                after a dispatcher approves a request).
               </Typography>
               <Table size="small">
                 <TableHead>
@@ -381,15 +406,21 @@ export default function PilotDashboard() {
                 Submits a request for dispatch or management to approve.
               </Typography>
               <Stack spacing={2}>
+                <Typography variant="caption" color="text.secondary">
+                  Aircraft list is loaded from your company&apos;s fleet ({aircraft.length} tail
+                  {aircraft.length === 1 ? "" : "s"}).
+                </Typography>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Aircraft</InputLabel>
+                  <InputLabel id="pilot-req-aircraft-label">Aircraft</InputLabel>
                   <Select
+                    labelId="pilot-req-aircraft-label"
                     label="Aircraft"
                     value={flightForm.aircraft}
                     onChange={(e) => setFlightForm((s) => ({ ...s, aircraft: e.target.value }))}
+                    displayEmpty
                   >
                     <MenuItem value="">
-                      <em>Select aircraft</em>
+                      <em>Choose aircraft</em>
                     </MenuItem>
                     {aircraft.map((a) => (
                       <MenuItem key={a.id} value={String(a.id)}>
@@ -454,8 +485,9 @@ export default function PilotDashboard() {
                 />
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Flight type</InputLabel>
+                    <InputLabel id="pilot-req-ftype-label">Flight type</InputLabel>
                     <Select
+                      labelId="pilot-req-ftype-label"
                       label="Flight type"
                       value={flightForm.flight_type}
                       onChange={(e) => setFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
@@ -468,8 +500,9 @@ export default function PilotDashboard() {
                     </Select>
                   </FormControl>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Certificate requirement</InputLabel>
+                    <InputLabel id="pilot-req-cert-label">Certificate requirement</InputLabel>
                     <Select
+                      labelId="pilot-req-cert-label"
                       label="Certificate requirement"
                       value={flightForm.pilot_requirement}
                       onChange={(e) =>
@@ -485,8 +518,9 @@ export default function PilotDashboard() {
                   </FormControl>
                 </Stack>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Secondary pilot (optional)</InputLabel>
+                  <InputLabel id="pilot-req-sec-label">Secondary pilot (optional)</InputLabel>
                   <Select
+                    labelId="pilot-req-sec-label"
                     label="Secondary pilot (optional)"
                     value={flightForm.secondary_pilot}
                     onChange={(e) => setFlightForm((s) => ({ ...s, secondary_pilot: e.target.value }))}
@@ -520,15 +554,21 @@ export default function PilotDashboard() {
                 Report a discrepancy
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                File a maintenance discrepancy after a flight or on walk‑around.
+                Creates a real{" "}
+                <Typography component="span" fontWeight={600}>
+                  Discrepancy
+                </Typography>{" "}
+                record via the API (visible to maintenance). Use the same fleet list as above.
               </Typography>
               <Stack spacing={2}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Aircraft</InputLabel>
+                  <InputLabel id="pilot-disc-aircraft-label">Aircraft</InputLabel>
                   <Select
+                    labelId="pilot-disc-aircraft-label"
                     label="Aircraft"
                     value={discForm.aircraft}
                     onChange={(e) => setDiscForm((s) => ({ ...s, aircraft: e.target.value }))}
+                    displayEmpty
                   >
                     <MenuItem value="">
                       <em>Select aircraft</em>
@@ -581,8 +621,12 @@ export default function PilotDashboard() {
 
           <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
                 My discrepancy reports
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                Pulled from the API for discrepancies you reported. Empty until you submit at
+                least one.
               </Typography>
               <Table size="small">
                 <TableHead>
