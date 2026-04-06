@@ -278,11 +278,6 @@ export default function PilotDashboard() {
             <Typography variant="h4" sx={{ fontWeight: 800 }}>
               Pilot
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Flights and aircraft use your company in the database (same tenant as Organizations
-              and users). The table shows real flight rows where you are primary or secondary
-              pilot—not UI placeholders.
-            </Typography>
             {companyName ? (
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 Organization: {companyName}
@@ -345,12 +340,7 @@ export default function PilotDashboard() {
                 My flights
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                Rows are{" "}
-                <Typography component="span" variant="caption" fontWeight={600}>
-                  Flight
-                </Typography>{" "}
-                records returned from the backend for your company (e.g. created in Site Admin or
-                after a dispatcher approves a request).
+                Your assigned and requested flights.
               </Typography>
               <Table size="small">
                 <TableHead>
@@ -403,25 +393,18 @@ export default function PilotDashboard() {
                 Request a flight
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Submits a request for dispatch or management to approve.
+                Submit a new flight request.
               </Typography>
               <Stack spacing={2}>
-                <Typography variant="caption" color="text.secondary">
-                  Aircraft list is loaded from your company&apos;s fleet ({aircraft.length} tail
-                  {aircraft.length === 1 ? "" : "s"}).
-                </Typography>
                 <FormControl fullWidth size="small">
                   <InputLabel id="pilot-req-aircraft-label">Aircraft</InputLabel>
                   <Select
+                    id="pilot-req-aircraft"
                     labelId="pilot-req-aircraft-label"
                     label="Aircraft"
                     value={flightForm.aircraft}
                     onChange={(e) => setFlightForm((s) => ({ ...s, aircraft: e.target.value }))}
-                    displayEmpty
                   >
-                    <MenuItem value="">
-                      <em>Choose aircraft</em>
-                    </MenuItem>
                     {aircraft.map((a) => (
                       <MenuItem key={a.id} value={String(a.id)}>
                         {a.registration_number} ({a.model})
@@ -483,50 +466,51 @@ export default function PilotDashboard() {
                   onChange={(e) => setFlightForm((s) => ({ ...s, route: e.target.value }))}
                   fullWidth
                 />
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel id="pilot-req-ftype-label">Flight type</InputLabel>
-                    <Select
-                      labelId="pilot-req-ftype-label"
-                      label="Flight type"
-                      value={flightForm.flight_type}
-                      onChange={(e) => setFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
-                    >
-                      {FLIGHT_TYPES.map((o) => (
-                        <MenuItem key={o.value} value={o.value}>
-                          {o.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl fullWidth size="small">
-                    <InputLabel id="pilot-req-cert-label">Certificate requirement</InputLabel>
-                    <Select
-                      labelId="pilot-req-cert-label"
-                      label="Certificate requirement"
-                      value={flightForm.pilot_requirement}
-                      onChange={(e) =>
-                        setFlightForm((s) => ({ ...s, pilot_requirement: e.target.value }))
-                      }
-                    >
-                      {PILOT_REQ.map((o) => (
-                        <MenuItem key={o.value} value={o.value}>
-                          {o.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Stack>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="pilot-req-ftype-label">Flight type</InputLabel>
+                  <Select
+                    id="pilot-req-ftype"
+                    labelId="pilot-req-ftype-label"
+                    label="Flight type"
+                    value={flightForm.flight_type}
+                    onChange={(e) => setFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
+                  >
+                    {FLIGHT_TYPES.map((o) => (
+                      <MenuItem key={o.value} value={o.value}>
+                        {o.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="pilot-req-cert-label">Certificate requirement</InputLabel>
+                  <Select
+                    id="pilot-req-cert"
+                    labelId="pilot-req-cert-label"
+                    label="Certificate requirement"
+                    value={flightForm.pilot_requirement}
+                    onChange={(e) =>
+                      setFlightForm((s) => ({ ...s, pilot_requirement: e.target.value }))
+                    }
+                  >
+                    {PILOT_REQ.map((o) => (
+                      <MenuItem key={o.value} value={o.value}>
+                        {o.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
                 <FormControl fullWidth size="small">
                   <InputLabel id="pilot-req-sec-label">Secondary pilot (optional)</InputLabel>
                   <Select
+                    id="pilot-req-sec"
                     labelId="pilot-req-sec-label"
                     label="Secondary pilot (optional)"
                     value={flightForm.secondary_pilot}
                     onChange={(e) => setFlightForm((s) => ({ ...s, secondary_pilot: e.target.value }))}
                   >
                     <MenuItem value="">
-                      <em>None</em>
+                      None
                     </MenuItem>
                     {pilots.map((p) => (
                       <MenuItem key={p.id} value={String(p.id)}>
@@ -554,25 +538,18 @@ export default function PilotDashboard() {
                 Report a discrepancy
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Creates a real{" "}
-                <Typography component="span" fontWeight={600}>
-                  Discrepancy
-                </Typography>{" "}
-                record via the API (visible to maintenance). Use the same fleet list as above.
+                Report an issue for maintenance follow-up.
               </Typography>
               <Stack spacing={2}>
                 <FormControl fullWidth size="small">
                   <InputLabel id="pilot-disc-aircraft-label">Aircraft</InputLabel>
                   <Select
+                    id="pilot-disc-aircraft"
                     labelId="pilot-disc-aircraft-label"
                     label="Aircraft"
                     value={discForm.aircraft}
                     onChange={(e) => setDiscForm((s) => ({ ...s, aircraft: e.target.value }))}
-                    displayEmpty
                   >
-                    <MenuItem value="">
-                      <em>Select aircraft</em>
-                    </MenuItem>
                     {aircraft.map((a) => (
                       <MenuItem key={a.id} value={String(a.id)}>
                         {a.registration_number} ({a.model})
@@ -625,8 +602,7 @@ export default function PilotDashboard() {
                 My discrepancy reports
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                Pulled from the API for discrepancies you reported. Empty until you submit at
-                least one.
+                Issues you reported.
               </Typography>
               <Table size="small">
                 <TableHead>
