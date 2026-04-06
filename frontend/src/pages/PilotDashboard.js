@@ -6,8 +6,13 @@ import {
   CardContent,
   Chip,
   Container,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
   FormControl,
   Grid,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -23,6 +28,7 @@ import {
 import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
+import CloseIcon from "@mui/icons-material/Close";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createCompanyFlightRequest,
@@ -50,6 +56,26 @@ const PILOT_REQ = [
   { value: "airline", label: "Airline" },
 ];
 
+const INITIAL_FLIGHT_FORM = {
+  aircraft: "",
+  flight_number: "",
+  origin: "",
+  destination: "",
+  departure_time: "",
+  arrival_time: "",
+  route: "",
+  flight_type: "training",
+  pilot_requirement: "private",
+  secondary_pilot: "",
+};
+
+const INITIAL_DISC_FORM = {
+  aircraft: "",
+  ata_code: "",
+  tach_time: "",
+  description: "",
+};
+
 function statusChip(status) {
   const s = status || "";
   if (s === "approved" || s === "scheduled") return <Chip size="small" color="success" label={s} />;
@@ -72,6 +98,17 @@ function toIsoFromDatetimeLocal(value) {
   if (!value) return "";
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+}
+
+function toId(v) {
+  if (v === null || v === undefined || v === "") return Number.NaN;
+  if (typeof v === "number") return v;
+  if (typeof v === "string") return Number(v);
+  if (typeof v === "object") {
+    const id = v?.id ?? v?.pk ?? v?.user?.id ?? v?.pilot?.id;
+    return id === undefined ? Number.NaN : Number(id);
+  }
+  return Number.NaN;
 }
 
 export default function PilotDashboard() {
@@ -99,26 +136,23 @@ export default function PilotDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [submittingFlight, setSubmittingFlight] = useState(false);
   const [creatingDisc, setCreatingDisc] = useState(false);
+  const [selectedFlight, setSelectedFlight] = useState(null);
 
-  const [flightForm, setFlightForm] = useState({
-    aircraft: "",
-    flight_number: "",
-    origin: "",
-    destination: "",
-    departure_time: "",
-    arrival_time: "",
-    route: "",
-    flight_type: "training",
-    pilot_requirement: "private",
-    secondary_pilot: "",
-  });
+  const [flightForm, setFlightForm] = useState(INITIAL_FLIGHT_FORM);
+  const [discForm, setDiscForm] = useState(INITIAL_DISC_FORM);
 
-  const [discForm, setDiscForm] = useState({
-    aircraft: "",
-    ata_code: "",
-    tach_time: "",
-    description: "",
-  });
+  const pilotNameById = useMemo(() => {
+    const map = new Map();
+    if (currentUser?.id) {
+      const meName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(" ").trim();
+      map.set(Number(currentUser.id), meName || currentUser.username || `User #${currentUser.id}`);
+    }
+    (pilots || []).forEach((p) => {
+      const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+      map.set(Number(p.id), name || p.username || `User #${p.id}`);
+    });
+    return map;
+  }, [pilots, currentUser]);
 
   const load = useCallback(async () => {
     if (platformAdmin && !hasCompanyContext) {
@@ -139,8 +173,8 @@ export default function PilotDashboard() {
       const uid = Number(me?.id);
       const list = Array.isArray(allFlights) ? allFlights : [];
       const mine = list.filter((f) => {
-        const pid = Number(f?.primary_pilot);
-        const sid = Number(f?.secondary_pilot);
+        const pid = toId(f?.primary_pilot ?? f?.primary_pilot_id);
+        const sid = toId(f?.secondary_pilot ?? f?.secondary_pilot_id);
         return pid === uid || sid === uid;
       });
       setFlights(mine);
@@ -207,14 +241,7 @@ export default function PilotDashboard() {
         pilot_requirement: flightForm.pilot_requirement,
         secondary_pilot: flightForm.secondary_pilot ? Number(flightForm.secondary_pilot) : null,
       });
-      setFlightForm((s) => ({
-        ...s,
-        flight_number: "",
-        origin: "",
-        destination: "",
-        route: "",
-        secondary_pilot: "",
-      }));
+      setFlightForm(INITIAL_FLIGHT_FORM);
       await load();
     } catch (e) {
       setError(e?.message || "Could not submit flight request.");
@@ -241,7 +268,7 @@ export default function PilotDashboard() {
         tach_time: discForm.tach_time || "",
         status: "pending",
       });
-      setDiscForm({ aircraft: "", ata_code: "", tach_time: "", description: "" });
+      setDiscForm(INITIAL_DISC_FORM);
       const disc = await fetchCompanyDiscrepancies();
       setDiscrepancies(Array.isArray(disc) ? disc : []);
     } catch (e) {
@@ -253,9 +280,31 @@ export default function PilotDashboard() {
 
   const roleOnFlight = (f) => {
     const uid = Number(currentUser?.id);
-    if (Number(f?.primary_pilot) === uid) return "Primary";
-    if (Number(f?.secondary_pilot) === uid) return "Secondary";
+    if (toId(f?.primary_pilot ?? f?.primary_pilot_id) === uid) return "Primary";
+    if (toId(f?.secondary_pilot ?? f?.secondary_pilot_id) === uid) return "Secondary";
     return "—";
+  };
+
+  const displayValue = (v) => {
+    if (v === null || v === undefined || v === "") return "—";
+    if (typeof v === "boolean") return v ? "Yes" : "No";
+    return String(v);
+  };
+
+  const displayChoice = (v) => {
+    if (!v) return "—";
+    return String(v)
+      .split(" ")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
+
+  const displayPilot = (pilotIdOrName) => {
+    if (pilotIdOrName === null || pilotIdOrName === undefined || pilotIdOrName === "") return "None";
+    if (typeof pilotIdOrName === "string" && Number.isNaN(Number(pilotIdOrName))) return pilotIdOrName;
+    const id = Number(pilotIdOrName);
+    if (Number.isNaN(id)) return displayValue(pilotIdOrName);
+    return pilotNameById.get(id) || `User #${id}`;
   };
 
   if (platformAdmin && !hasCompanyContext) {
@@ -369,7 +418,20 @@ export default function PilotDashboard() {
                     </TableRow>
                   ) : (
                     flights.map((f) => (
-                      <TableRow key={f.id}>
+                      <TableRow
+                        key={f.id}
+                        hover
+                        onClick={() => setSelectedFlight(f)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedFlight(f);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        sx={{ cursor: "pointer" }}
+                      >
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
                         <TableCell>{roleOnFlight(f)}</TableCell>
@@ -386,6 +448,134 @@ export default function PilotDashboard() {
               </Table>
             </CardContent>
           </Card>
+
+          <Dialog
+            open={Boolean(selectedFlight)}
+            onClose={() => setSelectedFlight(null)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 2,
+                pr: 0.5,
+              }}
+            >
+              <Typography variant="inherit">Flight submission details</Typography>
+              <IconButton
+                aria-label="Close"
+                onClick={() => setSelectedFlight(null)}
+                edge="end"
+                sx={{ mr: 0.5 }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent dividers>
+              {selectedFlight ? (
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">
+                      Read-only submitted values
+                    </Typography>
+                    {statusChip(selectedFlight.status)}
+                  </Stack>
+                  <TextField
+                    label="Flight number"
+                    size="small"
+                    fullWidth
+                    value={displayValue(selectedFlight.flight_number)}
+                    InputProps={{ readOnly: true }}
+                  />
+                  <TextField
+                    label="Aircraft"
+                    size="small"
+                    fullWidth
+                    value={displayValue(selectedFlight.aircraft_name || selectedFlight.aircraft)}
+                    InputProps={{ readOnly: true }}
+                  />
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <TextField
+                      label="Origin"
+                      size="small"
+                      fullWidth
+                      value={displayValue(selectedFlight.origin)}
+                      InputProps={{ readOnly: true }}
+                    />
+                    <TextField
+                      label="Destination"
+                      size="small"
+                      fullWidth
+                      value={displayValue(selectedFlight.destination)}
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Stack>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <TextField
+                      label="Departure"
+                      size="small"
+                      fullWidth
+                      value={formatDt(selectedFlight.departure_time)}
+                      InputProps={{ readOnly: true }}
+                    />
+                    <TextField
+                      label="Arrival"
+                      size="small"
+                      fullWidth
+                      value={formatDt(selectedFlight.arrival_time)}
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Stack>
+                  <TextField
+                    label="Route notes"
+                    size="small"
+                    fullWidth
+                    multiline
+                    minRows={2}
+                    value={displayValue(selectedFlight.route || selectedFlight.route_notes)}
+                    InputProps={{ readOnly: true }}
+                  />
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <TextField
+                      label="Flight type"
+                      size="small"
+                      fullWidth
+                      value={displayChoice(selectedFlight.flight_type)}
+                      InputProps={{ readOnly: true }}
+                    />
+                    <TextField
+                      label="Certificate requirement"
+                      size="small"
+                      fullWidth
+                      value={displayChoice(selectedFlight.pilot_requirement)}
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Stack>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <TextField
+                      label="Secondary pilot"
+                      size="small"
+                      fullWidth
+                      value={displayValue(
+                        displayPilot(selectedFlight.secondary_pilot_name || selectedFlight.secondary_pilot)
+                      )}
+                      InputProps={{ readOnly: true }}
+                    />
+                    <TextField
+                      label="Your role"
+                      size="small"
+                      fullWidth
+                      value={roleOnFlight(selectedFlight)}
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Stack>
+                </Stack>
+              ) : null}
+            </DialogContent>
+          </Dialog>
 
           <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
@@ -607,7 +797,7 @@ export default function PilotDashboard() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>ID</TableCell>
+                    <TableCell>Reported</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>ATA</TableCell>
                     <TableCell>Description</TableCell>
@@ -623,7 +813,7 @@ export default function PilotDashboard() {
                   ) : (
                     myDiscs.map((d) => (
                       <TableRow key={d.id}>
-                        <TableCell>{d.id}</TableCell>
+                        <TableCell>{d.date_reported || "—"}</TableCell>
                         <TableCell>{d.status || "—"}</TableCell>
                         <TableCell>{d.ata_code || "—"}</TableCell>
                         <TableCell>{d.description || "—"}</TableCell>
