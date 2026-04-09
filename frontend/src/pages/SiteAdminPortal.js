@@ -783,98 +783,98 @@ export default function SiteAdminPortal() {
           {error ? <Alert severity="error">{error}</Alert> : null}
         </Stack>
 
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+        <Grid container spacing={3} sx={{ mb: 3, display: "flex" }}>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Companies
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : companies.length}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Profiles
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : profiles.length}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Aircraft
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : aircraft.length}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Flights
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : flights.length}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Parts
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : parts.length}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Inventory Lines
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : inventories.length}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Work Orders
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : workorders.length}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
+              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Discrepancies
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
                   {loading ? "—" : discrepancies.length}
                 </Typography>
               </CardContent>
@@ -882,10 +882,10 @@ export default function SiteAdminPortal() {
           </Grid>
         </Grid>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mb: 3 }}>
-          <CardContent>
-            <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mb: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 3 }}>
+            <Stack spacing={3}>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                 Create Company
               </Typography>
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -894,17 +894,20 @@ export default function SiteAdminPortal() {
                   value={newCompanyName}
                   onChange={(e) => setNewCompanyName(e.target.value)}
                   fullWidth
+                  size="small"
                 />
                 <TextField
                   label="Locations"
                   value={newCompanyLocation}
                   onChange={(e) => setNewCompanyLocation(e.target.value)}
                   fullWidth
+                  size="small"
                 />
                 <Button
                   variant="contained"
                   onClick={handleCreateCompany}
                   disabled={creatingCompany}
+                  sx={{ textTransform: "none", fontWeight: 600 }}
                 >
                   {creatingCompany ? "Creating..." : "Create"}
                 </Button>
@@ -913,10 +916,10 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary", mb: 1 }}>
                 Companies
               </Typography>
               <Table size="small">
@@ -962,14 +965,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                   Users
                 </Typography>
-                <Button variant="contained" onClick={() => handleOpenCreateUser()}>
+                <Button variant="contained" onClick={() => handleOpenCreateUser()} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create User
                 </Button>
               </Stack>
@@ -1010,14 +1013,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                   Aircraft
                 </Typography>
-                <Button variant="contained" onClick={() => setCreateAircraftOpen(true)}>
+                <Button variant="contained" onClick={() => setCreateAircraftOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Aircraft
                 </Button>
               </Stack>
@@ -1066,14 +1069,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                   Flights
                 </Typography>
-                <Button variant="contained" onClick={() => setCreateFlightOpen(true)}>
+                <Button variant="contained" onClick={() => setCreateFlightOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Flight
                 </Button>
               </Stack>
@@ -1124,14 +1127,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Parts
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreatePart}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Parts
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreatePart} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Part
                 </Button>
               </Stack>
@@ -1162,14 +1165,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Inventory Lines
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreateInventoryLine}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Inventory Lines
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreateInventoryLine} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Add Inventory Line
                 </Button>
               </Stack>
@@ -1204,14 +1207,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Work Orders
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreateWorkorder}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Work Orders
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreateWorkorder} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Work Order
                 </Button>
               </Stack>
@@ -1246,14 +1249,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, mb: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, mb: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Discrepancies
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreateDiscrepancy}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Discrepancies
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreateDiscrepancy} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Discrepancy
                 </Button>
               </Stack>
@@ -1573,7 +1576,7 @@ export default function SiteAdminPortal() {
             </TextField>
             <TextField label="Description" value={workorderForm.description} onChange={(e) => setWorkorderForm((s) => ({ ...s, description: e.target.value }))} />
             <TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))}>
-              {["open","in_progress","awaiting_parts","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["open", "in_progress", "awaiting_parts", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
             <TextField type="date" label="Due Date" InputLabelProps={{ shrink: true }} value={workorderForm.due_by} onChange={(e) => setWorkorderForm((s) => ({ ...s, due_by: e.target.value }))} />
           </Stack>
@@ -1595,7 +1598,7 @@ export default function SiteAdminPortal() {
             </TextField>
             <TextField label="Description" value={workorderForm.description} onChange={(e) => setWorkorderForm((s) => ({ ...s, description: e.target.value }))} />
             <TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))}>
-              {["open","in_progress","awaiting_parts","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["open", "in_progress", "awaiting_parts", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
             <TextField type="date" label="Due Date" InputLabelProps={{ shrink: true }} value={workorderForm.due_by} onChange={(e) => setWorkorderForm((s) => ({ ...s, due_by: e.target.value }))} />
           </Stack>
@@ -1622,7 +1625,7 @@ export default function SiteAdminPortal() {
             <TextField label="ATA Code" value={discrepancyForm.ata_code} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, ata_code: e.target.value }))} />
             <TextField label="Tach Time" value={discrepancyForm.tach_time} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, tach_time: e.target.value }))} />
             <TextField select label="Status" value={discrepancyForm.status} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, status: e.target.value }))}>
-              {["pending","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["pending", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </Stack>
         </DialogContent>
@@ -1640,7 +1643,7 @@ export default function SiteAdminPortal() {
             <TextField label="ATA Code" value={discrepancyForm.ata_code} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, ata_code: e.target.value }))} />
             <TextField label="Tach Time" value={discrepancyForm.tach_time} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, tach_time: e.target.value }))} />
             <TextField select label="Status" value={discrepancyForm.status} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, status: e.target.value }))}>
-              {["pending","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["pending", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </Stack>
         </DialogContent>

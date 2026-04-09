@@ -123,19 +123,19 @@ function MaintenanceActivityList({ items, emptyHint }) {
 }
 
 const KPICard = ({ title, color, trend }) => (
-		<div className='KPIcard' style={{
-			backgroundColor: color,
-        borderRadius: '10px',
-			width: '7em',
-			height: '7em',
-			textAlign: 'center',
-			fontWeight: "bold",
-		}}>
-			<p>{title}</p>
-			<p>{trend}</p>
-		</div>
+	<div className='KPIcard' style={{
+		backgroundColor: color,
+		borderRadius: '10px',
+		width: '7em',
+		height: '7em',
+		textAlign: 'center',
+		fontWeight: "bold",
+	}}>
+		<p>{title}</p>
+		<p>{trend}</p>
+	</div>
 );
-    
+
 // --- MAIN COMPONENT ---
 
 const initialWorkorderForm = {
@@ -324,11 +324,11 @@ const Maintenance = () => {
 				const partIds = Array.isArray(wo.parts_needed) ? wo.parts_needed : [];
 				const parts_summary = partIds.length
 					? partIds
-							.map((raw) => {
-								const id = typeof raw === 'object' && raw != null ? raw.id : raw;
-								return partLabelById.get(id) || `#${id}`;
-							})
-							.join(', ')
+						.map((raw) => {
+							const id = typeof raw === 'object' && raw != null ? raw.id : raw;
+							return partLabelById.get(id) || `#${id}`;
+						})
+						.join(', ')
 					: '';
 				return {
 					id: wo.id,
@@ -337,8 +337,8 @@ const Maintenance = () => {
 					aircraft:
 						typeof wo.aircraft === 'object' && wo.aircraft
 							? `${wo.aircraft.registration_number || ''} ${wo.aircraft.model || ''}`.trim() ||
-							  wo.aircraft.model ||
-							  wo.aircraft.registration_number
+							wo.aircraft.model ||
+							wo.aircraft.registration_number
 							: wo.aircraft,
 					assigned_to: resolveProfileName(wo.created_by),
 					status: wo.status,
@@ -359,8 +359,8 @@ const Maintenance = () => {
 				aircraft:
 					typeof d.aircraft === 'object' && d.aircraft
 						? `${d.aircraft.registration_number || ''} ${d.aircraft.model || ''}`.trim() ||
-						  d.aircraft.model ||
-						  d.aircraft.registration_number
+						d.aircraft.model ||
+						d.aircraft.registration_number
 						: d.aircraft,
 				status: d.status,
 				status_label: labelForDiscrepancyStatus(d.status),
@@ -587,36 +587,16 @@ const Maintenance = () => {
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
-				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-					<Box>
-						<Typography variant="h4" sx={{ fontWeight: 800 }}>
-							Maintenance
-						</Typography>
-						<Typography variant="body2" color="text.secondary">
-							{mechanicRole
-								? 'Your assigned work orders and related discrepancies; file new discrepancy reports as needed.'
-								: 'Work orders and discrepancy reports (company-scoped).'}
-						</Typography>
-					</Box>
-					<Stack direction="row" spacing={1}>
-						{superviseMaintenance ? (
-							<Button
-								variant="contained"
-								startIcon={<BuildIcon />}
-								onClick={openAddWorkOrder}
-							>
-								Add Work Order
-							</Button>
-						) : null}
-						<Button
-							variant="outlined"
-							startIcon={<WarningIcon />}
-							onClick={openAddDiscrepancy}
-						>
-							Add Discrepancy
-						</Button>
-					</Stack>
-				</Stack>
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="h4" sx={{ fontWeight: 800 }}>
+						Maintenance
+					</Typography>
+					<Typography variant="body2" color="text.secondary">
+						{mechanicRole
+							? 'Your assigned work orders and related discrepancies; file new discrepancy reports as needed.'
+							: 'Work orders and discrepancy reports (company-scoped).'}
+					</Typography>
+				</Box>
 
 				{error ? (
 					<Alert severity="error" sx={{ mb: 2 }}>
@@ -625,7 +605,7 @@ const Maintenance = () => {
 				) : null}
 
 				{/* KPI Cards */}
-				<Grid container spacing={3} sx={{ mb: 3 }}>
+				<Grid container spacing={3} sx={{ mb: 3, alignItems: 'center' }}>
 					<Grid item xs={12} sm={6} md={3}>
 						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 							<CardContent>
@@ -710,12 +690,32 @@ const Maintenance = () => {
 							</CardContent>
 						</Card>
 					</Grid>
+					<Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1 }}>
+						{superviseMaintenance ? (
+							<Button
+								variant="contained"
+								startIcon={<BuildIcon />}
+								onClick={openAddWorkOrder}
+								fullWidth
+							>
+								Add Work Order
+							</Button>
+						) : null}
+						<Button
+							variant="outlined"
+							startIcon={<WarningIcon />}
+							onClick={openAddDiscrepancy}
+							fullWidth
+						>
+							Add Discrepancy
+						</Button>
+					</Grid>
 				</Grid>
 
 				{/* Tables */}
-				<Grid container spacing={3}>
-					<Grid item xs={12} lg={7}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+				<Grid container spacing={3} sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
 									Work Orders
@@ -783,8 +783,8 @@ const Maintenance = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} lg={5}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
 									Discrepancies
@@ -947,11 +947,11 @@ const Maintenance = () => {
 									<Typography variant="body1">
 										{Array.isArray(selectedWorkOrder.parts_needed) && selectedWorkOrder.parts_needed.length
 											? selectedWorkOrder.parts_needed
-													.map((raw) => {
-														const id = typeof raw === 'object' && raw != null ? raw.id : raw;
-														return partLabelById.get(id) || `#${id}`;
-													})
-													.join(', ')
+												.map((raw) => {
+													const id = typeof raw === 'object' && raw != null ? raw.id : raw;
+													return partLabelById.get(id) || `#${id}`;
+												})
+												.join(', ')
 											: '—'}
 									</Typography>
 								</Stack>
