@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent, Stack, Typography, Box } from "@mui/material";
 
-export default function KPICard({ icon, label, value, loading = false, iconBgColor = "#2196F315", iconColor = "#2196F3" }) {
+export default function KPICard({ icon, label, value, loading = false, iconBgColor = "#2B7FD415", iconColor = "#2B7FD4" }) {
   return (
     <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
       <CardContent>

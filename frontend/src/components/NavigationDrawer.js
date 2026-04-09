@@ -94,7 +94,7 @@ function NavigationDrawer() {
       id: "management",
       title: "Management",
       icon: <DashboardIcon />,
-      color: "#273469",
+      color: "#2B7FD4",
       allowedRoles: ["owner", "manager"],
     },
     {
@@ -109,7 +109,7 @@ function NavigationDrawer() {
       id: "parts",
       title: "Parts",
       icon: <InventoryIcon />,
-      color: "#2196F3",
+      color: "#2B7FD4",
       allowedRoles: ["owner", "manager", "mechanic"],
     },
     {

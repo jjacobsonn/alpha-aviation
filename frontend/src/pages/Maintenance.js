@@ -737,7 +737,7 @@ const Maintenance = () => {
 															)}
 														</TableCell>
 														<Button
-															size="small"
+															size="large"
 															onClick={() => setExpandedWorkOrderId(expandedWorkOrderId === order.id ? null : order.id)}
 															sx={{ minWidth: 0, padding: '4px' }}
 														>
@@ -798,13 +798,6 @@ const Maintenance = () => {
 												<React.Fragment key={d.id}>
 													<TableRow>
 														<TableCell sx={{ width: 40, padding: '8px 4px' }}>
-															<Button
-																size="small"
-																onClick={() => setExpandedDiscrepancyId(expandedDiscrepancyId === d.id ? null : d.id)}
-																sx={{ minWidth: 0, padding: '4px' }}
-															>
-																{expandedDiscrepancyId === d.id ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-															</Button>
 														</TableCell>
 														<TableCell>{d.discrepancy_number}</TableCell>
 														<TableCell>{d.part_number || '—'}</TableCell>
@@ -826,6 +819,13 @@ const Maintenance = () => {
 																</Button>
 															)}
 														</TableCell>
+														<Button
+															size="large"
+															onClick={() => setExpandedDiscrepancyId(expandedDiscrepancyId === d.id ? null : d.id)}
+															sx={{ minWidth: 0, padding: '4px' }}
+														>
+															{expandedDiscrepancyId === d.id ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+														</Button>
 													</TableRow>
 													{expandedDiscrepancyId === d.id && (
 														<TableRow sx={{ bgcolor: 'action.hover' }}>
