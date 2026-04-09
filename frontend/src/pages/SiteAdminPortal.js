@@ -24,6 +24,8 @@ import {
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import { useEffect, useMemo, useState } from "react";
+import StatCard from "../components/StatCard";
+import DeleteConfirmationDialog from "../components/DeleteConfirmationDialog";
 import {
   createCompany,
   createAircraft,
@@ -68,6 +70,9 @@ export default function SiteAdminPortal() {
   const [discrepancies, setDiscrepancies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmType, setDeleteConfirmType] = useState(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [newCompanyLocation, setNewCompanyLocation] = useState("");
   const [creatingCompany, setCreatingCompany] = useState(false);
@@ -352,14 +357,10 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeleteUser = async (id) => {
-    setError("");
-    try {
-      await deleteProfile(id);
-      await refresh();
-    } catch (e) {
-      setError(e?.message || "Failed to delete user.");
-    }
+  const handleDeleteUser = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("user");
+    setDeleteConfirmId(id);
   };
 
   const pilotOptionsForCompany = (companyId) =>
@@ -525,14 +526,10 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeleteFlight = async (id) => {
-    setError("");
-    try {
-      await deleteFlight(id);
-      await refresh();
-    } catch (e) {
-      setError(e?.message || "Failed to delete flight.");
-    }
+  const handleDeleteFlight = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("flight");
+    setDeleteConfirmId(id);
   };
 
   const handleOpenCreatePart = () => {
@@ -578,13 +575,37 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeletePart = async (id) => {
+  const handleDeletePart = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("part");
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
     try {
-      await deletePart(id);
+      setError("");
+      if (deleteConfirmType === "flight") {
+        await deleteFlight(deleteConfirmId);
+      } else if (deleteConfirmType === "part") {
+        await deletePart(deleteConfirmId);
+      } else if (deleteConfirmType === "inventory") {
+        await deleteInventory(deleteConfirmId);
+      } else if (deleteConfirmType === "user") {
+        await deleteProfile(deleteConfirmId);
+      }
       await refresh();
+      setDeleteConfirmOpen(false);
+      setDeleteConfirmType(null);
+      setDeleteConfirmId(null);
     } catch (e) {
-      setError(e?.message || "Failed to delete part.");
+      setError(e?.message || "Failed to delete item.");
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setDeleteConfirmType(null);
+    setDeleteConfirmId(null);
   };
 
   const handleOpenCreateInventoryLine = () => {
@@ -646,13 +667,10 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeleteInventoryLine = async (id) => {
-    try {
-      await deleteInventory(id);
-      await refresh();
-    } catch (e) {
-      setError(e?.message || "Failed to delete inventory line.");
-    }
+  const handleDeleteInventoryLine = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("inventory");
+    setDeleteConfirmId(id);
   };
 
   const handleOpenCreateWorkorder = () => {
@@ -785,100 +803,28 @@ export default function SiteAdminPortal() {
 
         <Grid container spacing={3} sx={{ mb: 3, display: "flex" }}>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Companies
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : companies.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Companies" value={companies.length} loading={loading} />
           </Grid>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Profiles
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : profiles.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Profiles" value={profiles.length} loading={loading} />
           </Grid>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Aircraft
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : aircraft.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Aircraft" value={aircraft.length} loading={loading} />
           </Grid>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Flights
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : flights.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Flights" value={flights.length} loading={loading} />
           </Grid>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Parts
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : parts.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Parts" value={parts.length} loading={loading} />
           </Grid>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Inventory Lines
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : inventories.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Inventory Lines" value={inventories.length} loading={loading} />
           </Grid>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Work Orders
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : workorders.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Work Orders" value={workorders.length} loading={loading} />
           </Grid>
           <Grid item sx={{ flex: 1, minWidth: 150 }}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "primary.main", height: "100%", display: "flex", flexDirection: "column" }}>
-              <CardContent sx={{ textAlign: "center", flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Discrepancies
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 800, color: "text.primary" }}>
-                  {loading ? "—" : discrepancies.length}
-                </Typography>
-              </CardContent>
-            </Card>
+            <StatCard label="Discrepancies" value={discrepancies.length} loading={loading} />
           </Grid>
         </Grid>
 
@@ -998,10 +944,10 @@ export default function SiteAdminPortal() {
                         {companies.find((c) => Number(c.id) === Number(u.company))?.name || "—"}
                       </TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditUser(u)}>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditUser(u)}>
                           Edit
                         </Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteUser(u.id)}>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteUser(u.id)}>
                           Delete
                         </Button>
                       </TableCell>
@@ -1049,12 +995,12 @@ export default function SiteAdminPortal() {
                       </TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={1}>
-                          <Button size="small" onClick={() => handleOpenEditAircraft(a)}>
+                          <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditAircraft(a)}>
                             Edit
                           </Button>
                           <Button
                             size="small"
-                            color="error"
+                            sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }}
                             onClick={() => handleDeleteAircraft(a.id)}
                           >
                             Delete
@@ -1111,10 +1057,10 @@ export default function SiteAdminPortal() {
                       <TableCell>{f.approved ? "Yes" : "No"}</TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={1}>
-                          <Button size="small" onClick={() => handleOpenEditFlight(f)}>
+                          <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditFlight(f)}>
                             Edit
                           </Button>
-                          <Button size="small" color="error" onClick={() => handleDeleteFlight(f.id)}>
+                          <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteFlight(f.id)}>
                             Delete
                           </Button>
                         </Stack>
@@ -1154,8 +1100,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{p.name || "—"}</TableCell>
                       <TableCell>{p.aircraft_name || p.aircraft || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditPart(p)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeletePart(p.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditPart(p)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeletePart(p.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1196,8 +1142,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{inv?.stock_alert ?? "—"}</TableCell>
                       <TableCell>{inv?.shop_location || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditInventoryLine(inv)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteInventoryLine(inv.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditInventoryLine(inv)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteInventoryLine(inv.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1238,8 +1184,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{wo.aircraft || "—"}</TableCell>
                       <TableCell>{wo.due_by || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteWorkorder(wo.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteWorkorder(wo.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1280,8 +1226,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{d.aircraft || "—"}</TableCell>
                       <TableCell>{d.reporter_name || d.reporter || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1652,6 +1598,14 @@ export default function SiteAdminPortal() {
           <Button variant="contained" onClick={handleEditDiscrepancy}>Save</Button>
         </DialogActions>
       </Dialog>
+
+      <DeleteConfirmationDialog
+        open={deleteConfirmOpen}
+        itemType={deleteConfirmType}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        isLoading={loading}
+      />
     </Box>
   );
 }
