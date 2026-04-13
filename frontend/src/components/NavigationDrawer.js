@@ -103,7 +103,7 @@ function NavigationDrawer() {
       title: "Organizations",
       icon: <DomainIcon />,
       color: "#00695c",
-      allowedRoles: ["owner", "manager"],
+      allowedRoles: ["manager"],
       to: "/admin/companies",
     },
     {
@@ -133,7 +133,7 @@ function NavigationDrawer() {
       title: "Pilot Dashboard",
       icon: <FlightTakeoffIcon />,
       color: "#7b1fa2",
-      allowedRoles: ["pilot"],
+      allowedRoles: ["pilot", "owner"],
       to: "/pilot-dashboard",
     },
     {
@@ -141,7 +141,7 @@ function NavigationDrawer() {
       title: "Dispatcher Dashboard",
       icon: <DashboardIcon />,
       color: "#00897b",
-      allowedRoles: ["dispatcher"],
+      allowedRoles: ["dispatcher", "owner"],
       to: "/dispatcher-dashboard",
     },
   ];

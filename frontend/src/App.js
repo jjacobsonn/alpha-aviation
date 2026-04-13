@@ -93,7 +93,7 @@ function App() {
 						<Route
 							path="/admin/companies"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+								<ProtectedRoute allowedRoles={['manager']}>
 									<Layout>
 										<AdminCompanies />
 									</Layout>
@@ -103,7 +103,7 @@ function App() {
 						<Route
 							path="/admin/companies/new"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+								<ProtectedRoute allowedRoles={['manager']}>
 									<Layout>
 										<AdminCompanyForm />
 									</Layout>
@@ -113,7 +113,7 @@ function App() {
 						<Route
 							path="/admin/companies/current"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+								<ProtectedRoute allowedRoles={['manager']}>
 									<Layout>
 										<CompanyOverview />
 									</Layout>
@@ -153,7 +153,7 @@ function App() {
 						<Route
 							path="/pilot-dashboard"
 							element={
-								<ProtectedRoute allowedRoles={['pilot']}>
+								<ProtectedRoute allowedRoles={['pilot', 'owner']}>
 									<Layout>
 										<PilotDashboard />
 									</Layout>
@@ -163,7 +163,7 @@ function App() {
 						<Route
 							path="/dispatcher-dashboard"
 							element={
-								<ProtectedRoute allowedRoles={['dispatcher']}>
+								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
 									<Layout>
 										<DispatcherDashboard />
 									</Layout>

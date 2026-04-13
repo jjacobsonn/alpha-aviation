@@ -12,12 +12,18 @@ import {
 	Chip,
 	Typography,
 	Button,
+	MenuItem,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
 	Table,
 	TableBody,
 	TableCell,
 	TableHead,
 	TableRow,
 	Link,
+	TextField,
 } from '@mui/material';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import BuildIcon from '@mui/icons-material/Build';
@@ -32,6 +38,7 @@ import {
 	fetchCompanyDiscrepancies,
 	fetchCompanyUsers,
 	fetchManagementDashboard,
+	updateProfile,
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
@@ -79,6 +86,16 @@ const Management = () => {
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
 	const [companyUsers, setCompanyUsers] = useState([]);
+	const [editUserOpen, setEditUserOpen] = useState(false);
+	const [editingUserId, setEditingUserId] = useState(null);
+	const [editingUserForm, setEditingUserForm] = useState({
+		first_name: '',
+		last_name: '',
+		email: '',
+		phone_number: '',
+		company_role: '',
+	});
+	const [savingUser, setSavingUser] = useState(false);
 
 	useEffect(() => {
 		let mounted = true;
@@ -222,6 +239,40 @@ const Management = () => {
 		});
 		return list;
 	}, [companyUsers]);
+	const canEditRoster = platformAdmin || state.user?.role === 'owner';
+
+	const openEditUser = (u) => {
+		setEditingUserId(u.id);
+		setEditingUserForm({
+			first_name: u.first_name || '',
+			last_name: u.last_name || '',
+			email: u.email || '',
+			phone_number: u.phone_number || '',
+			company_role: u.company_role || '',
+		});
+		setEditUserOpen(true);
+	};
+
+	const closeEditUser = () => {
+		setEditUserOpen(false);
+		setEditingUserId(null);
+	};
+
+	const saveEditedUser = async () => {
+		if (!editingUserId) return;
+		setSavingUser(true);
+		setError('');
+		try {
+			await updateProfile(editingUserId, editingUserForm);
+			const users = await fetchCompanyUsers();
+			setCompanyUsers(Array.isArray(users) ? users : []);
+			closeEditUser();
+		} catch (e) {
+			setError(e?.message || 'Failed to update user.');
+		} finally {
+			setSavingUser(false);
+		}
+	};
 
 	const companyBlock = dashboard?.company;
 	const displayCompanyName =
@@ -430,6 +481,7 @@ const Management = () => {
 											<TableCell>Username</TableCell>
 											<TableCell>Role</TableCell>
 											<TableCell>Email</TableCell>
+											{canEditRoster ? <TableCell>Actions</TableCell> : null}
 										</TableRow>
 									</TableHead>
 									<TableBody>
@@ -443,6 +495,13 @@ const Management = () => {
 													<Chip size="small" label={ROLE_LABELS[u.company_role] || u.company_role || '—'} />
 												</TableCell>
 												<TableCell>{u.email || '—'}</TableCell>
+												{canEditRoster ? (
+													<TableCell>
+														<Button size="small" variant="outlined" onClick={() => openEditUser(u)}>
+															Edit
+														</Button>
+													</TableCell>
+												) : null}
 											</TableRow>
 										))}
 									</TableBody>
@@ -514,6 +573,49 @@ const Management = () => {
 						</CardContent>
 					</Card>
 				</Box>
+				<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
+					<DialogTitle>Edit user</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField
+								label="First name"
+								value={editingUserForm.first_name}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, first_name: e.target.value }))}
+							/>
+							<TextField
+								label="Last name"
+								value={editingUserForm.last_name}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, last_name: e.target.value }))}
+							/>
+							<TextField
+								label="Email"
+								value={editingUserForm.email}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, email: e.target.value }))}
+							/>
+							<TextField
+								label="Phone number"
+								value={editingUserForm.phone_number}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, phone_number: e.target.value }))}
+							/>
+							<TextField
+								select
+								label="Role"
+								value={editingUserForm.company_role}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, company_role: e.target.value }))}
+							>
+								{Object.entries(ROLE_LABELS).map(([value, label]) => (
+									<MenuItem key={value} value={value}>{label}</MenuItem>
+								))}
+							</TextField>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={closeEditUser}>Cancel</Button>
+						<Button variant="contained" onClick={saveEditedUser} disabled={savingUser}>
+							Save
+						</Button>
+					</DialogActions>
+				</Dialog>
 			</Container>
 		</Box>
 	);
