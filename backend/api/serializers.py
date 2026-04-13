@@ -261,6 +261,12 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         many=True, queryset=Part.objects.all(), required=False, allow_empty=True
     )
     activities = WorkOrderActivitySerializer(many=True, read_only=True)
+    ALLOWED_STATUS_TRANSITIONS = {
+        "open": {"open", "in_progress", "awaiting_parts", "closed"},
+        "in_progress": {"in_progress", "awaiting_parts", "closed"},
+        "awaiting_parts": {"awaiting_parts", "in_progress", "closed"},
+        "closed": {"closed"},
+    }
 
     class Meta:
         model = WorkOrder
@@ -271,6 +277,7 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "description",
             "parts_needed",
             "status",
+            "priority",
             "created_at",
             "updated_at",
             "due_by",
@@ -297,6 +304,34 @@ class WorkOrderSerializer(serializers.ModelSerializer):
                         "parts_needed": "One or more parts are not catalogued for the selected aircraft."
                     }
                 )
+
+        current_status = getattr(self.instance, "status", None) or "open"
+        next_status = data.get("status", current_status)
+        allowed = self.ALLOWED_STATUS_TRANSITIONS.get(current_status, {current_status})
+        if next_status not in allowed:
+            raise serializers.ValidationError(
+                {
+                    "status": (
+                        f"Invalid status transition from '{current_status}' to '{next_status}'."
+                    )
+                }
+            )
+
+        request = self.context.get("request")
+        request_user = getattr(request, "user", None) if request else None
+        default_assignee = (
+            request_user
+            if request_user is not None and getattr(request_user, "is_authenticated", False)
+            else None
+        )
+        assignee = data.get(
+            "created_by",
+            getattr(self.instance, "created_by", None) or default_assignee,
+        )
+        if next_status != "open" and assignee is None:
+            raise serializers.ValidationError(
+                {"created_by": "Assign a mechanic before moving work order out of Open."}
+            )
         return data
 
     def create(self, validated_data):

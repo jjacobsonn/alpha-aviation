@@ -44,6 +44,31 @@ const ROLE_LABELS = {
 	dispatcher: 'Dispatcher',
 };
 
+function maintenanceLinkForActivity(item) {
+	if (item.entityType === 'workorder') {
+		return `/maintenance?wo=${item.entityId}`;
+	}
+	if (item.entityType === 'discrepancy') {
+		return `/maintenance?disc=${item.entityId}`;
+	}
+	return '/maintenance';
+}
+
+function maintenanceActionForActivity(item) {
+	if (item.entityType === 'workorder') {
+		if (!item.assignedToId) return 'Assign';
+		if (item.status === 'open') return 'Start';
+		if (item.status === 'in_progress') return 'Review';
+		if (item.status === 'awaiting_parts') return 'Review parts';
+		if (item.status === 'closed') return 'View';
+	}
+	if (item.entityType === 'discrepancy') {
+		if (item.status === 'pending') return 'Triage';
+		return 'View';
+	}
+	return 'Open';
+}
+
 const Management = () => {
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
@@ -158,6 +183,13 @@ const Management = () => {
 				color: wo?.status === 'closed' ? '#4CAF50' : '#FF9800',
 				title: wo?.status === 'closed' ? 'Work Order Completed' : 'Work Order Updated',
 				detail: wo?.title || `Work Order #${wo.id}`,
+				entityType: 'workorder',
+				entityId: wo?.id,
+				status: wo?.status,
+				assignedToId:
+					typeof wo?.created_by === 'object' && wo?.created_by != null
+						? wo.created_by.id
+						: wo?.created_by ?? null,
 			};
 		});
 
@@ -168,6 +200,9 @@ const Management = () => {
 			color: '#f32f21ff',
 			title: 'New Discrepancy',
 			detail: d?.description || `Discrepancy #${d.id}`,
+			entityType: 'discrepancy',
+			entityId: d?.id,
+			status: d?.status,
 		}));
 
 		return [...woItems, ...discItems].sort((a, b) => {
@@ -419,9 +454,14 @@ const Management = () => {
 
 				{/* Recent Activity Section */}
 				<Box sx={{ mt: 2 }}>
-					<Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-						Recent Activity
-					</Typography>
+					<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+						<Typography variant="h5" sx={{ fontWeight: 600 }}>
+							Recent Activity
+						</Typography>
+						<Button component={RouterLink} to="/work-orders" variant="text" size="small">
+							View all
+						</Button>
+					</Stack>
 					<Card
 						elevation={0}
 						sx={{
@@ -452,9 +492,19 @@ const Management = () => {
 														{it.detail}
 													</Typography>
 												</Box>
-												<Typography variant="caption" color="text.secondary">
-													{it.when ? new Date(it.when).toLocaleString() : ''}
-												</Typography>
+												<Stack alignItems="flex-end" spacing={0.5}>
+													<Typography variant="caption" color="text.secondary">
+														{it.when ? new Date(it.when).toLocaleString() : ''}
+													</Typography>
+													<Button
+														size="small"
+														variant="outlined"
+														component={RouterLink}
+														to={maintenanceLinkForActivity(it)}
+													>
+														{maintenanceActionForActivity(it)}
+													</Button>
+												</Stack>
 											</Stack>
 											{idx !== Math.min(3, recentActivity.length - 1) && <Divider />}
 										</React.Fragment>

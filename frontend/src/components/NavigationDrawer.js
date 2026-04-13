@@ -19,6 +19,7 @@ import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import InventoryIcon from "@mui/icons-material/Inventory";
 import BuildIcon from "@mui/icons-material/Build";
+import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -118,6 +119,14 @@ function NavigationDrawer() {
       icon: <BuildIcon />,
       color: "#FF9800",
       allowedRoles: ["owner", "manager", "mechanic"],
+    },
+    {
+      id: "work-orders",
+      title: "Work Orders",
+      icon: <WorkOutlineIcon />,
+      color: "#fb8c00",
+      allowedRoles: ["owner", "manager", "mechanic"],
+      to: "/work-orders",
     },
     {
       id: "pilot-dashboard",

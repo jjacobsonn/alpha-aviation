@@ -12,6 +12,7 @@ import PartsPage from './pages/PartsPage';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import Maintenance from './pages/Maintenance';
+import WorkOrders from './pages/WorkOrders';
 import PilotDashboard from './pages/PilotDashboard';
 import DispatcherDashboard from './pages/DispatcherDashboard';
 import SiteAdminPortal from './pages/SiteAdminPortal';
@@ -135,6 +136,16 @@ function App() {
 								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
 									<Layout>
 										<Maintenance />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/work-orders"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
+									<Layout>
+										<WorkOrders />
 									</Layout>
 								</ProtectedRoute>
 							}

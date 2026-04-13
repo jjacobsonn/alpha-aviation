@@ -14,9 +14,16 @@ def _work_order_part_ids(wo):
     return sorted(wo.parts_needed.values_list("id", flat=True))
 
 
+def _status_label(value):
+    if value is None:
+        return "—"
+    return str(value).replace("_", " ").strip().title()
+
+
 def snapshot_work_order(wo):
     return {
         "status": wo.status,
+        "priority": wo.priority,
         "title": wo.title,
         "description": wo.description or "",
         "due_by": wo.due_by.isoformat() if wo.due_by else None,
@@ -29,9 +36,15 @@ def snapshot_work_order(wo):
 def describe_work_order_changes(before, after):
     bits = []
     if before["status"] != after["status"]:
-        bits.append(f"Status {before['status']} → {after['status']}")
+        bits.append(
+            f"Status {_status_label(before['status'])} → {_status_label(after['status'])}"
+        )
     if before["title"] != after["title"]:
         bits.append("Title updated")
+    if before["priority"] != after["priority"]:
+        bits.append(
+            f"Priority {_status_label(before['priority'])} → {_status_label(after['priority'])}"
+        )
     if (before["description"] or "").strip() != (after["description"] or "").strip():
         bits.append("Description updated")
     if before["due_by"] != after["due_by"]:
@@ -83,7 +96,9 @@ def snapshot_discrepancy(d):
 def describe_discrepancy_changes(before, after):
     bits = []
     if before["status"] != after["status"]:
-        bits.append(f"Status {before['status']} → {after['status']}")
+        bits.append(
+            f"Status {_status_label(before['status'])} → {_status_label(after['status'])}"
+        )
     if (before["description"] or "").strip() != (after["description"] or "").strip():
         bits.append("Description updated")
     if (before["ata_code"] or "").strip() != (after["ata_code"] or "").strip():

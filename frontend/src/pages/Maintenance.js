@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
 	Alert,
 	Box,
@@ -52,6 +53,18 @@ const WORK_ORDER_STATUS_OPTIONS = [
 	{ value: 'awaiting_parts', label: 'Awaiting Parts' },
 	{ value: 'closed', label: 'Closed' },
 ];
+const WORK_ORDER_PRIORITY_OPTIONS = [
+	{ value: 'low', label: 'Low' },
+	{ value: 'medium', label: 'Medium' },
+	{ value: 'high', label: 'High' },
+	{ value: 'critical', label: 'Critical' },
+];
+const WORK_ORDER_ALLOWED_TRANSITIONS = {
+	open: ['open', 'in_progress', 'awaiting_parts', 'closed'],
+	in_progress: ['in_progress', 'awaiting_parts', 'closed'],
+	awaiting_parts: ['awaiting_parts', 'in_progress', 'closed'],
+	closed: ['closed'],
+};
 
 /** Matches backend `Discrepancy.STATUS_CHOICES` */
 const DISCREPANCY_STATUS_OPTIONS = [
@@ -67,6 +80,26 @@ function labelForWorkOrderStatus(value) {
 function labelForDiscrepancyStatus(value) {
 	if (value == null || value === '') return '—';
 	return DISCREPANCY_STATUS_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
+}
+
+function getAllowedWorkOrderStatusOptions(currentStatus) {
+	const allowed =
+		WORK_ORDER_ALLOWED_TRANSITIONS[currentStatus] || WORK_ORDER_ALLOWED_TRANSITIONS.open;
+	return WORK_ORDER_STATUS_OPTIONS.filter((opt) => allowed.includes(opt.value));
+}
+
+function humanizeStatusToken(value) {
+	if (!value) return value;
+	return String(value).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatActivitySummary(summary) {
+	if (!summary) return summary;
+	return String(summary).replace(
+		/Status\s+([a-z_]+)\s+→\s+([a-z_]+)/gi,
+		(_, fromStatus, toStatus) =>
+			`Status ${humanizeStatusToken(fromStatus)} → ${humanizeStatusToken(toStatus)}`
+	);
 }
 
 /** Profile / company user row: prefer real name, fall back to username (no role suffix). */
@@ -115,7 +148,7 @@ function MaintenanceActivityList({ items, emptyHint }) {
 						{a.created_at ? new Date(a.created_at).toLocaleString() : ''} · {a.actor_display || '—'}
 						{a.event_type ? ` · ${a.event_type}` : ''}
 					</Typography>
-					<Typography variant="body2">{a.summary}</Typography>
+					<Typography variant="body2">{formatActivitySummary(a.summary)}</Typography>
 				</Box>
 			))}
 		</Stack>
@@ -145,6 +178,7 @@ const initialWorkorderForm = {
 	parts_needed: [],
 	description: '',
 	status: 'open',
+	priority: 'medium',
 	due_by: '',
 };
 
@@ -160,6 +194,8 @@ const initialDiscrepancyForm = {
 
 const Maintenance = () => {
 	const { state } = useAppContext();
+	const location = useLocation();
+	const navigate = useNavigate();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const mechanicRole = isMechanicRole(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state.user);
@@ -182,6 +218,11 @@ const Maintenance = () => {
 	const [discrepancyForm, setDiscrepancyForm] = useState(initialDiscrepancyForm);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
+	const [didHandleDeepLink, setDidHandleDeepLink] = useState(false);
+
+	useEffect(() => {
+		setDidHandleDeepLink(false);
+	}, [location.search]);
 
 	const resetWorkorderFormForCreate = () =>
 		setWorkorderForm({
@@ -379,6 +420,10 @@ const Maintenance = () => {
 		const aid = Number(workorderForm.aircraft);
 		return companyParts.filter((p) => Number(partAircraftId(p)) === aid);
 	}, [companyParts, workorderForm.aircraft]);
+	const allowedEditStatusOptions = useMemo(
+		() => getAllowedWorkOrderStatusOptions(selectedWorkOrder?.status || 'open'),
+		[selectedWorkOrder?.status]
+	);
 
 	const handleCreateWorkorder = async () => {
 		setError('');
@@ -388,6 +433,7 @@ const Maintenance = () => {
 				aircraft: Number(workorderForm.aircraft),
 				description: workorderForm.description,
 				status: workorderForm.status,
+				priority: workorderForm.priority,
 				due_by: workorderForm.due_by || null,
 				parts_needed: (workorderForm.parts_needed || []).map(Number),
 			};
@@ -433,6 +479,7 @@ const Maintenance = () => {
 			parts_needed: rawPartIds.map(Number),
 			description: wo?.description || '',
 			status: wo?.status || 'open',
+			priority: wo?.priority || 'medium',
 			due_by: wo?.due_by || '',
 		});
 	};
@@ -461,6 +508,7 @@ const Maintenance = () => {
 		try {
 			await updateWorkorder(selectedWorkOrder.id, {
 				status: workorderForm.status,
+				priority: workorderForm.priority,
 				due_by: workorderForm.due_by || null,
 				description: workorderForm.description,
 				parts_needed: (workorderForm.parts_needed || []).map(Number),
@@ -481,6 +529,7 @@ const Maintenance = () => {
 				aircraft: Number(workorderForm.aircraft),
 				description: workorderForm.description,
 				status: workorderForm.status,
+				priority: workorderForm.priority,
 				due_by: workorderForm.due_by || null,
 				parts_needed: (workorderForm.parts_needed || []).map(Number),
 			};
@@ -588,6 +637,40 @@ const Maintenance = () => {
 			setError(e?.message || 'Failed to delete discrepancy.');
 		}
 	};
+
+	useEffect(() => {
+		if (isLoading || didHandleDeepLink) return;
+		const params = new URLSearchParams(location.search);
+		const woParam = params.get('wo');
+		const discParam = params.get('disc');
+		const editParam = params.get('edit');
+
+		if (woParam) {
+			const woId = Number(woParam);
+			const wo = workOrders.find((w) => Number(w?.id) === woId);
+			if (wo) {
+				openWorkOrderDetail(wo);
+				if (editParam === '1') setWorkOrderDetailEditing(true);
+			}
+			setDidHandleDeepLink(true);
+			navigate('/maintenance', { replace: true });
+			return;
+		}
+
+		if (discParam) {
+			const discId = Number(discParam);
+			const d = discrepancies.find((x) => Number(x?.id) === discId);
+			if (d) {
+				openDiscrepancyDetail(d);
+				if (editParam === '1') setDiscrepancyDetailEditing(true);
+			}
+			setDidHandleDeepLink(true);
+			navigate('/maintenance', { replace: true });
+			return;
+		}
+
+		setDidHandleDeepLink(true);
+	}, [isLoading, didHandleDeepLink, location.search, workOrders, discrepancies, navigate]);
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
@@ -900,6 +983,11 @@ const Maintenance = () => {
 									<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
 								))}
 							</TextField>
+							<TextField select label="Priority" value={workorderForm.priority} onChange={(e) => setWorkorderForm((s) => ({ ...s, priority: e.target.value }))}>
+								{WORK_ORDER_PRIORITY_OPTIONS.map((opt) => (
+									<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+								))}
+							</TextField>
 							<TextField type="date" label="Due Date" InputLabelProps={{ shrink: true }} value={workorderForm.due_by} onChange={(e) => setWorkorderForm((s) => ({ ...s, due_by: e.target.value }))} />
 							<TextField label="Description" multiline minRows={3} value={workorderForm.description} onChange={(e) => setWorkorderForm((s) => ({ ...s, description: e.target.value }))} />
 						</Stack>
@@ -943,6 +1031,10 @@ const Maintenance = () => {
 											</Typography>
 											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Status</Typography>
 											<Typography variant="body1">{labelForWorkOrderStatus(selectedWorkOrder.status)}</Typography>
+											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Priority</Typography>
+											<Typography variant="body1">
+												{WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)?.label || 'Medium'}
+											</Typography>
 											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Due</Typography>
 											<Typography variant="body1">{selectedWorkOrder.due_by || '—'}</Typography>
 											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Description</Typography>
@@ -1032,7 +1124,12 @@ const Maintenance = () => {
 											))}
 										</TextField>
 										<TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))}>
-											{WORK_ORDER_STATUS_OPTIONS.map((opt) => (
+											{allowedEditStatusOptions.map((opt) => (
+												<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+											))}
+										</TextField>
+										<TextField select label="Priority" value={workorderForm.priority} onChange={(e) => setWorkorderForm((s) => ({ ...s, priority: e.target.value }))}>
+											{WORK_ORDER_PRIORITY_OPTIONS.map((opt) => (
 												<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
 											))}
 										</TextField>
@@ -1051,7 +1148,12 @@ const Maintenance = () => {
 											Update status, due date, notes, and parts for this assignment.
 										</Typography>
 										<TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))} fullWidth>
-											{WORK_ORDER_STATUS_OPTIONS.map((opt) => (
+											{allowedEditStatusOptions.map((opt) => (
+												<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+											))}
+										</TextField>
+										<TextField select label="Priority" value={workorderForm.priority} onChange={(e) => setWorkorderForm((s) => ({ ...s, priority: e.target.value }))} fullWidth>
+											{WORK_ORDER_PRIORITY_OPTIONS.map((opt) => (
 												<MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
 											))}
 										</TextField>

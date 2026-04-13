@@ -471,6 +471,12 @@ class WorkOrder(models.Model):
         ("awaiting_parts", "Awaiting Parts"),
         ("closed", "Closed"),
     ]
+    PRIORITY_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("critical", "Critical"),
+    ]
 
     aircraft = models.ForeignKey(
         Aircraft, on_delete=models.CASCADE, related_name="work_orders"
@@ -485,6 +491,9 @@ class WorkOrder(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(
         max_length=50, choices=STATUS_CHOICES, default="open"
+    )
+    priority = models.CharField(
+        max_length=20, choices=PRIORITY_CHOICES, default="medium"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
