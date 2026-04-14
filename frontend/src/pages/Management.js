@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
 	Box,
 	Container,
@@ -77,6 +77,7 @@ function maintenanceActionForActivity(item) {
 }
 
 const Management = () => {
+	const navigate = useNavigate();
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
@@ -539,7 +540,16 @@ const Management = () => {
 								<Stack spacing={2.5}>
 									{recentActivity.slice(0, 4).map((it, idx) => (
 										<React.Fragment key={it.key}>
-											<Stack direction="row" spacing={2} alignItems="center">
+											<Stack
+												direction="row"
+												spacing={2}
+												alignItems="center"
+												onClick={(e) => {
+													if (e.target.closest('a')) return;
+													navigate(maintenanceLinkForActivity(it));
+												}}
+												sx={{ cursor: 'pointer' }}
+											>
 												<Avatar sx={{ bgcolor: it.color }}>
 													{it.icon}
 												</Avatar>
