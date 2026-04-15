@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Q
+from decimal import Decimal
 
 #Company model, points to user, aircraft, inventory, and flights. Has two methods for checking availability of aircraft and for giving all of the flights in a given time period.
 class Company(models.Model):
@@ -36,7 +37,7 @@ class Company(models.Model):
             if not aircraft:
                 return []
 
-            for flight in aircraft.flights.all():
+            for flight in aircraft.flights.exclude(id=self.id):
                 if flight.departure_time < end_date and flight.arrival_time > start_date:
                     return []
             return [aircraft]
@@ -91,6 +92,7 @@ class Company(models.Model):
                 'manufacturer': plane.manufacturer,
                 'engine_type': plane.engine_type,
                 'year_built': plane.year_built,
+                'hobbs_time': plane.hobbs_time,
             })
         return aircraft_data
     
@@ -126,6 +128,7 @@ class Company(models.Model):
         for inventory in self.inventories.all():
             for item in inventory.inventorypart_set.all():
                 inventory_data.append({
+                    "Inventory_name":inventory.inventory_name,
                     "id": item.id,
                     "part_number": item.part.part_number,
                     "name": item.part.name,
@@ -138,6 +141,19 @@ class Company(models.Model):
                 })
 
         return inventory_data
+    
+    #for the endpoint to check the companies inventories for parts that are low stock
+    def get_company_low_stock(self):
+        low_stock_parts = []
+        for inventory in self.inventories.all():
+            for item in inventory.inventorypart_set.all():
+                if item.low_stock():
+                    low_stock_parts.append({"Inventory_id":inventory.id,
+                    "Inventory_name":inventory.inventory_name,
+                    "part_id":item.part.id,
+                    "part_name":item.part.name,
+                    "part_number":item.part.part_number,})
+        return low_stock_parts
 
     #for endpoint for all of the workorders that is under this company
     def get_workorders_data(self):
@@ -172,6 +188,39 @@ class Company(models.Model):
                 })
         return workorder_data
 
+    #endpoint for workorders that are overdue
+    def get_overdue_workorders_data(self):
+        overdue_workorders = []
+        today = timezone.now().date()
+        for aircraft in self.aircraft.all():
+            workorders = aircraft.work_orders.filter(due_by__lt=today, status__in=['open', 'in_progress', 'awaiting_parts'])
+            for workorder in workorders:
+                overdue_workorders.append({
+                    'id': workorder.id,
+                    'title': workorder.title,
+                    'created_by': (workorder.created_by.first_name, workorder.created_by.last_name),
+                    'description': workorder.description,
+                    'parts_needed': [
+                        {
+                        'name':item.part.name,
+                        'quantity':item.quantity
+                        } for item in workorder.workorderpart_set.all()],
+                    'status': workorder.status,
+                    'created_at': workorder.created_at,
+                    'updated_at': workorder.updated_at,
+                    'due_by':workorder.due_by,
+                    'aircraft': {'registration_number':workorder.aircraft.registration_number, 'model':workorder.aircraft.model},
+                    'tach_time':workorder.tach_time,
+                    'hobbs_time':workorder.hobbs_time,
+                    'ATA_code':workorder.ATA_code,
+                    'components_affected': workorder.components_affected,
+                    'components_image':workorder.components_image.url if workorder.components_image else None,
+                    'signed_by': (workorder.signed_by.first_name, workorder.signed_by.last_name) if workorder.signed_by else None,
+                    'signature':workorder.signature.url if workorder.signature else None,
+                    'signature_date': workorder.signature_date,
+                })
+        return overdue_workorders
+    
     #for endpoint for all of the discrepancies that is under this company
     def get_discrepancy_data(self):
         aircrafts = self.aircraft.all()
@@ -239,6 +288,7 @@ class Profile(AbstractUser):
     
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
+        self.full_clean()
         if self.company_role == "pilot":
             Pilot.objects.get_or_create(profile = self)
         elif self.company_role == "mechanic":
@@ -311,9 +361,37 @@ class Aircraft(models.Model):
     engine_type = models.CharField(max_length=200, null= True)
     year_built = models.IntegerField(validators=[MaxValueValidator(9999),MinValueValidator(1903)])
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="aircraft", null=True, blank=True )
+    aircraft_parts = models.ManyToManyField('Part', blank = True, through='aircraftpart', related_name="aircrafts")
+    hobbs_time = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+
+    
+    #function to add all the time of all the flights for aircraft and see if time is over part hobbs
+    def check_part_hobbs(self):
+        flight_time = Decimal('0')
+        for flight in self.flights.all():
+            if flight.departure_time > timezone.now():
+                flight_hours = (flight.arrival_time - flight.departure_time).total_seconds() / 3600
+                flight_time += Decimal(str(flight_hours))
+        for part in self.aircraft_parts.all():
+            aircraft_part = AircraftPart.objects.filter(aircraft=self, part=part).first()
+            if aircraft_part and aircraft_part.expiration_hobbs is not None:
+                if self.hobbs_time + flight_time >= aircraft_part.expiration_hobbs:
+                    raise ValidationError(f"Flight time({flight_time}) plus current hobbs time({self.hobbs_time}) goes over aircraft part {part.name} expiration hobbs time({aircraft_part.expiration_hobbs}).")
+
     
     def __str__(self):
         return f"{self.registration_number} ({self.model})"
+
+    def add_hobbs_time(self, hobbs_time):
+        self.hobbs_time = (self.hobbs_time) + Decimal(str(hobbs_time))
+        self.check_part_hobbs()
+        self.save()
+    
+    def clean(self):
+        pass
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
 
 #Part model, has basic information about the part and a str function. It is related to aircraft.
 class Part(models.Model):
@@ -325,16 +403,49 @@ class Part(models.Model):
     def __str__(self):
         return f"{self.part_number} - {self.name}"
 
+
+# to do:
+# check each flight to see where the aircraft hobbs time will be. *multiple flights
+# then verify that hobbs won't be over any parts expiration time
+# hobbs alert time and percentage
+#parts requisition update inventory
+# Apis
+class AircraftPart(models.Model):
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE)
+    part = models.ForeignKey('Part', on_delete=models.CASCADE, related_name="part_aircrafts")
+    expiration_date = models.DateField(null=True, blank=True)
+    expiration_hobbs = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+
+    def clean(self):
+        if self.expiration_hobbs is not None and self.expiration_hobbs < 0:
+            raise ValidationError("Expiration hobbs time cannot be negative.")
+        if self.expiration_hobbs is not None and self.aircraft_id is not None:
+            flight_time = Decimal('0')
+            for flight in self.aircraft.flights.all():
+                if flight.departure_time > timezone.now():
+                    flight_hours = (flight.arrival_time - flight.departure_time).total_seconds() / 3600
+                    flight_time += Decimal(str(flight_hours))
+            if self.aircraft.hobbs_time + flight_time >= self.expiration_hobbs:
+                raise ValidationError(
+                    f"Expiration hobbs of {self.expiration_hobbs} is less than or equal to "
+                    f"current hobbs ({self.aircraft.hobbs_time}) plus projected flight time ({flight_time})."
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
 #Inventory model, is to show the inventory of parts for the company, points to company and part. Has a function(low_stock) to show the if the stock is lower than the stock alert percentage.
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
     parts = models.ManyToManyField(Part, blank=True, through='InventoryPart', related_name="inventories")
+    inventory_name = models.CharField(max_length=100, default="Main")
 
     def __str__(self):
         items =self.inventorypart_set.all()
         if not items:
-            return f"Inventory for {self.company.name} with no parts"
-        return ",".join([f"{item.part.name} (Qty: {item.quantity})" for item in items])
+            return f"Inventory {self.inventory_name} for {self.company.name} with no parts"
+        return f"Inventory {self.inventory_name} for {self.company.name} with: {len(items)} items"
 
 #sub model for inventory to have a list of parts and their quantities, since inventory can have multiple parts and parts can be in multiple inventories.
 class InventoryPart(models.Model):
@@ -348,13 +459,14 @@ class InventoryPart(models.Model):
     def low_stock(self):
         return (
             self.stock_alert >= self.quantity * (1 + self.stock_alert_percentage)
-            or self.stock_alert >= self.quantity - 1
+            or self.stock_alert >= self.quantity
         )
 
     low_stock.boolean = True
     low_stock.short_description = "Low Stock?"
     def __str__(self):
         return f"{self.part.name} in {self.inventory.company.name} with {self.quantity} in stock"
+
 #Work order model, points to an aircraft, and the profile that created the work order, can have any number of parts needed. and other basic information needed for a work order.
 class WorkOrder(models.Model):
     STATUS_CHOICES = [
@@ -448,14 +560,15 @@ class Flight(models.Model):
     status = models.CharField(max_length= 255, choices=status_type_options, default='pending approval' )
     
     def save(self, *args, **kwargs):
-        self.full_clean()
+        self.full_clean() 
         super().save(*args, **kwargs)
 
 
     #verification when adding flights
     def clean(self):
         errors = {}
-        
+        if self.aircraft and not self.company:
+            self.company = self.aircraft.company
         if self.primary_pilot and self.secondary_pilot:
             if self.primary_pilot == self.secondary_pilot:
                 errors["secondary_pilot"] = ("Secondary pilot cannot be the same person as Primary pilot!") 
@@ -492,13 +605,24 @@ class Flight(models.Model):
             #check maintenance
             if self.aircraft.work_orders.filter(status__in=['open', 'in_progress', 'awaiting_parts']).exists():
                 errors['aircraft'] = (f"{self.aircraft} has pending work orders.")
-            if (self.company.availability(self.departure_time, self.arrival_time, self.aircraft.id) == []):
+            conflicting = self.aircraft.flights.exclude(pk=self.pk).filter(
+                departure_time__lt=self.arrival_time,
+                arrival_time__gt=self.departure_time
+            )
+            if conflicting.exists():
                 errors['aircraft'] = (f"{self.aircraft} has a conflicting flight")
-                
+        
+        if self.aircraft is not None:
+            try:
+                self.aircraft.check_part_hobbs()
+            except ValidationError as e:
+                errors['aircraft'] = e.messages[0]
+
         check_aircraft()
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
 
         if errors:
-            raise ValidationError(errors)
+            print(errors)
+            raise ValidationError(list(errors.values()))
 

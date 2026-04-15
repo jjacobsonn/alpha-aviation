@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 from .models import *
 from django.utils.html import format_html
+from django.forms import BaseInlineFormSet
 #Admin display for discrepancies
 class DiscrepancyAdmin(admin.ModelAdmin):
     list_display = ('id', 'aircraft', 'status', 'date_reported', 'reporter')
@@ -20,6 +21,18 @@ class WorkOrderPartInline(admin.TabularInline):
       model = WorkOrderPart
       extra = 1
 
+#Inline display used when refrenced on other page for flights
+class FlightInline(admin.TabularInline):
+      model = Flight
+      extra = 0
+      fields = ("aircraft", "company", "flight_number", "primary_pilot", "secondary_pilot", "origin", "destination", "departure_time", "arrival_time", "pilot_requirement", "route", "flight_type")
+      autocomplete_fields = ["aircraft"]
+      def formfield_for_foreignkey(self, db_field, request, **kwargs):
+            if db_field.name in  ("primary_pilot", "secondary_pilot"):
+                  kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
+            return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
 #Admin display for Work orders
 class WorkOrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'aircraft', 'status', 'created_by', 'created_at', 'due_by', 'tach_time', 'hobbs_time', 'ATA_code', 'components_affected', 'signed_by', 'signature_date', 'signature')
@@ -33,6 +46,28 @@ class WorkOrderInline(admin.TabularInline):
       extra = 0
       fields = ('id', 'aircraft', 'status', 'description')
 
+class AircraftPartFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        for form in self.forms:
+            if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                instance = form.instance
+                instance.aircraft = self.instance
+                instance.expiration_hobbs = form.cleaned_data.get('expiration_hobbs')
+                instance.expiration_date = form.cleaned_data.get('expiration_date')
+                instance.part = form.cleaned_data.get('part')
+                try:
+                    instance.clean()
+                except ValidationError as e:
+                    form.add_error(None, e)
+
+class AircraftPartInline(admin.TabularInline):
+    model = AircraftPart
+    formset = AircraftPartFormSet
+    extra = 1
+    fields = ('part', 'expiration_date', 'expiration_hobbs')
+
+
 #Inline display used when refrenced on other page for aircrafts
 class AircraftInline(admin.TabularInline):
     model = Aircraft
@@ -41,7 +76,7 @@ class AircraftInline(admin.TabularInline):
 
 #Admin display for Aircrafts
 class AircraftAdmin(admin.ModelAdmin):
-      inlines = [WorkOrderInline, DiscrepancyInline]
+      inlines = [WorkOrderInline, DiscrepancyInline, AircraftPartInline, FlightInline]
       search_fields = ["registration_number", "model"]
 
 #Admin display for users/profiles
@@ -140,17 +175,6 @@ class FlightAdmin(admin.ModelAdmin):
           if db_field.name == "primary_pilot":
                 kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
           return super().formfield_for_foreignkey(db_field, request, **kwargs)
-
-#Inline display used when refrenced on other page for flights
-class FlightInline(admin.TabularInline):
-      model = Flight
-      extra = 0
-      fields = ("aircraft", "flight_number", "primary_pilot", "secondary_pilot", "origin", "destination", "departure_time", "arrival_time", "pilot_requirement", "route", "flight_type")
-      autocomplete_fields = ["aircraft"]
-      def formfield_for_foreignkey(self, db_field, request, **kwargs):
-            if db_field.name in  ("primary_pilot", "secondary_pilot"):
-                  kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
-            return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 #Admin display for the company
 class CompanyAdmin(admin.ModelAdmin):

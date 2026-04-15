@@ -220,6 +220,33 @@ def company_aircraft_view(request):
     data = company.get_aircraft_data()
     return Response(data)
 
+#endpoint to add time to aircraft hobbs time
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_hobbs_time_view(request):
+    company = request.user.company
+    aircraft_id = request.data.get('aircraft_id')
+    if aircraft_id is None:
+        return Response({'error': 'aircraft_id is required'}, status=400)
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    try:
+        aircraft = Aircraft.objects.get(id=aircraft_id, company=company)
+    except Aircraft.DoesNotExist:
+        return Response({'error': 'Aircraft not found'}, status=404)
+    
+    hobbs_time_to_add = request.data.get('hobbs_time')
+    if hobbs_time_to_add is None:
+        return Response({'error': 'hobbs_time is required'}, status=400)
+    
+    try:
+        hobbs_time_to_add = float(hobbs_time_to_add)
+    except ValueError:
+        return Response({'error': 'hobbs_time must be a number'}, status=400)
+
+    aircraft.add_hobbs_time(hobbs_time_to_add)
+    return Response({'message': f'Added {hobbs_time_to_add} hours to aircraft {aircraft.registration_number}'}, status=200)
+
 #endpoint for company's flights
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -240,6 +267,16 @@ def company_inventory_view(request):
     data = company.get_inventory_data()
     return Response(data)
 
+#endpoint for company's parts for each inventory
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_low_stock_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_company_low_stock()
+    return Response(data)
+
 #endpoint for company's workorders
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -248,6 +285,16 @@ def company_workorders_view(request):
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
     data = company.get_workorders_data()
+    return Response(data)
+
+#endpoint for company's overdue workorders
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_overdue_workorders_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_overdue_workorders_data()
     return Response(data)
 
 #endpoint for company's discrepancies

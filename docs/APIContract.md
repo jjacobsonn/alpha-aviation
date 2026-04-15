@@ -313,7 +313,8 @@ Returns all aircraft belonging to the authenticated user's company
                 "model": "Cessna 172",
                 "manufacturer": "Cessna",
                 "engine_type": "Lycoming O-320",
-                "year_built": 2005
+                "year_built": 2005,
+                "Hobbs_time": 1.5
             }
         ]
         ```
@@ -444,6 +445,65 @@ Returns all workorders belonging to the authenticated user's company
 * Error Response:
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+
+---
+
+### GET /api/company/overdue_workorders/
+Returns all work orders whose due date is before today with a status of open, in_progress, or awaiting_parts, belonging to the authenticated user's company.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+```json
+        [
+            {
+                "id": 1,
+                "title": "Missing an engine",
+                "created_by": [
+                    "Kyle",
+                    "Bluemel"
+                ],
+                "description": "There is not an engine",
+                "parts_needed": [
+                    {
+                        "name": "Bolt",
+                        "quantity": 2
+                    },
+                    {
+                        "name": "Hose clamp",
+                        "quantity": 4
+                    }
+                ],
+                "status": "open",
+                "created_at": "2026-02-18T17:50:15.007901Z",
+                "updated_at": "2026-03-09T18:34:59.762609Z",
+                "due_by": "2026-03-09",
+                "aircraft": {
+                    "registration_number": 1,
+                    "model": "first"
+                },
+                "tach_time": 324.0,
+                "hobbs_time": 666.0,
+                "ATA_code": 33423,
+                "components_affected": "engine",
+                "components_image": "/work_order_components/engine.jpg",
+                "signed_by": [
+                    "Kyle",
+                    "Bluemel"
+                ],
+                "signature": "/work_order_signatures/engine.jpg",
+                "signature_date": "2026-03-09"
+            }
+        ]
+```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+
 ---
 
 ### GET /api/company/role/
@@ -550,6 +610,31 @@ Returns a single aircraft by ID.
 * Error Response:
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 404 NOT FOUND — `{ "detail": "No Aircraft matches the given query." }`
+
+---
+
+### POST /api/aircraft/add_hobbs_time/
+Adds hobbs time to a specific aircraft belonging to the authenticated user's company.
+* URL Params: None
+* Data Params: `{ "aircraft_id": int, "hobbs_time": float }`
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+```json
+        {
+            "message": "Added 1.5 hours to aircraft 12345"
+        }
+```
+* Error Response:
+    * Code: 400 BAD REQUEST — `{ "error": "aircraft_id is required" }`
+    * Code: 400 BAD REQUEST — `{ "error": "hobbs_time is required" }`
+    * Code: 400 BAD REQUEST — `{ "error": "hobbs_time must be a number" }`
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+    * Code: 404 NOT FOUND — `{ "error": "Aircraft not found" }`
 
 ---
 
