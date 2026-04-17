@@ -67,6 +67,9 @@ class AircraftPartInline(admin.TabularInline):
     extra = 1
     fields = ('part', 'expiration_date', 'expiration_hobbs')
 
+class AircraftPartAdmin(admin.ModelAdmin):
+    list_display = ('aircraft', 'part', 'expiration_date', 'expiration_hobbs')
+    search_fields = ('aircraft__registration_number', 'part__name')
 
 #Inline display used when refrenced on other page for aircrafts
 class AircraftInline(admin.TabularInline):
@@ -188,6 +191,7 @@ def clear_expired_medical_dates():
 admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Aircraft, AircraftAdmin)
+admin.site.register(AircraftPart, AircraftPartAdmin)
 admin.site.register(Part, PartAdmin)
 admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(Flight, FlightAdmin)

@@ -417,24 +417,35 @@ class AircraftPart(models.Model):
     expiration_hobbs = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
 
     def clean(self):
-        if self.expiration_hobbs is not None and self.expiration_hobbs < 0:
-            raise ValidationError("Expiration hobbs time cannot be negative.")
-        if self.expiration_hobbs is not None and self.aircraft_id is not None:
+        super().clean()
+
+        if self.expiration_hobbs is not None:
+            aircraft = self.aircraft
+
             flight_time = Decimal('0')
-            for flight in self.aircraft.flights.all():
-                if flight.departure_time > timezone.now():
-                    flight_hours = (flight.arrival_time - flight.departure_time).total_seconds() / 3600
-                    flight_time += Decimal(str(flight_hours))
-            if self.aircraft.hobbs_time + flight_time >= self.expiration_hobbs:
-                raise ValidationError(
-                    f"Expiration hobbs of {self.expiration_hobbs} is less than or equal to "
-                    f"current hobbs ({self.aircraft.hobbs_time}) plus projected flight time ({flight_time})."
-                )
+            now = timezone.now()
+
+            for flight in aircraft.flights.all():
+                if not flight.departure_time or not flight.arrival_time:
+                    continue
+
+                if flight.arrival_time > now:
+                    start = max(flight.departure_time, now)
+                    end = flight.arrival_time
+                    hours = (end - start).total_seconds() / 3600
+                    flight_time += Decimal(str(hours))
+
+            if aircraft.hobbs_time + flight_time >= self.expiration_hobbs:
+                raise ValidationError({
+                    "expiration_hobbs": (
+                        f"Too low. Current ({aircraft.hobbs_time}) + projected "
+                        f"({flight_time}) exceeds limit."
+                    )
+                })
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-    
 #Inventory model, is to show the inventory of parts for the company, points to company and part. Has a function(low_stock) to show the if the stock is lower than the stock alert percentage.
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
@@ -567,62 +578,96 @@ class Flight(models.Model):
     #verification when adding flights
     def clean(self):
         errors = {}
+
+        # Auto-assign company from aircraft
         if self.aircraft and not self.company:
             self.company = self.aircraft.company
-        if self.primary_pilot and self.secondary_pilot:
-            if self.primary_pilot == self.secondary_pilot:
-                errors["secondary_pilot"] = ("Secondary pilot cannot be the same person as Primary pilot!") 
+
+        # --- Basic time validation ---
         if not self.departure_time:
-            errors["departure_time"] = ("Departure time does not exist")
+            errors["departure_time"] = "Departure time does not exist"
 
         if not self.arrival_time:
-            errors["arrival_time"] = ("Arrival time does not exist")
-            
-        elif self.arrival_time < self.departure_time:
-            errors["arrival_time"] = ("Arrival time can not be before departure time.")
-        
-        #check to see if the pilots have requirements, company medically cleared.
-        def check_pilot(pilot, which_pilot):
+            errors["arrival_time"] = "Arrival time does not exist"
+        elif self.departure_time and self.arrival_time < self.departure_time:
+            errors["arrival_time"] = "Arrival time cannot be before departure time"
+
+        # --- Pilot validation ---
+        def check_pilot(pilot, field_name):
             if not pilot:
                 return
-            if pilot.company_role != "pilot":
-                errors[which_pilot] = (f"{pilot.first_name} is not a pilot")
-                return
-            
-            if pilot.company != self.company:
-                errors[which_pilot] = (f"{pilot.first_name} is not of company {self.company}")
-                return
-            if not hasattr(pilot, "pilot_info"):
-                errors[which_pilot] = (f"{pilot.first_name} does not have attribute \'pilot_info\'")
-                return
-            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
-                errors[which_pilot] = (f"{pilot.first_name} is not cleared to fly until {self.arrival_time.date()}")
-            if not pilot.pilot_info.is_certified(self.pilot_requirement):
-                errors[which_pilot] = (f"{pilot.first_name} is not a high enough certification")
-        
-        def check_aircraft():
-            #check flights and maintenance
-            #check maintenance
-            if self.aircraft.work_orders.filter(status__in=['open', 'in_progress', 'awaiting_parts']).exists():
-                errors['aircraft'] = (f"{self.aircraft} has pending work orders.")
-            conflicting = self.aircraft.flights.exclude(pk=self.pk).filter(
-                departure_time__lt=self.arrival_time,
-                arrival_time__gt=self.departure_time
-            )
-            if conflicting.exists():
-                errors['aircraft'] = (f"{self.aircraft} has a conflicting flight")
-        
-        if self.aircraft is not None:
-            try:
-                self.aircraft.check_part_hobbs()
-            except ValidationError as e:
-                errors['aircraft'] = e.messages[0]
 
-        check_aircraft()
+            if pilot.company_role != "pilot":
+                errors[field_name] = f"{pilot.first_name} is not a pilot"
+                return
+
+            if pilot.company != self.company:
+                errors[field_name] = f"{pilot.first_name} is not in this company"
+                return
+
+            if not hasattr(pilot, "pilot_info") or not pilot.pilot_info:
+                errors[field_name] = f"{pilot.first_name} has no pilot profile"
+                return
+
+            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
+                errors[field_name] = f"{pilot.first_name} is not medically cleared"
+
+            if not pilot.pilot_info.is_certified(self.pilot_requirement):
+                errors[field_name] = f"{pilot.first_name} is not certified for this flight"
+
+        # Prevent same pilot
+        if self.primary_pilot and self.secondary_pilot:
+            if self.primary_pilot == self.secondary_pilot:
+                errors["secondary_pilot"] = "Secondary pilot cannot be the same as primary"
+
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
 
-        if errors:
-            print(errors)
-            raise ValidationError(list(errors.values()))
+        # --- Aircraft checks ---
+        if self.aircraft and self.departure_time and self.arrival_time:
+            aircraft = Aircraft.objects.get(pk=self.aircraft_id)
 
+            # Work order check
+            if aircraft.work_orders.filter(status__in=['open', 'in_progress', 'awaiting_parts']).exists():
+                errors["aircraft"] = f"{aircraft} has pending work orders"
+
+            # Conflict check
+            conflict = aircraft.flights.exclude(pk=self.pk).filter(
+                departure_time__lt=self.arrival_time,
+                arrival_time__gt=self.departure_time
+            )
+            if conflict.exists():
+                errors["aircraft"] = f"{aircraft} has a conflicting flight"
+
+            # --- Hobbs projection check ---
+            flight_time = Decimal('0')
+            now = timezone.now()
+
+            # Existing flights
+            for flight in aircraft.flights.exclude(pk=self.pk):
+                if not flight.departure_time or not flight.arrival_time:
+                    continue
+
+                if flight.arrival_time > now:
+                    start = max(flight.departure_time, now)
+                    end = flight.arrival_time
+                    hours = (end - start).total_seconds() / 3600
+                    flight_time += Decimal(str(hours))
+
+            # THIS flight
+            if self.arrival_time > now:
+                start = max(self.departure_time, now)
+                end = self.arrival_time
+                hours = (end - start).total_seconds() / 3600
+                flight_time += Decimal(str(hours))
+
+            # Check against part limits
+            for ap in AircraftPart.objects.filter(aircraft=aircraft, expiration_hobbs__isnull=False):
+                if aircraft.hobbs_time + flight_time >= ap.expiration_hobbs:
+                    errors["aircraft"] = (
+                        f"{aircraft} exceeds hobbs limit for part {ap.part.name}"
+                    )
+                    break
+
+        if errors:
+            raise ValidationError(errors)
