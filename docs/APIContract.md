@@ -1131,3 +1131,261 @@ Returns all flights whose departure date falls within the given date range. Opti
     * Code: 400 BAD REQUEST — `{ "error": "aircraft_id must be an integer" }`
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+
+---
+
+# Tool & Equipment Management
+
+Tool object
+```
+{
+    id: int
+    company: <ForeignKey Company>
+    name: string (max_length=200)
+    description: string (optional)
+    serial_number: string (max_length=200)
+    calibration_due_date: date (YYYY-MM-DD)
+    location: string (max_length=200, optional)
+    calibration_alert: string (read-only, computed: "green" | "amber" | "red")
+    status: string (read-only, computed: "available" | "calibration_due" | "overdue")
+}
+```
+Alert thresholds (computed from `calibration_due_date`):
+* `green` — due date is more than 10 days away
+* `amber` — due date is within 10 days
+* `red` — due date has passed
+
+CalibrationRecord object
+```
+{
+    id: int
+    tool: <ForeignKey Tool> (read-only)
+    calibration_date: date (YYYY-MM-DD)
+    performed_by: string (max_length=200, free-text vendor/company name)
+    next_due_date: date (YYYY-MM-DD)
+    notes: string (optional)
+}
+```
+
+---
+
+### GET /api/company/tools/
+Returns all tools belonging to the authenticated user's company.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "company": 1,
+                "name": "Torque Wrench",
+                "description": "3/8 drive torque wrench",
+                "serial_number": "TW-M350012",
+                "calibration_due_date": "2026-11-12",
+                "location": "Tool Crib A",
+                "calibration_alert": "green",
+                "status": "available"
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+
+---
+
+### GET /api/tools/
+Returns all tools scoped to the authenticated user's company.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content: Array of Tool objects (same as GET /api/company/tools/)
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+
+---
+
+### POST /api/tools/
+Creates a new tool for the authenticated user's company.
+* URL Params: None
+* Data Params:
+    ```json
+    {
+        "name": "Torque Wrench",
+        "description": "3/8 drive torque wrench",
+        "serial_number": "TW-M350012",
+        "calibration_due_date": "2026-11-12",
+        "location": "Tool Crib A"
+    }
+    ```
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 201
+    * Content: Tool object (same as GET /api/tools/<id>/)
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+
+---
+
+### GET /api/tools/<id>/
+Returns a single tool by ID.
+* URL Params: `id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        {
+            "id": 1,
+            "company": 1,
+            "name": "Torque Wrench",
+            "description": "3/8 drive torque wrench",
+            "serial_number": "TW-M350012",
+            "calibration_due_date": "2026-11-12",
+            "location": "Tool Crib A",
+            "calibration_alert": "green",
+            "status": "available"
+        }
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Tool matches the given query." }`
+
+---
+
+### PUT /api/tools/<id>/
+Full update of a tool.
+* URL Params: `id=[integer]`
+* Data Params: Full Tool object (same fields as POST)
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content: Tool object (same as GET /api/tools/<id>/)
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Tool matches the given query." }`
+
+---
+
+### PATCH /api/tools/<id>/
+Partial update of a tool.
+* URL Params: `id=[integer]`
+* Data Params: Any subset of Tool fields
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content: Tool object (same as GET /api/tools/<id>/)
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Tool matches the given query." }`
+
+---
+
+### DELETE /api/tools/<id>/
+Deletes a tool and all associated calibration records.
+* URL Params: `id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 204 NO CONTENT
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Tool matches the given query." }`
+
+---
+
+### POST /api/tools/<id>/record_calibration/
+Logs a calibration event for a tool and updates the tool's next calibration due date.
+* URL Params: `id=[integer]`
+* Data Params:
+    ```json
+    {
+        "calibration_date": "2026-04-18",
+        "performed_by": "J.A. King Calibration Services",
+        "next_due_date": "2027-04-18",
+        "notes": "Passed all tolerance checks."
+    }
+    ```
+    * `notes` is optional
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 201
+    * Content:
+        ```json
+        {
+            "id": 1,
+            "tool": 1,
+            "calibration_date": "2026-04-18",
+            "performed_by": "J.A. King Calibration Services",
+            "next_due_date": "2027-04-18",
+            "notes": "Passed all tolerance checks."
+        }
+        ```
+    * Side effect: `tool.calibration_due_date` is updated to `next_due_date`
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Tool matches the given query." }`
+
+---
+
+### GET /api/tools/<id>/calibration_history/
+Returns all calibration records for a tool, ordered most recent first.
+* URL Params: `id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "tool": 1,
+                "calibration_date": "2026-04-18",
+                "performed_by": "J.A. King Calibration Services",
+                "next_due_date": "2027-04-18",
+                "notes": "Passed all tolerance checks."
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "No Tool matches the given query." }`

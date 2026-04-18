@@ -26,6 +26,8 @@ from .models import (
     WorkOrder,
     Flight,
     Inventory,
+    Tool,
+    CalibrationRecord,
 )
 
 from .permissions import (
@@ -47,6 +49,8 @@ from .serializers import (
     WorkOrderSerializer,
     FlightSerializer,
     InventorySerializer,
+    ToolSerializer,
+    CalibrationRecordSerializer,
 )
 
 from rest_framework import viewsets, permissions
@@ -642,6 +646,19 @@ def company_role_view(request):
     return Response(data)
 
 
+@api_view(["GET"])
+@permission_classes([IsMechanicOrManager])
+def company_tools_view(request):
+    company = request.user.company
+    if company is None:
+        return Response(
+            {"error": "User does not have an associated company"}, status=403
+        )
+    tools = Tool.objects.filter(company=company).order_by("name")
+    serializer = ToolSerializer(tools, many=True)
+    return Response(serializer.data)
+
+
 ####
 # ViewSets
 ####
@@ -745,6 +762,39 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user.company)
+
+
+class ToolViewSet(viewsets.ModelViewSet):
+    serializer_class = ToolSerializer
+    permission_classes = [IsMechanicOrManager]
+
+    def get_queryset(self):
+        user_company = getattr(self.request.user, "company", None)
+        if not user_company:
+            return Tool.objects.none()
+        return Tool.objects.filter(company=user_company).order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
+
+    @action(detail=True, methods=["post"])
+    def record_calibration(self, request, pk=None):
+        tool = self.get_object()
+        serializer = CalibrationRecordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        record = serializer.save(tool=tool)
+        tool.calibration_due_date = record.next_due_date
+        tool.save()
+        return Response(CalibrationRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"])
+    def calibration_history(self, request, pk=None):
+        tool = self.get_object()
+        records = tool.calibration_history.order_by("-calibration_date")
+        serializer = CalibrationRecordSerializer(records, many=True)
+        return Response(serializer.data)
+
 
 class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.all().order_by('-departure_time')
