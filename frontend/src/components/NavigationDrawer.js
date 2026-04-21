@@ -18,6 +18,7 @@ import {
 import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import InventoryIcon from "@mui/icons-material/Inventory";
+import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
 import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -105,6 +106,14 @@ function NavigationDrawer() {
       color: "#00695c",
       allowedRoles: ["manager"],
       to: "/admin/companies",
+    },
+    {
+      id: "fleet",
+      title: "Fleet",
+      icon: <AirlinesIcon />,
+      color: "#1976d2",
+      allowedRoles: ["owner", "manager", "mechanic", "pilot", "dispatcher"],
+      to: "/fleet",
     },
     {
       id: "parts",

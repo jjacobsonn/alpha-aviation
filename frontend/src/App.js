@@ -16,6 +16,8 @@ import WorkOrders from './pages/WorkOrders';
 import PilotDashboard from './pages/PilotDashboard';
 import DispatcherDashboard from './pages/DispatcherDashboard';
 import SiteAdminPortal from './pages/SiteAdminPortal';
+import FleetPage from './pages/FleetPage';
+import FleetDetailPage from './pages/FleetDetailPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -146,6 +148,26 @@ function App() {
 								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
 									<Layout>
 										<WorkOrders />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/fleet"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+									<Layout>
+										<FleetPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/fleet/:id"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+									<Layout>
+										<FleetDetailPage />
 									</Layout>
 								</ProtectedRoute>
 							}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
 	Alert,
 	Box,
@@ -83,6 +83,7 @@ function profileDisplayName(u) {
 
 export default function WorkOrders() {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state.user);
@@ -103,6 +104,7 @@ export default function WorkOrders() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [page, setPage] = useState(1);
 	const [pageSize, setPageSize] = useState(10);
+	const aircraftFilterFromQuery = searchParams.get('aircraft') || '';
 
 	const load = async () => {
 		setIsLoading(true);
@@ -215,6 +217,7 @@ export default function WorkOrders() {
 		return normalized.filter((wo) => {
 			if (activeStatus !== 'all' && (wo.status || 'open') !== activeStatus) return false;
 			if (platformAdmin && companyFilter && wo.companyId !== companyFilter) return false;
+			if (aircraftFilterFromQuery && String(wo.aircraftId) !== String(aircraftFilterFromQuery)) return false;
 			if (!q) return true;
 			const hay = [
 				String(wo.id || ''),
@@ -227,7 +230,7 @@ export default function WorkOrders() {
 				.toLowerCase();
 			return hay.includes(q);
 		});
-	}, [normalized, activeStatus, search, platformAdmin, companyFilter]);
+	}, [normalized, activeStatus, search, platformAdmin, companyFilter, aircraftFilterFromQuery]);
 
 	const statusCounts = useMemo(() => {
 		const counts = { all: normalized.length, open: 0, in_progress: 0, awaiting_parts: 0, closed: 0 };
@@ -363,6 +366,11 @@ export default function WorkOrders() {
 				</Stack>
 
 				{error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
+				{aircraftFilterFromQuery ? (
+					<Alert severity="info" sx={{ mb: 2 }}>
+						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
+					</Alert>
+				) : null}
 
 				<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', mb: 3 }}>
 					<CardContent>

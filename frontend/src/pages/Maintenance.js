@@ -43,6 +43,7 @@ import {
 	updateDiscrepancy,
 	updateWorkorder,
 } from '../shared/Api';
+import AircraftSelector from '../components/AircraftSelector';
 import { useAppContext } from '../context/AppContext';
 import { canSuperviseMaintenance, isMechanicRole, isPlatformAdmin } from '../shared/rbac';
 
@@ -219,6 +220,7 @@ const Maintenance = () => {
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [didHandleDeepLink, setDidHandleDeepLink] = useState(false);
+	const aircraftFilterFromQuery = new URLSearchParams(location.search).get('aircraft') || '';
 
 	useEffect(() => {
 		setDidHandleDeepLink(false);
@@ -410,6 +412,30 @@ const Maintenance = () => {
 		[discrepancies]
 	);
 
+	const displayedWorkOrders = useMemo(() => {
+		if (!aircraftFilterFromQuery) return mappedWorkOrders;
+		return mappedWorkOrders.filter((wo) => {
+			const source = workOrders.find((x) => x.id === wo.id);
+			const aircraftId =
+				typeof source?.aircraft === 'object' && source?.aircraft != null
+					? source.aircraft.id
+					: source?.aircraft;
+			return String(aircraftId) === String(aircraftFilterFromQuery);
+		});
+	}, [aircraftFilterFromQuery, mappedWorkOrders, workOrders]);
+
+	const displayedDiscrepancies = useMemo(() => {
+		if (!aircraftFilterFromQuery) return mappedDiscrepancies;
+		return mappedDiscrepancies.filter((d) => {
+			const source = discrepancies.find((x) => x.id === d.id);
+			const aircraftId =
+				typeof source?.aircraft === 'object' && source?.aircraft != null
+					? source.aircraft.id
+					: source?.aircraft;
+			return String(aircraftId) === String(aircraftFilterFromQuery);
+		});
+	}, [aircraftFilterFromQuery, mappedDiscrepancies, discrepancies]);
+
 	const mechanicUsers = useMemo(
 		() => companyUsers.filter((u) => ['mechanic', 'manager', 'owner'].includes(u?.company_role)),
 		[companyUsers]
@@ -424,6 +450,18 @@ const Maintenance = () => {
 		() => getAllowedWorkOrderStatusOptions(selectedWorkOrder?.status || 'open'),
 		[selectedWorkOrder?.status]
 	);
+
+	const handleWorkorderAircraftChange = (newAc) => {
+		setWorkorderForm((s) => {
+			const aid = newAc === '' ? null : Number(newAc);
+			const nextParts = (s.parts_needed || []).filter((pid) => {
+				if (aid == null) return false;
+				const p = companyParts.find((x) => x.id === Number(pid));
+				return p && Number(partAircraftId(p)) === aid;
+			});
+			return { ...s, aircraft: newAc, parts_needed: nextParts };
+		});
+	};
 
 	const handleCreateWorkorder = async () => {
 		setError('');
@@ -710,6 +748,11 @@ const Maintenance = () => {
 						{error}
 					</Alert>
 				) : null}
+				{aircraftFilterFromQuery ? (
+					<Alert severity="info" sx={{ mb: 2 }}>
+						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
+					</Alert>
+				) : null}
 
 				{/* KPI Cards */}
 				<Grid container spacing={3} sx={{ mb: 3 }}>
@@ -827,7 +870,7 @@ const Maintenance = () => {
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{mappedWorkOrders.map((order) => (
+											{displayedWorkOrders.map((order) => (
 												<TableRow key={order.id}>
 													<TableCell>{order.order_number}</TableCell>
 													<TableCell sx={{ maxWidth: 220, whiteSpace: 'normal', wordBreak: 'break-word' }}>
@@ -845,7 +888,7 @@ const Maintenance = () => {
 													</TableCell>
 												</TableRow>
 											))}
-											{mappedWorkOrders.length === 0 ? (
+											{displayedWorkOrders.length === 0 ? (
 												<TableRow>
 													<TableCell colSpan={8} sx={{ color: 'text.secondary' }}>
 														No work orders found.
@@ -883,7 +926,7 @@ const Maintenance = () => {
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{mappedDiscrepancies.map((d) => (
+											{displayedDiscrepancies.map((d) => (
 												<TableRow key={d.id}>
 													<TableCell>{d.discrepancy_number}</TableCell>
 													<TableCell>{d.part_number || '—'}</TableCell>
@@ -897,7 +940,7 @@ const Maintenance = () => {
 													</TableCell>
 												</TableRow>
 											))}
-											{mappedDiscrepancies.length === 0 ? (
+											{displayedDiscrepancies.length === 0 ? (
 												<TableRow>
 													<TableCell colSpan={6} sx={{ color: 'text.secondary' }}>
 														No discrepancies found.
@@ -918,27 +961,13 @@ const Maintenance = () => {
 					<DialogContent>
 						<Stack spacing={2} sx={{ mt: 1 }}>
 							<TextField label="Title" value={workorderForm.title} onChange={(e) => setWorkorderForm((s) => ({ ...s, title: e.target.value }))} />
-							<TextField
-								select
+							<AircraftSelector
 								label="Aircraft"
 								value={workorderForm.aircraft}
-								onChange={(e) => {
-									const newAc = e.target.value;
-									setWorkorderForm((s) => {
-										const aid = newAc === '' ? null : Number(newAc);
-										const nextParts = (s.parts_needed || []).filter((pid) => {
-											if (aid == null) return false;
-											const p = companyParts.find((x) => x.id === Number(pid));
-											return p && Number(partAircraftId(p)) === aid;
-										});
-										return { ...s, aircraft: newAc, parts_needed: nextParts };
-									});
-								}}
-							>
-								{aircraft.map((a) => (
-									<MenuItem key={a.id} value={a.id}>{a.registration_number} ({a.model})</MenuItem>
-								))}
-							</TextField>
+								onChange={handleWorkorderAircraftChange}
+								options={aircraft}
+								required
+							/>
 							<TextField
 								select
 								label="Parts needed"
@@ -1228,11 +1257,13 @@ const Maintenance = () => {
 					<DialogTitle>Create Discrepancy</DialogTitle>
 					<DialogContent>
 						<Stack spacing={2} sx={{ mt: 1 }}>
-							<TextField select label="Aircraft" value={discrepancyForm.aircraft} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, aircraft: e.target.value }))}>
-								{aircraft.map((a) => (
-									<MenuItem key={a.id} value={a.id}>{a.registration_number} ({a.model})</MenuItem>
-								))}
-							</TextField>
+							<AircraftSelector
+								label="Aircraft"
+								value={discrepancyForm.aircraft}
+								onChange={(next) => setDiscrepancyForm((s) => ({ ...s, aircraft: next }))}
+								options={aircraft}
+								required
+							/>
 							<TextField select label="Reporter" value={discrepancyForm.reporter} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, reporter: e.target.value }))}>
 								<MenuItem value="">Current user</MenuItem>
 								{companyUsers.map((u) => (

@@ -287,6 +287,37 @@ export const fetchCompanyFlights = async () => {
 	return await makeApiRequest('GET', '/company/flights/');
 };
 
+// Fleet module APIs
+export const fetchFleetAircraft = async (queryParams = {}) => {
+	const data = await makeApiRequest('GET', '/fleet/aircraft/', null, queryParams);
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+};
+
+export const fetchFleetAircraftDetail = async (id) => {
+	return await makeApiRequest('GET', `/fleet/aircraft/${id}/`);
+};
+
+export const fetchAircraftIntervals = async (aircraftId) => {
+	const data = await makeApiRequest('GET', `/fleet/aircraft/${aircraftId}/intervals/`);
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+};
+
+export const createAircraftInterval = async (aircraftId, payload) => {
+	return await makeApiRequest('POST', `/fleet/aircraft/${aircraftId}/intervals/`, payload);
+};
+
+export const updateAircraftInterval = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/fleet/intervals/${id}/`, payload);
+};
+
+export const completeAircraftInterval = async (id, payload) => {
+	return await makeApiRequest('POST', `/fleet/intervals/${id}/complete/`, payload);
+};
+
 export const createCompanyFlightRequest = async (payload) => {
 	return await makeApiRequest('POST', '/company/flights/request/', payload);
 };

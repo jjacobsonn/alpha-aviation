@@ -22,6 +22,7 @@ import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   fetchCompanyFlights,
   patchCompanyFlightDispatch,
@@ -49,6 +50,7 @@ function formatDt(iso) {
 }
 
 export default function DispatcherDashboard() {
+  const location = useLocation();
   const { state } = useAppContext();
   const platformAdmin = isPlatformAdmin(state.user);
   const hasCompanyContext =
@@ -60,6 +62,7 @@ export default function DispatcherDashboard() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [busyId, setBusyId] = useState(null);
+  const aircraftFilterFromQuery = new URLSearchParams(location.search).get("aircraft") || "";
 
   const load = useCallback(async () => {
     if (platformAdmin && !hasCompanyContext) {
@@ -109,6 +112,13 @@ export default function DispatcherDashboard() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = flights;
+    if (aircraftFilterFromQuery) {
+      list = list.filter((f) => {
+        const aircraftId =
+          typeof f?.aircraft === "object" && f?.aircraft != null ? f.aircraft.id : f?.aircraft;
+        return String(aircraftId) === String(aircraftFilterFromQuery);
+      });
+    }
     if (filter === "pending") list = list.filter((f) => f?.status === "pending approval");
     else if (filter === "approved")
       list = list.filter((f) => f?.status === "approved" || f?.status === "scheduled");
@@ -127,7 +137,7 @@ export default function DispatcherDashboard() {
         .toLowerCase();
       return blob.includes(q);
     });
-  }, [flights, search, filter]);
+  }, [flights, search, filter, aircraftFilterFromQuery]);
 
   const handleApprove = async (id) => {
     setBusyId(id);
@@ -179,6 +189,11 @@ export default function DispatcherDashboard() {
               Review flight requests, approve or cancel, and monitor scheduled flights.
             </Typography>
             {error ? <Alert severity="error">{error}</Alert> : null}
+            {aircraftFilterFromQuery ? (
+              <Alert severity="info">
+                Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
+              </Alert>
+            ) : null}
           </Stack>
 
           <Grid container spacing={2}>
