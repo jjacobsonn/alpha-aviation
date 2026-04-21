@@ -1,5 +1,8 @@
 from rest_framework import serializers
+from django.utils import timezone
 from .models import (
+    AircraftMaintenanceInterval,
+    AircraftPhoto,
     Company,
     Profile,
     Aircraft,
@@ -445,4 +448,150 @@ class InventorySerializer(serializers.ModelSerializer):
             "stock_alert_percentage",
             "shop_location",
         ]
+
+
+class AircraftPhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AircraftPhoto
+        fields = ["id", "image", "caption", "sort_order"]
+
+
+class AircraftMaintenanceIntervalSerializer(serializers.ModelSerializer):
+    hours_remaining = serializers.SerializerMethodField()
+    days_remaining = serializers.SerializerMethodField()
+    compliance_status = serializers.SerializerMethodField()
+    severity_color = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AircraftMaintenanceInterval
+        fields = [
+            "id",
+            "aircraft",
+            "name",
+            "interval_type",
+            "due_every_hours",
+            "due_every_days",
+            "last_done_tach",
+            "last_done_hobbs",
+            "last_done_date",
+            "is_ad",
+            "ad_number",
+            "ad_revision",
+            "notes",
+            "is_active",
+            "created_at",
+            "updated_at",
+            "hours_remaining",
+            "days_remaining",
+            "compliance_status",
+            "severity_color",
+        ]
+        read_only_fields = ["aircraft", "created_at", "updated_at"]
+
+    def get_hours_remaining(self, obj):
+        if obj.due_every_hours in (None, ""):
+            return None
+        current_tach = getattr(obj.aircraft, "tach_current", None)
+        if current_tach is None or obj.last_done_tach is None:
+            return None
+        return round(float(obj.due_every_hours) - (float(current_tach) - float(obj.last_done_tach)), 1)
+
+    def get_days_remaining(self, obj):
+        if obj.due_every_days in (None, "") or obj.last_done_date is None:
+            return None
+        elapsed = (timezone.now().date() - obj.last_done_date).days
+        return int(obj.due_every_days) - elapsed
+
+    def get_compliance_status(self, obj):
+        hours_remaining = self.get_hours_remaining(obj)
+        days_remaining = self.get_days_remaining(obj)
+        values = [v for v in [hours_remaining, days_remaining] if v is not None]
+        if not values:
+            return "ok"
+        if any(v < 0 for v in values):
+            return "overdue"
+        if any(v <= 10 for v in [hours_remaining] if v is not None) or any(
+            v <= 7 for v in [days_remaining] if v is not None
+        ):
+            return "due_soon"
+        return "ok"
+
+    def get_severity_color(self, obj):
+        status = self.get_compliance_status(obj)
+        if status == "overdue":
+            return "red"
+        if status == "due_soon":
+            return "amber"
+        return "green"
+
+
+class FleetAircraftListSerializer(serializers.ModelSerializer):
+    interval_summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Aircraft
+        fields = [
+            "id",
+            "registration_number",
+            "model",
+            "location",
+            "tach_current",
+            "hobbs_current",
+            "fleet_status",
+            "aircraft_type",
+            "interval_summary",
+        ]
+
+    def get_interval_summary(self, obj):
+        intervals = obj.maintenance_intervals.filter(is_active=True)
+        serializer = AircraftMaintenanceIntervalSerializer(
+            intervals, many=True, context=self.context
+        )
+        overdue_count = 0
+        due_soon_count = 0
+        ok_count = 0
+        for row in serializer.data:
+            status = row.get("compliance_status")
+            if status == "overdue":
+                overdue_count += 1
+            elif status == "due_soon":
+                due_soon_count += 1
+            else:
+                ok_count += 1
+        return {
+            "overdue_count": overdue_count,
+            "due_soon_count": due_soon_count,
+            "ok_count": ok_count,
+        }
+
+
+class FleetAircraftDetailSerializer(serializers.ModelSerializer):
+    photos = AircraftPhotoSerializer(many=True, read_only=True)
+    links = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Aircraft
+        fields = [
+            "id",
+            "registration_number",
+            "model",
+            "manufacturer",
+            "engine_type",
+            "year_built",
+            "location",
+            "tach_current",
+            "hobbs_current",
+            "fleet_status",
+            "aircraft_type",
+            "specs",
+            "photos",
+            "links",
+        ]
+
+    def get_links(self, obj):
+        return {
+            "open_workorders_count": obj.work_orders.exclude(status="closed").count(),
+            "open_discrepancies_count": obj.discrepancies.exclude(status="closed").count(),
+            "recent_flights_count": obj.flights.count(),
+        }
 

@@ -17,6 +17,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import (
     Aircraft,
+    AircraftMaintenanceInterval,
     Company,
     Discrepancy,
     DiscrepancyActivity,
@@ -38,8 +39,11 @@ from .permissions import (
 )
 from .serializers import (
     AircraftSerializer,
+    AircraftMaintenanceIntervalSerializer,
     CompanySerializer,
     DiscrepancySerializer,
+    FleetAircraftDetailSerializer,
+    FleetAircraftListSerializer,
     FlightSerializer,
     InventorySerializer,
     PartSerializer,
@@ -141,6 +145,20 @@ def company_scoped_aircraft_queryset(request):
     Platform admins can view all, optionally narrowed with X-Company-Id.
     """
     qs = Aircraft.objects.all()
+    user = request.user
+    if _is_platform_admin(user):
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
+        return qs
+    company = getattr(user, "company", None)
+    if company is None:
+        return qs.none()
+    return qs.filter(company=company)
+
+
+def fleet_aircraft_queryset(request):
+    qs = Aircraft.objects.all().prefetch_related("maintenance_intervals")
     user = request.user
     if _is_platform_admin(user):
         cid = _optional_company_id_from_header(request)
@@ -829,3 +847,153 @@ class InventoryViewSet(viewsets.ModelViewSet):
         company = resolve_company_for_inventory_create(self.request)
         inv, _ = Inventory.objects.get_or_create(company=company)
         serializer.save(inventory=inv)
+
+
+class FleetAircraftListView(generics.ListAPIView):
+    serializer_class = FleetAircraftListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = fleet_aircraft_queryset(self.request)
+        params = self.request.query_params
+        search = params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(registration_number__icontains=search)
+                | Q(model__icontains=search)
+                | Q(location__icontains=search)
+            )
+        status_filter = params.get("status")
+        if status_filter:
+            qs = qs.filter(fleet_status=status_filter)
+        aircraft_type = params.get("type")
+        if aircraft_type:
+            qs = qs.filter(aircraft_type=aircraft_type)
+        location = params.get("location")
+        if location:
+            qs = qs.filter(location=location)
+        ordering = params.get("ordering")
+        allowed_ordering = {
+            "registration_number",
+            "model",
+            "location",
+            "fleet_status",
+            "tach_current",
+            "-registration_number",
+            "-model",
+            "-location",
+            "-fleet_status",
+            "-tach_current",
+        }
+        if ordering in allowed_ordering:
+            qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by("registration_number")
+        return qs
+
+
+class FleetAircraftDetailView(generics.RetrieveAPIView):
+    serializer_class = FleetAircraftDetailSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_url_kwarg = "aircraft_id"
+
+    def get_queryset(self):
+        return fleet_aircraft_queryset(self.request).prefetch_related("photos")
+
+
+class FleetAircraftIntervalListCreateView(generics.ListCreateAPIView):
+    serializer_class = AircraftMaintenanceIntervalSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_aircraft(self):
+        return get_object_or_404(
+            fleet_aircraft_queryset(self.request), pk=self.kwargs["aircraft_id"]
+        )
+
+    def get_queryset(self):
+        aircraft = self.get_aircraft()
+        return AircraftMaintenanceInterval.objects.filter(aircraft=aircraft).order_by("name")
+
+    def create(self, request, *args, **kwargs):
+        role = getattr(request.user, "company_role", None)
+        if not (
+            role in {"mechanic", "manager", "owner"}
+            or _is_platform_admin(request.user)
+        ):
+            return Response(
+                {"detail": "You do not have permission to create intervals."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(aircraft=self.get_aircraft())
+
+
+class FleetAircraftIntervalUpdateView(generics.UpdateAPIView):
+    serializer_class = AircraftMaintenanceIntervalSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = AircraftMaintenanceInterval.objects.select_related("aircraft")
+    lookup_url_kwarg = "interval_id"
+
+    def update(self, request, *args, **kwargs):
+        role = getattr(request.user, "company_role", None)
+        if not (
+            role in {"mechanic", "manager", "owner"}
+            or _is_platform_admin(request.user)
+        ):
+            return Response(
+                {"detail": "You do not have permission to update intervals."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance = self.get_object()
+        allowed_ids = set(
+            fleet_aircraft_queryset(request).values_list("id", flat=True)
+        )
+        if instance.aircraft_id not in allowed_ids:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return super().update(request, *args, **kwargs)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def fleet_interval_complete_view(request, interval_id):
+    role = getattr(request.user, "company_role", None)
+    if not (
+        role in {"mechanic", "manager", "owner"}
+        or _is_platform_admin(request.user)
+    ):
+        return Response(
+            {"detail": "You do not have permission to complete intervals."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    interval = get_object_or_404(
+        AircraftMaintenanceInterval.objects.select_related("aircraft"), pk=interval_id
+    )
+    allowed_ids = set(fleet_aircraft_queryset(request).values_list("id", flat=True))
+    if interval.aircraft_id not in allowed_ids:
+        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    completed_date = request.data.get("completed_date")
+    completed_tach = request.data.get("completed_tach")
+    completed_hobbs = request.data.get("completed_hobbs")
+    notes = request.data.get("notes")
+    if completed_date:
+        parsed = parse_date(completed_date)
+        if not parsed:
+            return Response(
+                {"detail": "completed_date must be YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        interval.last_done_date = parsed
+    if completed_tach not in (None, ""):
+        interval.last_done_tach = completed_tach
+    if completed_hobbs not in (None, ""):
+        interval.last_done_hobbs = completed_hobbs
+    if notes is not None:
+        interval.notes = str(notes)
+    interval.save()
+    serializer = AircraftMaintenanceIntervalSerializer(
+        interval, context={"request": request}
+    )
+    return Response(serializer.data, status=status.HTTP_200_OK)

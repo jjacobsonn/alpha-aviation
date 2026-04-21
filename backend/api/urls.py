@@ -19,6 +19,11 @@ from .views import (
     company_workorders_view,
     company_discrepancies_view,
     company_role_view,
+    FleetAircraftListView,
+    FleetAircraftDetailView,
+    FleetAircraftIntervalListCreateView,
+    FleetAircraftIntervalUpdateView,
+    fleet_interval_complete_view,
     CompanyViewSet,
     ProfileViewSet,
     AircraftViewSet,
@@ -85,6 +90,27 @@ urlpatterns = [
         name="company-discrepancies",
     ),
     path("company/role/", company_role_view, name="company-role"),
+    path("fleet/aircraft/", FleetAircraftListView.as_view(), name="fleet-aircraft-list"),
+    path(
+        "fleet/aircraft/<int:aircraft_id>/",
+        FleetAircraftDetailView.as_view(),
+        name="fleet-aircraft-detail",
+    ),
+    path(
+        "fleet/aircraft/<int:aircraft_id>/intervals/",
+        FleetAircraftIntervalListCreateView.as_view(),
+        name="fleet-aircraft-intervals",
+    ),
+    path(
+        "fleet/intervals/<int:interval_id>/",
+        FleetAircraftIntervalUpdateView.as_view(),
+        name="fleet-interval-update",
+    ),
+    path(
+        "fleet/intervals/<int:interval_id>/complete/",
+        fleet_interval_complete_view,
+        name="fleet-interval-complete",
+    ),
     # RBAC + serializer-based inventory endpoints (new)
     path(
         "company/inventories/detailed/",
