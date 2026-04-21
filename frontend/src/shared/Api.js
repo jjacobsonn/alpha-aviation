@@ -31,7 +31,7 @@ const forceLogout = () => {
 };
 
 const apiClient = axios.create({
-	baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+	baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api',
 	headers: {
 		Accept: 'application/json',
 		'Content-Type': 'application/json',
@@ -112,7 +112,7 @@ apiClient.interceptors.response.use(
 			try {
 				const response = await axios.post(
 					`${
-						process.env.REACT_APP_API_URL || 'http://localhost:8000/api'
+						process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api'
 					}/auth/token/refresh/`,
 					{ refresh: tokens.refreshToken }
 				);
