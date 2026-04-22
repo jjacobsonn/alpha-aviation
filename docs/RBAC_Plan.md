@@ -218,7 +218,7 @@ This section captures the **current state on branch `dev-jj`** after integrating
   - `ProtectedRoute` accepts an `allowedRoles` array; if `state.user.role` is not included, the user is redirected to `/management`.
   - `NavigationDrawer` hides menu items when the current role is not in the item’s `allowedRoles`.
 - Admin UI:
-  - **Company Admin list** (`/admin/companies`) reads from `GET /companies/` and shows each company as a card; clicking currently routes to a **“New Company”** form wired for create‑only (edit/readback is a known TODO).
+  - **Organizations** list (`/admin/companies`) reads from `GET /companies/` and shows each company as a card; clicking currently routes to a **“New organization”** form wired for create‑only (edit/readback is a known TODO).
   - **Parts page** (`/parts`) calls:
     - `GET /company/inventories/detailed/`
     - `GET /company/inventories/detailed/low-stock/`
@@ -231,7 +231,7 @@ This section captures the **current state on branch `dev-jj`** after integrating
 
 ### 5.3 Known Gaps / WIP
 
-- React **Company Admin detail form** (`/admin/companies/new`) only creates companies + aircraft; it does **not** yet:
+- React **New organization** form (`/admin/companies/new`) only creates companies + aircraft; it does **not** yet:
   - Load existing company data when you click a card.
   - Create `Profile` users or bind them to companies; user provisioning is still Django admin‑driven.
 - Flights are fully modeled/API‑backed but have minimal frontend visualization beyond lists and management KPIs.

@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Q
@@ -310,11 +311,26 @@ class Mechanic(models.Model):
 
 #Aircraft model, has basic information about the aircraft and a str function.
 class Aircraft(models.Model):
+    FLEET_STATUS_CHOICES = [
+        ("active", "Active"),
+        ("maintenance_due", "Maintenance Due"),
+        ("aog", "AOG"),
+        ("grounded", "Grounded"),
+    ]
+
     registration_number = models.CharField(max_length=50)
     model = models.CharField(max_length=200)
     manufacturer = models.CharField(max_length=200)
     engine_type = models.CharField(max_length=200, null= True)
     year_built = models.IntegerField(validators=[MaxValueValidator(9999),MinValueValidator(1903)])
+    location = models.CharField(max_length=100, blank=True, default="")
+    tach_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    hobbs_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    fleet_status = models.CharField(
+        max_length=40, choices=FLEET_STATUS_CHOICES, default="active"
+    )
+    aircraft_type = models.CharField(max_length=60, blank=True, default="")
+    specs = models.JSONField(default=dict, blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="aircraft", null=True, blank=True )
     
     def __str__(self):
@@ -355,48 +371,107 @@ class InventoryPart(models.Model):
         Consider this item low stock when current quantity is less than
         or equal to the alert threshold.
         """
-        if self.in_stock is None or self.stock_alert is None:
+        if self.quantity is None or self.stock_alert is None:
             return False
-        return self.in_stock <= self.stock_alert
+        return self.quantity <= self.stock_alert
 
     low_stock.boolean = True
     low_stock.short_description = "Low Stock?"
     def __str__(self):
-        return f"{self.part.name} with {self.in_stock} in stock"
+        return f"{self.part.name} with {self.quantity} in stock"
 
+
+class Flight(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, related_name="flights")
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null=True, related_name="flights")
+    flight_number = models.CharField(max_length=250, null=True)
+    origin = models.CharField(max_length=250, null=True)
+    destination = models.CharField(max_length=250, null=True)
+    departure_time = models.DateTimeField(null=True)
+    arrival_time = models.DateTimeField(null=True)
+    route = models.CharField(blank=True, null=True)
+    flight_type_options = [
+        ("training", "Training"),
+        ("charter", "Charter"),
+        ("positioning", "Positioning"),
+        ("maintenance ferry", "Maintenance Ferry"),
+    ]
+    flight_type = models.CharField(max_length=255, choices=flight_type_options, default="training")
+    primary_pilot = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="primary_pilot",
+    )
+    secondary_pilot = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="secondary_pilot",
+    )
+    pilot_req_options = [
+        ("student", "Student"),
+        ("private", "Private"),
+        ("commercial", "Commercial"),
+        ("airline", "Airline"),
+    ]
+    pilot_requirement = models.CharField(max_length=255, choices=pilot_req_options, default="private")
+    dispatcher = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="flight_dispatcher",
+    )
+    status_type_options = [
+        ("scheduled", "Scheduled"),
+        ("approved", "Approved"),
+        ("pending approval", "Pending Approval"),
+        ("delayed", "Delayed"),
+        ("cancelled", "Cancelled"),
+        ("completed", "Completed"),
+    ]
+    status = models.CharField(max_length=255, choices=status_type_options, default="pending approval")
 
     def clean(self):
         errors = {}
-        
-        if self.primary_pilot and self.secondary_pilot:
-            if self.primary_pilot == self.secondary_pilot:
-                errors["secondary_pilot"] = ("Secondary pilot cannot be the same person as Primary pilot!") 
+
+        if self.primary_pilot and self.secondary_pilot and self.primary_pilot == self.secondary_pilot:
+            errors["secondary_pilot"] = (
+                "Secondary pilot cannot be the same person as Primary pilot!"
+            )
+
         if not self.departure_time:
-            errors["departure_time"] = ("Departure time does not exist")
+            errors["departure_time"] = "Departure time does not exist"
 
         if not self.arrival_time:
-            errors["arrival_time"] = ("Arrival time does not exist")
-            
-        elif self.arrival_time < self.departure_time:
-            errors["arrival_time"] = ("Arrival time can not be before departure time.")
-        
+            errors["arrival_time"] = "Arrival time does not exist"
+        elif self.departure_time and self.arrival_time < self.departure_time:
+            errors["arrival_time"] = "Arrival time can not be before departure time."
+
         def check_pilot(pilot, which_pilot):
             if not pilot:
                 return
-            if pilot.company_role != "pilot":
-                errors[which_pilot] = (f"{pilot.first_name} is not a pilot")
+            if getattr(pilot, "company_role", None) != "pilot":
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a pilot"
                 return
-            
-            if pilot.company != self.company:
-                errors[which_pilot] = (f"{pilot.first_name} is not of company {self.company}")
+            if getattr(pilot, "company", None) != self.company:
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not of company {self.company}"
                 return
-            if not hasattr(pilot, "pilot_info"):
-                errors[which_pilot] = (f"{pilot.first_name} does not have attribute \'pilot_info\'")
+            pilot_info = getattr(pilot, "pilot_info", None)
+            if not pilot_info:
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is missing pilot_info"
                 return
-            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
-                errors[which_pilot] = (f"{pilot.first_name} is not cleared to fly until {self.arrival_time.date()}")
-            if not pilot.pilot_info.is_certified(self.pilot_requirement):
-                errors[which_pilot] = (f"{pilot.first_name} is not a high enough certification")
+            if (
+                not getattr(pilot_info, "medically_cleared_until", None)
+                or (self.arrival_time and pilot_info.medically_cleared_until < self.arrival_time.date())
+            ):
+                errors[which_pilot] = (
+                    f"{getattr(pilot, 'first_name', 'Pilot')} is not cleared to fly until {self.arrival_time.date() if self.arrival_time else 'N/A'}"
+                )
+            if hasattr(pilot_info, "is_certified") and not pilot_info.is_certified(self.pilot_requirement):
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a high enough certification"
+
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
 
@@ -411,7 +486,6 @@ class WorkOrder(models.Model):
         ("awaiting_parts", "Awaiting Parts"),
         ("closed", "Closed"),
     ]
-
     PRIORITY_CHOICES = [
         ("low", "Low"),
         ("medium", "Medium"),
@@ -423,7 +497,6 @@ class WorkOrder(models.Model):
         'Profile', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='assigned_work_orders'
     )
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="medium")
     completion_notes = models.TextField(blank=True, null=True)
 
     aircraft = models.ForeignKey(
@@ -439,6 +512,9 @@ class WorkOrder(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(
         max_length=50, choices=STATUS_CHOICES, default="open"
+    )
+    priority = models.CharField(
+        max_length=20, choices=PRIORITY_CHOICES, default="medium"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -507,92 +583,72 @@ class Discrepancy(models.Model):
         return f"Discrepancy on {self.aircraft} ({self.status})"
 
 
-class Flight(models.Model):
-    STATUS_CHOICES = [
-        ('scheduled', 'Scheduled'),
-        ('approved', 'Approved'),
-        ('pending approval', 'Pending Approval'),
-        ('delayed', 'Delayed'),
-        ('cancelled', 'Cancelled'),
-        ('completed', 'Completed'),
-    ]
+class WorkOrderActivity(models.Model):
+    """History entries for work order changes."""
 
-    FLIGHT_TYPE_CHOICES = [
-        ('training', 'Training'),
-        ('charter', 'Charter'),
-        ('positioning', 'Positioning'),
-        ('maintenance ferry', 'Maintenance Ferry'),
-    ]
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
 
-    PILOT_REQUIREMENT_CHOICES = [
-        ('student', 'Student'),
-        ('private', 'Private'),
-        ('commercial', 'Commercial'),
-        ('airline', 'Airline'),
-    ]
-
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='flights', null=True)
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name='flights', null=True)
-    flight_number = models.CharField(max_length=250, null=True)
-    origin = models.CharField(max_length=250, null=True)
-    destination = models.CharField(max_length=250, null=True)
-    departure_time = models.DateTimeField(null=True)
-    arrival_time = models.DateTimeField(null=True)
-    route = models.CharField(blank=True, null=True)
-    flight_type = models.CharField(max_length=255, choices=FLIGHT_TYPE_CHOICES, default='training')
-    pilot_requirement = models.CharField(max_length=255, choices=PILOT_REQUIREMENT_CHOICES, default='private')
-    primary_pilot = models.ForeignKey(
-        Profile, on_delete=models.CASCADE, null=True, related_name='primary_pilot'
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="activities"
     )
-    secondary_pilot = models.ForeignKey(
-        Profile, on_delete=models.CASCADE, null=True, related_name='secondary_pilot'
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="work_order_activities",
     )
-    dispatcher = models.ForeignKey(
-        Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name='flight_dispatcher'
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
     )
-    status = models.CharField(max_length=255, choices=STATUS_CHOICES, default='pending approval')
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
 
-    def clean(self):
-        errors = {}
-
-        if self.primary_pilot and self.secondary_pilot:
-            if self.primary_pilot == self.secondary_pilot:
-                errors['secondary_pilot'] = 'Secondary pilot cannot be the same person as Primary pilot.'
-
-        if not self.departure_time:
-            errors['departure_time'] = 'Departure time does not exist.'
-        if not self.arrival_time:
-            errors['arrival_time'] = 'Arrival time does not exist.'
-        elif self.departure_time and self.arrival_time < self.departure_time:
-            errors['arrival_time'] = 'Arrival time cannot be before departure time.'
-
-        def check_pilot(pilot, field):
-            if not pilot:
-                return
-            if pilot.company_role != 'pilot':
-                errors[field] = f'{pilot.first_name} is not a pilot.'
-                return
-            if self.company and pilot.company != self.company:
-                errors[field] = f'{pilot.first_name} is not part of company {self.company}.'
-                return
-            if not hasattr(pilot, 'pilot_info'):
-                errors[field] = f'{pilot.first_name} does not have pilot info.'
-                return
-            if self.arrival_time and not pilot.pilot_info.is_cleared_to_fly(self.arrival_time.date()):
-                errors[field] = f'{pilot.first_name} is not medically cleared to fly.'
-            if not pilot.pilot_info.is_certified(self.pilot_requirement):
-                errors[field] = f'{pilot.first_name} does not meet the required certification level.'
-
-        check_pilot(self.primary_pilot, 'primary_pilot')
-        check_pilot(self.secondary_pilot, 'secondary_pilot')
-
-        if errors:
-            raise ValidationError(errors)
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
-        return f"Flight {self.flight_number} ({self.origin} → {self.destination})"
+        return f"WO#{self.work_order_id} {self.event_type} @ {self.created_at}"
 
 
+class DiscrepancyActivity(models.Model):
+    """History entries for discrepancy updates."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+
+    discrepancy = models.ForeignKey(
+        Discrepancy, on_delete=models.CASCADE, related_name="activities"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discrepancy_activities",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"DISC#{self.discrepancy_id} {self.event_type} @ {self.created_at}"
+
+      
 class Tool(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="tools")
     name = models.CharField(max_length=200)
@@ -634,3 +690,46 @@ class CalibrationRecord(models.Model):
 
     def __str__(self):
         return f"Calibration of {self.tool.name} on {self.calibration_date} by {self.performed_by}"
+        
+
+class AircraftPhoto(models.Model):
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="photos"
+    )
+    image = models.ImageField(upload_to="aircraft_photos/")
+    caption = models.CharField(max_length=200, blank=True, default="")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+
+class AircraftMaintenanceInterval(models.Model):
+    INTERVAL_TYPE_CHOICES = [
+        ("hours", "Hours"),
+        ("days", "Days"),
+        ("both", "Both"),
+    ]
+
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="maintenance_intervals"
+    )
+    name = models.CharField(max_length=120)
+    interval_type = models.CharField(
+        max_length=20, choices=INTERVAL_TYPE_CHOICES, default="hours"
+    )
+    due_every_hours = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    due_every_days = models.PositiveIntegerField(null=True, blank=True)
+    last_done_tach = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_hobbs = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_date = models.DateField(null=True, blank=True)
+    is_ad = models.BooleanField(default=False)
+    ad_number = models.CharField(max_length=80, blank=True, default="")
+    ad_revision = models.CharField(max_length=40, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]
