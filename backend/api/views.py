@@ -23,6 +23,8 @@ from .models import (
     DiscrepancyActivity,
     Flight,
     Inventory,
+    Tool,
+    CalibrationRecord,
     InventoryPart,
     Part,
     Profile,
@@ -49,6 +51,8 @@ from .serializers import (
     FleetAircraftListSerializer,
     FlightSerializer,
     InventorySerializer,
+    ToolSerializer,
+    CalibrationRecordSerializer,
     PartSerializer,
     ProfileSerializer,
     WorkOrderSerializer,
@@ -766,6 +770,19 @@ class CompanyLowStockInventoryListView(generics.ListAPIView):
 
 
 
+@api_view(["GET"])
+@permission_classes([IsMechanicOrManager])
+def company_tools_view(request):
+    company = request.user.company
+    if company is None:
+        return Response(
+            {"error": "User does not have an associated company"}, status=403
+        )
+    tools = Tool.objects.filter(company=company).order_by("name")
+    serializer = ToolSerializer(tools, many=True)
+    return Response(serializer.data)
+
+
 ####
 # ViewSets
 ####
@@ -904,6 +921,55 @@ class InventoryViewSet(viewsets.ModelViewSet):
         serializer.save(inventory=inv)
 
 
+class ToolViewSet(viewsets.ModelViewSet):
+    serializer_class = ToolSerializer
+    permission_classes = [IsMechanicOrManager]
+
+    def get_queryset(self):
+        user_company = getattr(self.request.user, "company", None)
+        if not user_company:
+            return Tool.objects.none()
+        return Tool.objects.filter(company=user_company).order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
+
+    @action(detail=True, methods=["post"])
+    def record_calibration(self, request, pk=None):
+        tool = self.get_object()
+        serializer = CalibrationRecordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        record = serializer.save(tool=tool)
+        tool.calibration_due_date = record.next_due_date
+        tool.save()
+        return Response(CalibrationRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"])
+    def calibration_history(self, request, pk=None):
+        tool = self.get_object()
+        records = tool.calibration_history.order_by("-calibration_date")
+        serializer = CalibrationRecordSerializer(records, many=True)
+        return Response(serializer.data)
+
+
+class FlightViewSet(viewsets.ModelViewSet):
+    queryset = Flight.objects.all().order_by('-departure_time')
+    serializer_class = FlightSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            self.perform_create(serializer)
+        except ValidationError as e:
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+      
+      
 class FleetAircraftListView(generics.ListAPIView):
     serializer_class = FleetAircraftListSerializer
     permission_classes = [IsAuthenticated]
