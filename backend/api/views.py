@@ -8,7 +8,7 @@ from django.utils.dateparse import parse_datetime, parse_date
 from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import generics, permissions, status, viewsets
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes, action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -29,6 +29,7 @@ from .models import (
     WorkOrder,
     WorkOrderActivity,
 )
+
 from .permissions import (
     HasCompanyRole,
     IsCompanyMember,
@@ -36,6 +37,8 @@ from .permissions import (
     IsMechanicOrManager,
     IsMechanicOrManagerOrPilot,
     IsOwnProfileOrManager,
+    CanReportDiscrepancy,
+    CanSignWorkOrder,
 )
 from .serializers import (
     AircraftSerializer,
@@ -226,6 +229,8 @@ def company_scoped_discrepancy_queryset(request):
         return qs.filter(reporter_id=user.id)
     return qs
 
+
+from datetime import date, timedelta
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -508,6 +513,22 @@ def company_flights_view(request):
     serializer = FlightSerializer(flights, many=True)
     return Response(serializer.data)
 
+@api_view(['GET'])
+@permission_classes([IsMechanicOrManager])
+def maintenance_dashboard_view(request):
+    company = request.user.company
+    today = date.today()
+    due_soon_threshold = today + timedelta(days=10)
+
+    open_wos = WorkOrder.objects.filter(aircraft__company=company).exclude(status="closed")
+
+    data = {
+        "pending_discrepancies": Discrepancy.objects.filter(aircraft__company=company, status="pending").count(),
+        "open_work_orders": open_wos.count(),
+        "overdue": open_wos.filter(due_by__isnull=False, due_by__lt=today).count(),
+        "due_soon": open_wos.filter(due_by__isnull=False, due_by__gte=today, due_by__lte=due_soon_threshold).count(),
+    }
+    return Response(data, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -767,6 +788,13 @@ class AircraftViewSet(viewsets.ModelViewSet):
     serializer_class = AircraftSerializer
     permission_classes = [IsManagerOrOwner]
 
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def work_order_history(self, request, pk=None):
+        aircraft = self.get_object()
+        work_orders = WorkOrder.objects.filter(aircraft=aircraft).order_by("-created_at")
+        serializer = WorkOrderSerializer(work_orders, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
     serializer_class = PartSerializer
@@ -786,6 +814,21 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
             return [IsManagerOrOwner()]
         return [IsMechanicOrManager()]
 
+    @action(detail=True, methods=["post"], permission_classes=[IsMechanicOrManager])
+    def open_work_order(self, request, pk=None):
+        discrepancy = self.get_object()
+        work_order = WorkOrder.objects.create(
+            aircraft=discrepancy.aircraft,
+            ATA_code=discrepancy.ata_code,
+            tach_time=discrepancy.tach_time,
+            status="open",
+            created_by=request.user,
+        )
+        discrepancy.work_order = work_order
+        discrepancy.save()
+        serializer = WorkOrderSerializer(work_order)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
     def perform_create(self, serializer):
         reporter = serializer.validated_data.get("reporter")
         if reporter is None:
@@ -811,6 +854,18 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
             serializer.save(created_by=self.request.user)
             return
         serializer.save()
+
+    @action(detail=True, methods=["post"], permission_classes=[CanSignWorkOrder])
+    def close(self, request, pk=None):
+        work_order = self.get_object()
+        work_order.status = "closed"
+        work_order.signed_by = request.user
+        work_order.signature_date = date.today()
+        work_order.completion_notes = request.data.get("completion_notes")
+        work_order.save()
+        work_order.discrepancies.all().update(status="closed")
+        serializer = WorkOrderSerializer(work_order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class FlightViewSet(viewsets.ModelViewSet):

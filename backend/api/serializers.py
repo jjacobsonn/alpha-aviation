@@ -228,6 +228,8 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             "ata_code",
             "tach_time",
             "status",
+            "signature",
+            "signature_date",
             "activities",
         ]
 
@@ -293,6 +295,9 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "signed_by",
             "signature",
             "signature_date",
+            "assignee",
+            "priority",
+            "completion_notes",
             "activities",
         ]
 

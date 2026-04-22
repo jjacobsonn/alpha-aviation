@@ -493,6 +493,12 @@ class WorkOrder(models.Model):
         ("critical", "Critical"),
     ]
 
+    assignee = models.ForeignKey(
+        'Profile', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assigned_work_orders'
+    )
+    completion_notes = models.TextField(blank=True, null=True)
+
     aircraft = models.ForeignKey(
         Aircraft, on_delete=models.CASCADE, related_name="work_orders"
     )
@@ -570,6 +576,8 @@ class Discrepancy(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="pending"
     )
+    signature = models.ImageField(upload_to="discrepancies_signatures/", null=True, blank=True)
+    signature_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"Discrepancy on {self.aircraft} ({self.status})"

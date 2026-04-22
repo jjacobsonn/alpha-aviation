@@ -208,7 +208,6 @@ class FlightInline(admin.TabularInline):
             "departure_time",
             "arrival_time",
             "flight_type",
-            "approved",
       )
       autocomplete_fields = ["aircraft"]
       def formfield_for_foreignkey(self, db_field, request, **kwargs):
