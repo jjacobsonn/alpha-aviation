@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0038_discrepancy_signature_discrepancy_signature_date_and_more'),
+        ('api', '0042_merge_20260421_0000'),
     ]
 
     operations = [
