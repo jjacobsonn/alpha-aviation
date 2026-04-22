@@ -14,8 +14,6 @@ from .models import (
     WorkOrderPart,
     Flight,
     Inventory,
-    Tool,
-    CalibrationRecord,
     InventoryPart,
 )
 from .maintenance_activity import (
@@ -457,52 +455,6 @@ class InventorySerializer(serializers.ModelSerializer):
         ]
 
 
-####
-# Tool & Equipment
-####
-
-
-class CalibrationRecordSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CalibrationRecord
-        fields = [
-            "id",
-            "tool",
-            "calibration_date",
-            "performed_by",
-            "next_due_date",
-            "notes",
-        ]
-        read_only_fields = ["tool"]
-
-
-class ToolSerializer(serializers.ModelSerializer):
-    calibration_alert = serializers.SerializerMethodField()
-    status = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Tool
-        fields = [
-            "id",
-            "company",
-            "name",
-            "description",
-            "serial_number",
-            "calibration_due_date",
-            "location",
-            "calibration_alert",
-            "status",
-        ]
-
-    def get_calibration_alert(self, obj):
-        return obj.calibration_alert
-
-    def get_status(self, obj):
-        return obj.status
-      
-
-      
-      
 class AircraftPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = AircraftPhoto
