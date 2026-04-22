@@ -79,7 +79,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "platform_role",
             "medically_cleared_until",
             "pilot_certificate",
-            "AP_certif icate_number",
+            "AP_certificate_number",
             "inspector_authentication",
         ]
 
