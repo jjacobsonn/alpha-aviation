@@ -16,7 +16,9 @@ describe('PartsPage', () => {
 
 		expect(screen.getByText('Parts in Stock')).toBeInTheDocument();
 		expect(screen.getByText('Low Stock Alert')).toBeInTheDocument();
-		expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument();
+		expect(
+			screen.getByPlaceholderText('Search part number, name, description, location…')
+		).toBeInTheDocument();
 		expect(screen.getByText('Actions')).toBeInTheDocument();
 	});
 

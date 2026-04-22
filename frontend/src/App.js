@@ -1,5 +1,5 @@
 import './App.css';
-import { BrowserRouter as Router, Routes, Route } from 'react-router';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { AppProvider } from './context/AppContext';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -12,6 +12,12 @@ import PartsPage from './pages/PartsPage';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import Maintenance from './pages/Maintenance';
+import WorkOrders from './pages/WorkOrders';
+import PilotDashboard from './pages/PilotDashboard';
+import DispatcherDashboard from './pages/DispatcherDashboard';
+import SiteAdminPortal from './pages/SiteAdminPortal';
+import FleetPage from './pages/FleetPage';
+import FleetDetailPage from './pages/FleetDetailPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -89,7 +95,7 @@ function App() {
 						<Route
 							path="/admin/companies"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+								<ProtectedRoute allowedRoles={['manager']}>
 									<Layout>
 										<AdminCompanies />
 									</Layout>
@@ -99,7 +105,7 @@ function App() {
 						<Route
 							path="/admin/companies/new"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+								<ProtectedRoute allowedRoles={['manager']}>
 									<Layout>
 										<AdminCompanyForm />
 									</Layout>
@@ -109,7 +115,7 @@ function App() {
 						<Route
 							path="/admin/companies/current"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager']}>
+								<ProtectedRoute allowedRoles={['manager']}>
 									<Layout>
 										<CompanyOverview />
 									</Layout>
@@ -132,6 +138,66 @@ function App() {
 								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
 									<Layout>
 										<Maintenance />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/work-orders"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
+									<Layout>
+										<WorkOrders />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/fleet"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+									<Layout>
+										<FleetPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/fleet/:id"
+							element={
+								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+									<Layout>
+										<FleetDetailPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/pilot-dashboard"
+							element={
+								<ProtectedRoute allowedRoles={['pilot', 'owner']}>
+									<Layout>
+										<PilotDashboard />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/dispatcher-dashboard"
+							element={
+								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
+									<Layout>
+										<DispatcherDashboard />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/site-admin"
+							element={
+								<ProtectedRoute requirePlatformAdmin>
+									<Layout>
+										<SiteAdminPortal />
 									</Layout>
 								</ProtectedRoute>
 							}

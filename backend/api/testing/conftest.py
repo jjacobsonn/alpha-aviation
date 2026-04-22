@@ -204,6 +204,24 @@ def sample_discrepancy(db, sample_work_order, sample_aircraft, sample_user):
         status="pending",
     )
 
+
+@pytest.fixture
+def sample_maintenance_interval(db, sample_aircraft):
+    from api.models import AircraftMaintenanceInterval
+
+    sample_aircraft.tach_current = 1500.0
+    sample_aircraft.hobbs_current = 1100.0
+    sample_aircraft.save(update_fields=["tach_current", "hobbs_current"])
+
+    return AircraftMaintenanceInterval.objects.create(
+        aircraft=sample_aircraft,
+        name="100 Hour Inspection",
+        interval_type="hours",
+        due_every_hours=100.0,
+        last_done_tach=1430.0,
+        is_ad=False,
+    )
+
 @pytest.fixture
 def api_client():
     """Provide Django REST Framework test client"""

@@ -93,7 +93,7 @@ const AdminCompanyForm = () => {
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            New Company
+            New organization
           </Typography>
         </Stack>
 

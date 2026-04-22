@@ -2,24 +2,25 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Login from '../../pages/Login';
 import { AppContext } from '../../context/AppContext';
-import { loginUser } from '../../shared/Api';
+import { loginUser, fetchCurrentUser } from '../../shared/Api';
 
 const mockNavigate = jest.fn();
-const mockUseLocation = jest.fn();
+const mockUseLocation = jest.fn(() => ({ pathname: '/login' }));
 
-jest.mock('react-router', () => ({
-	...jest.requireActual('react-router'),
+jest.mock('react-router-dom', () => ({
+	...jest.requireActual('react-router-dom'),
 	useNavigate: () => mockNavigate,
 	useLocation: () => mockUseLocation(),
 }));
 
 jest.mock('../../shared/Api', () => ({
 	loginUser: jest.fn(),
+	fetchCurrentUser: jest.fn(),
 }));
 
-const renderLogin = (dispatch = jest.fn()) => {
+const renderLogin = (state = { user: {}, isAuthenticated: false }, dispatch = jest.fn()) => {
 	return render(
-		<AppContext.Provider value={{ dispatch }}>
+		<AppContext.Provider value={{ state, dispatch }}>
 			<Login />
 		</AppContext.Provider>
 	);
@@ -37,7 +38,7 @@ describe('Login page', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		localStorage.clear();
-		mockUseLocation.mockReturnValue({ state: null });
+		mockUseLocation.mockReturnValue({ pathname: '/login', state: null });
 	});
 
 	it('renders login form fields and submit button', () => {
@@ -55,20 +56,22 @@ describe('Login page', () => {
 		localStorage.setItem('accessToken', 'existing-access-token');
 		localStorage.setItem('refreshToken', 'existing-refresh-token');
 
-		renderLogin();
+		renderLogin({ user: { role: 'owner' }, isAuthenticated: true });
 
 		expect(mockNavigate).toHaveBeenCalledWith('/management', { replace: true });
 	});
 
-	it('submits credentials and navigates to requested page on success', async () => {
+	it('submits credentials and navigates to mechanic landing on success', async () => {
 		const user = userEvent.setup();
 		const mockDispatch = jest.fn();
-		mockUseLocation.mockReturnValue({
-			state: { from: { pathname: '/maintenance' } },
-		});
 		loginUser.mockResolvedValue({});
+		fetchCurrentUser.mockResolvedValue({
+			id: 1,
+			username: 'zach',
+			company_role: 'mechanic',
+		});
 
-		renderLogin(mockDispatch);
+		renderLogin({ user: {}, isAuthenticated: false }, mockDispatch);
 
 		await user.type(getFieldByName('username'), 'zach');
 		await user.type(getFieldByName('password'), 'super-secret');
@@ -80,6 +83,7 @@ describe('Login page', () => {
 				mockDispatch
 			);
 		});
+		expect(fetchCurrentUser).toHaveBeenCalled();
 
 		expect(mockNavigate).toHaveBeenCalledWith('/maintenance', { replace: true });
 	});

@@ -335,3 +335,71 @@ class TestViewSetEndpoints:
 
         assert response.status_code == status.HTTP_200_OK
         assert isinstance(response.data, list)
+
+
+@pytest.mark.django_db
+class TestFleetEndpoints:
+    def test_fleet_aircraft_list_success(self, authenticated_client, sample_aircraft):
+        url = reverse("fleet-aircraft-list")
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.data, list)
+
+    def test_fleet_aircraft_detail_success(self, authenticated_client, sample_aircraft):
+        url = reverse("fleet-aircraft-detail", kwargs={"aircraft_id": sample_aircraft.id})
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["id"] == sample_aircraft.id
+        assert "links" in response.data
+
+    def test_fleet_intervals_list_success(
+        self, authenticated_client, sample_aircraft, sample_maintenance_interval
+    ):
+        url = reverse("fleet-aircraft-intervals", kwargs={"aircraft_id": sample_aircraft.id})
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data) >= 1
+        assert "compliance_status" in response.data[0]
+
+    def test_fleet_intervals_create_mechanic_success(self, authenticated_client, sample_aircraft):
+        url = reverse("fleet-aircraft-intervals", kwargs={"aircraft_id": sample_aircraft.id})
+        payload = {
+            "name": "Annual",
+            "interval_type": "days",
+            "due_every_days": 365,
+            "last_done_date": timezone.now().date().isoformat(),
+        }
+        response = authenticated_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["name"] == "Annual"
+
+    def test_fleet_intervals_create_pilot_forbidden(
+        self, api_client, sample_company, sample_aircraft, django_user_model
+    ):
+        pilot = django_user_model.objects.create_user(
+            username="fleet.pilot",
+            email="fleet.pilot@example.com",
+            password="pass12345",
+            company=sample_company,
+            company_role="pilot",
+        )
+        api_client.force_authenticate(user=pilot)
+        url = reverse("fleet-aircraft-intervals", kwargs={"aircraft_id": sample_aircraft.id})
+        response = api_client.post(url, {"name": "Pilot Add"}, format="json")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_fleet_interval_complete_success(
+        self, authenticated_client, sample_maintenance_interval
+    ):
+        url = reverse(
+            "fleet-interval-complete",
+            kwargs={"interval_id": sample_maintenance_interval.id},
+        )
+        payload = {
+            "completed_date": timezone.now().date().isoformat(),
+            "completed_tach": 1500.0,
+            "notes": "Completed in test",
+        }
+        response = authenticated_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["last_done_tach"] == "1500.0"

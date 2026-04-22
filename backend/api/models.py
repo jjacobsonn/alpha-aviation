@@ -311,11 +311,26 @@ class Mechanic(models.Model):
 
 #Aircraft model, has basic information about the aircraft and a str function.
 class Aircraft(models.Model):
+    FLEET_STATUS_CHOICES = [
+        ("active", "Active"),
+        ("maintenance_due", "Maintenance Due"),
+        ("aog", "AOG"),
+        ("grounded", "Grounded"),
+    ]
+
     registration_number = models.CharField(max_length=50)
     model = models.CharField(max_length=200)
     manufacturer = models.CharField(max_length=200)
     engine_type = models.CharField(max_length=200, null= True)
     year_built = models.IntegerField(validators=[MaxValueValidator(9999),MinValueValidator(1903)])
+    location = models.CharField(max_length=100, blank=True, default="")
+    tach_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    hobbs_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    fleet_status = models.CharField(
+        max_length=40, choices=FLEET_STATUS_CHOICES, default="active"
+    )
+    aircraft_type = models.CharField(max_length=60, blank=True, default="")
+    specs = models.JSONField(default=dict, blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="aircraft", null=True, blank=True )
     
     def __str__(self):
@@ -356,14 +371,14 @@ class InventoryPart(models.Model):
         Consider this item low stock when current quantity is less than
         or equal to the alert threshold.
         """
-        if self.in_stock is None or self.stock_alert is None:
+        if self.quantity is None or self.stock_alert is None:
             return False
-        return self.in_stock <= self.stock_alert
+        return self.quantity <= self.stock_alert
 
     low_stock.boolean = True
     low_stock.short_description = "Low Stock?"
     def __str__(self):
-        return f"{self.part.name} with {self.in_stock} in stock"
+        return f"{self.part.name} with {self.quantity} in stock"
 
 
 class Flight(models.Model):
@@ -471,6 +486,12 @@ class WorkOrder(models.Model):
         ("awaiting_parts", "Awaiting Parts"),
         ("closed", "Closed"),
     ]
+    PRIORITY_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("critical", "Critical"),
+    ]
 
     aircraft = models.ForeignKey(
         Aircraft, on_delete=models.CASCADE, related_name="work_orders"
@@ -485,6 +506,9 @@ class WorkOrder(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(
         max_length=50, choices=STATUS_CHOICES, default="open"
+    )
+    priority = models.CharField(
+        max_length=20, choices=PRIORITY_CHOICES, default="medium"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -549,3 +573,112 @@ class Discrepancy(models.Model):
 
     def __str__(self):
         return f"Discrepancy on {self.aircraft} ({self.status})"
+
+
+class WorkOrderActivity(models.Model):
+    """History entries for work order changes."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="activities"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="work_order_activities",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"WO#{self.work_order_id} {self.event_type} @ {self.created_at}"
+
+
+class DiscrepancyActivity(models.Model):
+    """History entries for discrepancy updates."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+
+    discrepancy = models.ForeignKey(
+        Discrepancy, on_delete=models.CASCADE, related_name="activities"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discrepancy_activities",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"DISC#{self.discrepancy_id} {self.event_type} @ {self.created_at}"
+
+
+class AircraftPhoto(models.Model):
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="photos"
+    )
+    image = models.ImageField(upload_to="aircraft_photos/")
+    caption = models.CharField(max_length=200, blank=True, default="")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+
+class AircraftMaintenanceInterval(models.Model):
+    INTERVAL_TYPE_CHOICES = [
+        ("hours", "Hours"),
+        ("days", "Days"),
+        ("both", "Both"),
+    ]
+
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="maintenance_intervals"
+    )
+    name = models.CharField(max_length=120)
+    interval_type = models.CharField(
+        max_length=20, choices=INTERVAL_TYPE_CHOICES, default="hours"
+    )
+    due_every_hours = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    due_every_days = models.PositiveIntegerField(null=True, blank=True)
+    last_done_tach = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_hobbs = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_date = models.DateField(null=True, blank=True)
+    is_ad = models.BooleanField(default=False)
+    ad_number = models.CharField(max_length=80, blank=True, default="")
+    ad_revision = models.CharField(max_length=40, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]

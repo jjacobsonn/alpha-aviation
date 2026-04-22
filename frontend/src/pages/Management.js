@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
 	Box,
 	Container,
@@ -10,45 +11,114 @@ import {
 	Stack,
 	Chip,
 	Typography,
+	Button,
+	MenuItem,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+	Link,
+	TextField,
 } from '@mui/material';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
-import InventoryIcon from '@mui/icons-material/Inventory';
 import BuildIcon from '@mui/icons-material/Build';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RequestPageIcon from '@mui/icons-material/RequestPage';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import {
-	fetchCompanyAircrafts,
-	fetchCompanyLowStockInventoriesDetailed,
 	fetchCompanyWorkorders,
 	fetchCompanyDiscrepancies,
+	fetchCompanyUsers,
+	fetchManagementDashboard,
+	updateProfile,
 } from '../shared/Api';
+import { useAppContext } from '../context/AppContext';
+import { isPlatformAdmin } from '../shared/rbac';
+
+const ROLE_LABELS = {
+	owner: 'Owner',
+	manager: 'Manager',
+	mechanic: 'Mechanic',
+	pilot: 'Pilot',
+	dispatcher: 'Dispatcher',
+};
+
+function maintenanceLinkForActivity(item) {
+	if (item.entityType === 'workorder') {
+		return `/maintenance?wo=${item.entityId}`;
+	}
+	if (item.entityType === 'discrepancy') {
+		return `/maintenance?disc=${item.entityId}`;
+	}
+	return '/maintenance';
+}
+
+function maintenanceActionForActivity(item) {
+	if (item.entityType === 'workorder') {
+		if (!item.assignedToId) return 'Assign';
+		if (item.status === 'open') return 'Start';
+		if (item.status === 'in_progress') return 'Review';
+		if (item.status === 'awaiting_parts') return 'Review parts';
+		if (item.status === 'closed') return 'View';
+	}
+	if (item.entityType === 'discrepancy') {
+		if (item.status === 'pending') return 'Triage';
+		return 'View';
+	}
+	return 'Open';
+}
 
 const Management = () => {
+	const navigate = useNavigate();
+	const { state } = useAppContext();
+	const platformAdmin = isPlatformAdmin(state.user);
+	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
-	const [aircraft, setAircraft] = useState([]);
-	const [lowStockInventories, setLowStockInventories] = useState([]);
+	const [dashboard, setDashboard] = useState(null);
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
+	const [companyUsers, setCompanyUsers] = useState([]);
+	const [editUserOpen, setEditUserOpen] = useState(false);
+	const [editingUserId, setEditingUserId] = useState(null);
+	const [editingUserForm, setEditingUserForm] = useState({
+		first_name: '',
+		last_name: '',
+		email: '',
+		phone_number: '',
+		company_role: '',
+	});
+	const [savingUser, setSavingUser] = useState(false);
 
 	useEffect(() => {
 		let mounted = true;
 		const load = async () => {
+			if (platformAdmin && !hasCompanyContext) {
+				setLoading(false);
+				return;
+			}
 			setLoading(true);
 			setError('');
 			try {
-				const [ac, lowStock, wo, disc] = await Promise.all([
-					fetchCompanyAircrafts(),
-					fetchCompanyLowStockInventoriesDetailed(),
+				const [dash, wo, disc, users] = await Promise.all([
+					fetchManagementDashboard(),
 					fetchCompanyWorkorders(),
 					fetchCompanyDiscrepancies(),
+					fetchCompanyUsers(),
 				]);
 				if (!mounted) return;
-				setAircraft(Array.isArray(ac) ? ac : []);
-				setLowStockInventories(Array.isArray(lowStock) ? lowStock : []);
+				setDashboard(dash && typeof dash === 'object' ? dash : null);
 				setWorkOrders(Array.isArray(wo) ? wo : []);
 				setDiscrepancies(Array.isArray(disc) ? disc : []);
+				setCompanyUsers(Array.isArray(users) ? users : []);
 			} catch (e) {
 				if (!mounted) return;
 				setError(e?.message || 'Failed to load management dashboard.');
@@ -61,16 +131,22 @@ const Management = () => {
 		return () => {
 			mounted = false;
 		};
-	}, []);
+	}, [platformAdmin, hasCompanyContext]);
 
 	const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-	const pendingTasksCount = useMemo(() => {
-		const openWOs = (workOrders || []).filter((wo) => wo?.status !== 'closed').length;
-		return openWOs + (discrepancies || []).length;
-	}, [workOrders, discrepancies]);
+	const counts = dashboard?.counts;
 
-	const lowStockCount = useMemo(() => (lowStockInventories || []).length, [lowStockInventories]);
+	const pendingTasksCount = useMemo(() => {
+		if (counts) {
+			return (counts.work_orders_open || 0) + (counts.discrepancies_pending || 0);
+		}
+		const openWOs = (workOrders || []).filter((wo) => wo?.status !== 'closed').length;
+		const pendingDisc = (discrepancies || []).filter((d) => d?.status === 'pending').length;
+		return openWOs + pendingDisc;
+	}, [counts, workOrders, discrepancies]);
+
+	const lowStockCount = useMemo(() => counts?.low_stock_items ?? 0, [counts]);
 
 	const completedTodayCount = useMemo(() => {
 		return (workOrders || []).filter((wo) => {
@@ -85,7 +161,7 @@ const Management = () => {
 		() => [
 			{
 				label: 'Active Aircraft',
-				value: aircraft.length,
+				value: counts?.aircraft ?? '—',
 				trend: 'Live',
 				icon: <FlightTakeoffIcon sx={{ fontSize: 32 }} />,
 				color: '#273469',
@@ -112,7 +188,7 @@ const Management = () => {
 				color: '#4CAF50',
 			},
 		],
-		[aircraft.length, completedTodayCount, lowStockCount, pendingTasksCount]
+		[counts?.aircraft, completedTodayCount, lowStockCount, pendingTasksCount]
 	);
 
 	const recentActivity = useMemo(() => {
@@ -125,6 +201,13 @@ const Management = () => {
 				color: wo?.status === 'closed' ? '#4CAF50' : '#FF9800',
 				title: wo?.status === 'closed' ? 'Work Order Completed' : 'Work Order Updated',
 				detail: wo?.title || `Work Order #${wo.id}`,
+				entityType: 'workorder',
+				entityId: wo?.id,
+				status: wo?.status,
+				assignedToId:
+					typeof wo?.created_by === 'object' && wo?.created_by != null
+						? wo.created_by.id
+						: wo?.created_by ?? null,
 			};
 		});
 
@@ -135,6 +218,9 @@ const Management = () => {
 			color: '#f32f21ff',
 			title: 'New Discrepancy',
 			detail: d?.description || `Discrepancy #${d.id}`,
+			entityType: 'discrepancy',
+			entityId: d?.id,
+			status: d?.status,
 		}));
 
 		return [...woItems, ...discItems].sort((a, b) => {
@@ -144,10 +230,70 @@ const Management = () => {
 		});
 	}, [discrepancies, workOrders]);
 
+	const teamByRole = dashboard?.team_by_role || {};
+	const sortedUsers = useMemo(() => {
+		const list = [...(companyUsers || [])];
+		list.sort((a, b) => {
+			const r = String(a.company_role || '').localeCompare(String(b.company_role || ''));
+			if (r !== 0) return r;
+			return String(a.last_name || '').localeCompare(String(b.last_name || ''));
+		});
+		return list;
+	}, [companyUsers]);
+	const canEditRoster = platformAdmin || state.user?.role === 'owner';
+
+	const openEditUser = (u) => {
+		setEditingUserId(u.id);
+		setEditingUserForm({
+			first_name: u.first_name || '',
+			last_name: u.last_name || '',
+			email: u.email || '',
+			phone_number: u.phone_number || '',
+			company_role: u.company_role || '',
+		});
+		setEditUserOpen(true);
+	};
+
+	const closeEditUser = () => {
+		setEditUserOpen(false);
+		setEditingUserId(null);
+	};
+
+	const saveEditedUser = async () => {
+		if (!editingUserId) return;
+		setSavingUser(true);
+		setError('');
+		try {
+			await updateProfile(editingUserId, editingUserForm);
+			const users = await fetchCompanyUsers();
+			setCompanyUsers(Array.isArray(users) ? users : []);
+			closeEditUser();
+		} catch (e) {
+			setError(e?.message || 'Failed to update user.');
+		} finally {
+			setSavingUser(false);
+		}
+	};
+
+	const companyBlock = dashboard?.company;
+	const displayCompanyName =
+		companyBlock?.name || state.user?.companyName || 'Your company';
+
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
-				{/* Welcome Section */}
+				{platformAdmin && !hasCompanyContext && (
+					<Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+						<Typography variant="body2" color="text.secondary">
+							Select a company from{' '}
+							<Link component={RouterLink} to="/admin/companies" underline="hover">
+								Organizations
+							</Link>{' '}
+							to load this dashboard for that company.
+						</Typography>
+					</Box>
+				)}
+
 				<Box sx={{ mb: 4 }}>
 					<Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
 						Welcome Back
@@ -162,6 +308,66 @@ const Management = () => {
 					</Typography>
 				</Box>
 
+				{companyBlock && !loading && (
+					<Card
+						elevation={0}
+						sx={{
+							mb: 4,
+							border: '1px solid',
+							borderColor: 'divider',
+							background: 'linear-gradient(135deg, #27346908 0%, #ffffff 100%)',
+						}}
+					>
+						<CardContent sx={{ p: 3 }}>
+							<Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }} justifyContent="space-between">
+								<Stack direction="row" spacing={2} alignItems="center">
+									<Box
+										sx={{
+											bgcolor: '#27346915',
+											color: '#273469',
+											p: 1.5,
+											borderRadius: 2,
+											display: 'flex',
+										}}
+									>
+										<BusinessOutlinedIcon sx={{ fontSize: 40 }} />
+									</Box>
+									<Box>
+										<Typography variant="overline" color="text.secondary">
+											Your organization
+										</Typography>
+										<Typography variant="h5" sx={{ fontWeight: 800 }}>
+											{displayCompanyName}
+										</Typography>
+										{companyBlock.locations ? (
+											<Typography variant="body2" color="text.secondary">
+												{companyBlock.locations}
+											</Typography>
+										) : null}
+										<Typography variant="caption" color="text.secondary">
+											Company ID {companyBlock.id}
+										</Typography>
+									</Box>
+								</Stack>
+								<Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+									<Button
+										variant="contained"
+										component={RouterLink}
+										to="/parts"
+										startIcon={<Inventory2OutlinedIcon />}
+										sx={{ bgcolor: '#273469', '&:hover': { bgcolor: '#1a2545' } }}
+									>
+										Inventory & parts
+									</Button>
+									<Button variant="outlined" component={RouterLink} to="/admin/companies/current">
+										Organization overview
+									</Button>
+								</Stack>
+							</Stack>
+						</CardContent>
+					</Card>
+				)}
+
 				{/* Error */}
 				{error && (
 					<Stack sx={{ mb: 3 }}>
@@ -171,7 +377,6 @@ const Management = () => {
 					</Stack>
 				)}
 
-				{/* Quick Stats */}
 				<Grid container spacing={3} sx={{ mb: 5 }}>
 					{quickStats.map((stat, index) => (
 						<Grid item xs={12} sm={6} md={3} key={index}>
@@ -230,11 +435,93 @@ const Management = () => {
 					))}
 				</Grid>
 
-				{/* Recent Activity Section */}
-				<Box sx={{ mt: 5 }}>
-					<Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-						Recent Activity
+				{!loading && teamByRole && Object.keys(teamByRole).length > 0 && (
+					<Box sx={{ mb: 4 }}>
+						<Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+							<GroupsOutlinedIcon color="primary" />
+							<Typography variant="h6" sx={{ fontWeight: 600 }}>
+								Team by role
+							</Typography>
+						</Stack>
+						<Stack direction="row" flexWrap="wrap" gap={1}>
+							{Object.entries(teamByRole)
+								.filter(([, n]) => n > 0)
+								.sort((a, b) => a[0].localeCompare(b[0]))
+								.map(([role, n]) => (
+									<Chip
+										key={role}
+										label={`${ROLE_LABELS[role] || role}: ${n}`}
+										variant="outlined"
+										sx={{ fontWeight: 600 }}
+									/>
+								))}
+						</Stack>
+					</Box>
+				)}
+
+				{/* Roster */}
+				<Box sx={{ mb: 5 }}>
+					<Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+						Company roster
 					</Typography>
+					<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+						<CardContent sx={{ p: 0 }}>
+							{loading ? (
+								<Typography sx={{ p: 3 }} color="text.secondary">
+									Loading…
+								</Typography>
+							) : sortedUsers.length === 0 ? (
+								<Typography sx={{ p: 3 }} color="text.secondary">
+									No users in this company yet.
+								</Typography>
+							) : (
+								<Table size="small">
+									<TableHead>
+										<TableRow>
+											<TableCell>Name</TableCell>
+											<TableCell>Username</TableCell>
+											<TableCell>Role</TableCell>
+											<TableCell>Email</TableCell>
+											{canEditRoster ? <TableCell>Actions</TableCell> : null}
+										</TableRow>
+									</TableHead>
+									<TableBody>
+										{sortedUsers.map((u) => (
+											<TableRow key={u.id}>
+												<TableCell>
+													{[u.first_name, u.middle_name, u.last_name].filter(Boolean).join(' ') || '—'}
+												</TableCell>
+												<TableCell>{u.username}</TableCell>
+												<TableCell>
+													<Chip size="small" label={ROLE_LABELS[u.company_role] || u.company_role || '—'} />
+												</TableCell>
+												<TableCell>{u.email || '—'}</TableCell>
+												{canEditRoster ? (
+													<TableCell>
+														<Button size="small" variant="outlined" onClick={() => openEditUser(u)}>
+															Edit
+														</Button>
+													</TableCell>
+												) : null}
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							)}
+						</CardContent>
+					</Card>
+				</Box>
+
+				{/* Recent Activity Section */}
+				<Box sx={{ mt: 2 }}>
+					<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+						<Typography variant="h5" sx={{ fontWeight: 600 }}>
+							Recent Activity
+						</Typography>
+						<Button component={RouterLink} to="/work-orders" variant="text" size="small">
+							View all
+						</Button>
+					</Stack>
 					<Card
 						elevation={0}
 						sx={{
@@ -253,7 +540,16 @@ const Management = () => {
 								<Stack spacing={2.5}>
 									{recentActivity.slice(0, 4).map((it, idx) => (
 										<React.Fragment key={it.key}>
-											<Stack direction="row" spacing={2} alignItems="center">
+											<Stack
+												direction="row"
+												spacing={2}
+												alignItems="center"
+												onClick={(e) => {
+													if (e.target.closest('a')) return;
+													navigate(maintenanceLinkForActivity(it));
+												}}
+												sx={{ cursor: 'pointer' }}
+											>
 												<Avatar sx={{ bgcolor: it.color }}>
 													{it.icon}
 												</Avatar>
@@ -265,9 +561,19 @@ const Management = () => {
 														{it.detail}
 													</Typography>
 												</Box>
-												<Typography variant="caption" color="text.secondary">
-													{it.when ? new Date(it.when).toLocaleString() : ''}
-												</Typography>
+												<Stack alignItems="flex-end" spacing={0.5}>
+													<Typography variant="caption" color="text.secondary">
+														{it.when ? new Date(it.when).toLocaleString() : ''}
+													</Typography>
+													<Button
+														size="small"
+														variant="outlined"
+														component={RouterLink}
+														to={maintenanceLinkForActivity(it)}
+													>
+														{maintenanceActionForActivity(it)}
+													</Button>
+												</Stack>
 											</Stack>
 											{idx !== Math.min(3, recentActivity.length - 1) && <Divider />}
 										</React.Fragment>
@@ -277,6 +583,49 @@ const Management = () => {
 						</CardContent>
 					</Card>
 				</Box>
+				<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
+					<DialogTitle>Edit user</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField
+								label="First name"
+								value={editingUserForm.first_name}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, first_name: e.target.value }))}
+							/>
+							<TextField
+								label="Last name"
+								value={editingUserForm.last_name}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, last_name: e.target.value }))}
+							/>
+							<TextField
+								label="Email"
+								value={editingUserForm.email}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, email: e.target.value }))}
+							/>
+							<TextField
+								label="Phone number"
+								value={editingUserForm.phone_number}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, phone_number: e.target.value }))}
+							/>
+							<TextField
+								select
+								label="Role"
+								value={editingUserForm.company_role}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, company_role: e.target.value }))}
+							>
+								{Object.entries(ROLE_LABELS).map(([value, label]) => (
+									<MenuItem key={value} value={value}>{label}</MenuItem>
+								))}
+							</TextField>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={closeEditUser}>Cancel</Button>
+						<Button variant="contained" onClick={saveEditedUser} disabled={savingUser}>
+							Save
+						</Button>
+					</DialogActions>
+				</Dialog>
 			</Container>
 		</Box>
 	);
