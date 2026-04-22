@@ -1,6 +1,14 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
+def _is_platform_admin(user):
+    return bool(
+        user
+        and user.is_authenticated
+        and (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+    )
+
+
 class IsCompanyMember(BasePermission):
     """
     Allows access only to authenticated users that belong to a company.
@@ -8,6 +16,8 @@ class IsCompanyMember(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
+        if _is_platform_admin(user):
+            return True
         return bool(
             user
             and user.is_authenticated
@@ -48,6 +58,8 @@ class HasCompanyRole(BasePermission):
 
         if not (user and user.is_authenticated):
             return False
+        if _is_platform_admin(user):
+            return True
 
         if not allowed:
             # If no roles specified, treat as "no additional restriction"
@@ -72,7 +84,10 @@ class IsOwner(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        return bool(user and user.is_authenticated and user.company_role == "owner")
+        return bool(
+            (user and user.is_authenticated and user.company_role == "owner")
+            or _is_platform_admin(user)
+        )
 
 
 class IsManagerOrOwner(BasePermission):
@@ -85,7 +100,10 @@ class IsManagerOrOwner(BasePermission):
         return bool(
             user
             and user.is_authenticated
-            and getattr(user, "company_role", None) in {"manager", "owner"}
+            and (
+                getattr(user, "company_role", None) in {"manager", "owner"}
+                or _is_platform_admin(user)
+            )
         )
 
 
@@ -99,8 +117,29 @@ class IsMechanicOrManager(BasePermission):
         return bool(
             user
             and user.is_authenticated
-            and getattr(user, "company_role", None)
-            in {"mechanic", "manager", "owner"}
+            and (
+                getattr(user, "company_role", None)
+                in {"mechanic", "manager", "owner"}
+                or _is_platform_admin(user)
+            )
+        )
+
+
+class IsMechanicOrManagerOrPilot(BasePermission):
+    """
+    Same as IsMechanicOrManager, plus pilot (e.g. list own discrepancy reports).
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                getattr(user, "company_role", None)
+                in {"mechanic", "manager", "owner", "pilot"}
+                or _is_platform_admin(user)
+            )
         )
 
 
@@ -115,7 +154,9 @@ class IsOwnProfileOrManager(BasePermission):
         if not (user and user.is_authenticated):
             return False
 
-        if getattr(user, "company_role", None) in {"manager", "owner"}:
+        if getattr(user, "company_role", None) in {"manager", "owner"} or _is_platform_admin(
+            user
+        ):
             return True
 
         return getattr(obj, "id", None) == getattr(user, "id", None)

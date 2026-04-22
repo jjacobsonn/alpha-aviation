@@ -3,11 +3,30 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 from .models import *
 from django.utils.html import format_html
+
+
+class WorkOrderActivityInline(admin.TabularInline):
+    model = WorkOrderActivity
+    extra = 0
+    can_delete = False
+    readonly_fields = ("created_at", "actor", "event_type", "summary", "metadata")
+    ordering = ("-created_at",)
+
+
+class DiscrepancyActivityInline(admin.TabularInline):
+    model = DiscrepancyActivity
+    extra = 0
+    can_delete = False
+    readonly_fields = ("created_at", "actor", "event_type", "summary", "metadata")
+    ordering = ("-created_at",)
+
+
 #Admin display for discrepancies
 class DiscrepancyAdmin(admin.ModelAdmin):
     list_display = ('id', 'aircraft', 'status', 'date_reported', 'reporter')
     list_filter = ('status', 'aircraft')
     search_fields = ('description', 'ata_code')
+    inlines = [DiscrepancyActivityInline]
 
 #Inline display used when refrenced on other page for discrepancies
 class DiscrepancyInline(admin.TabularInline):
@@ -24,7 +43,7 @@ class WorkOrderPartInline(admin.TabularInline):
 class WorkOrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'aircraft', 'status', 'created_by', 'created_at', 'due_by', 'tach_time', 'hobbs_time', 'ATA_code', 'components_affected', 'signed_by', 'signature_date', 'signature')
     list_filter = ('status', 'aircraft')
-    inlines = [WorkOrderPartInline]
+    inlines = [WorkOrderPartInline, WorkOrderActivityInline]
     search_fields = ('title', 'description')
 
 #Inline display used when refrenced on other page for workorders
@@ -154,13 +173,16 @@ class InventoryPartInline(admin.TabularInline):
 
 #Admin display for inventories
 class InventoryAdmin(admin.ModelAdmin):
-      search_fields = ["shop_location"]
+      list_display = ("id", "company")
+      list_filter = ("company",)
+      search_fields = ("company__name",)
       inlines = [InventoryPartInline]
 
-#Inline display used when refrenced on other page for inventories
+# One company has inventory buckets; line items are InventoryPart rows.
 class InventoryInline(admin.TabularInline):
       model = Inventory
       extra = 0
+      show_change_link = True
 
 
 #Admin display for flights
@@ -215,6 +237,6 @@ admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Aircraft, AircraftAdmin)
 admin.site.register(Part, PartAdmin)
-admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(Flight, FlightAdmin)
-
+admin.site.register(WorkOrder, WorkOrderAdmin)
+admin.site.register(Discrepancy, DiscrepancyAdmin)

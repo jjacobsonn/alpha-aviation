@@ -54,10 +54,10 @@ const AdminCompanies = () => {
         >
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-              Company Admin
+              Organizations
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Create and manage tenant companies and their data.
+              Provision organizations and open an overview for fleet, people, and operations.
             </Typography>
           </Box>
           <Button
@@ -66,7 +66,7 @@ const AdminCompanies = () => {
             sx={{ borderRadius: 999 }}
             onClick={() => navigate('/admin/companies/new')}
           >
-            New company
+            New organization
           </Button>
         </Stack>
 
@@ -88,9 +88,10 @@ const AdminCompanies = () => {
                   cursor: 'pointer',
                   '&:hover': { boxShadow: 3 },
                 }}
-                // Owners/managers should land on a tenant overview that is wired
-                // to the backend API. "New company" remains create-only.
-                onClick={() => navigate('/admin/companies/current')}
+                onClick={() => {
+                  localStorage.setItem('adminCompanyId', String(co.id));
+                  navigate(`/admin/companies/current?company=${co.id}`);
+                }}
               >
                 <CardContent sx={{ p: 3 }}>
                   <Stack direction="row" spacing={2} alignItems="center">
@@ -124,7 +125,7 @@ const AdminCompanies = () => {
           {!loading && companies.length === 0 && (
             <Grid item xs={12}>
               <Typography variant="body2" color="text.secondary">
-                No companies found yet. Click &quot;New company&quot; to create one.
+                No organizations found yet. Click &quot;New organization&quot; to create one.
               </Typography>
             </Grid>
           )}

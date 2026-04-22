@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
+  Chip,
+  Divider,
   IconButton,
   Stack,
   Table,
@@ -25,13 +27,16 @@ import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import HandymanIcon from "@mui/icons-material/Handyman";
-import WorkHistoryIcon from "@mui/icons-material/WorkHistory";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import {
   deleteInventory,
   fetchCompanyInventoriesDetailed,
+  fetchCompanyWorkorders,
   updateInventory,
+  updatePart,
 } from "../shared/Api";
 
 function PartsPage() {
@@ -40,6 +45,8 @@ function PartsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [inventories, setInventories] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
+  const [search, setSearch] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editValues, setEditValues] = useState({
@@ -47,6 +54,9 @@ function PartsPage() {
     stockAlert: "",
     shopLocation: "",
     partId: null,
+    partNumber: "",
+    partName: "",
+    partDescription: "",
   });
 
   const openMenu = (event, part) => {
@@ -65,9 +75,13 @@ function PartsPage() {
       setIsLoading(true);
       setError("");
       try {
-        const data = await fetchCompanyInventoriesDetailed();
+        const [data, wos] = await Promise.all([
+          fetchCompanyInventoriesDetailed(),
+          fetchCompanyWorkorders(),
+        ]);
         if (!mounted) return;
         setInventories(Array.isArray(data) ? data : []);
+        setWorkOrders(Array.isArray(wos) ? wos : []);
       } catch (e) {
         if (!mounted) return;
         setError(e?.message || "Failed to load inventory.");
@@ -92,6 +106,9 @@ function PartsPage() {
       stockAlert: String(invRow?.stockAlert ?? ""),
       shopLocation: String(invRow?.shopLocation ?? ""),
       partId: invRow?.partId ?? null,
+      partNumber: invRow?.partNumber ?? "",
+      partName: invRow?.partName ?? "",
+      partDescription: invRow?.partDescription ?? "",
     });
     setEditOpen(true);
     setMenuAnchor(null);
@@ -102,6 +119,13 @@ function PartsPage() {
     setIsSavingEdit(true);
     setError("");
     try {
+      if (editValues.partId != null) {
+        await updatePart(editValues.partId, {
+          part_number: editValues.partNumber,
+          name: editValues.partName,
+          description: editValues.partDescription,
+        });
+      }
       const payload = {
         in_stock: Number(editValues.inStock),
         stock_alert: Number(editValues.stockAlert),
@@ -113,7 +137,7 @@ function PartsPage() {
       setInventories(Array.isArray(data) ? data : []);
       setEditOpen(false);
     } catch (e) {
-      setError(e?.message || "Failed to update inventory item.");
+      setError(e?.message || "Failed to save.");
     } finally {
       setIsSavingEdit(false);
     }
@@ -131,6 +155,17 @@ function PartsPage() {
     return inventories.filter((inv) => Number(inv?.in_stock ?? 0) > 0).length;
   }, [inventories]);
 
+  const awaitingPartsWoCount = useMemo(() => {
+    return (workOrders || []).filter((wo) => wo?.status === "awaiting_parts").length;
+  }, [workOrders]);
+
+  const totalUnitsOnHand = useMemo(() => {
+    return inventories.reduce((sum, inv) => {
+      const qty = Number(inv?.in_stock ?? inv?.quantity ?? 0);
+      return sum + (Number.isFinite(qty) ? qty : 0);
+    }, 0);
+  }, [inventories]);
+
   const dashboardNumbers = useMemo(() => {
     return [
       {
@@ -144,92 +179,67 @@ function PartsPage() {
         number: isLoading ? "—" : lowStockCount,
       },
       {
-        title: "Parts on Order",
-        icon: <WorkHistoryIcon />,
-        number: "—",
+        title: "Work orders awaiting parts",
+        icon: <HourglassEmptyIcon />,
+        number: isLoading ? "—" : awaitingPartsWoCount,
       },
       {
-        title: "Tools Due for Calibration",
-        icon: <WorkHistoryIcon />,
-        number: "—",
+        title: "Total units on hand",
+        icon: <Inventory2OutlinedIcon />,
+        number: isLoading ? "—" : totalUnitsOnHand,
       },
     ];
-  }, [isLoading, lowStockCount, partsInStockCount]);
+  }, [isLoading, awaitingPartsWoCount, lowStockCount, partsInStockCount, totalUnitsOnHand]);
 
   const inventoryFields = [
     "P/N",
-    "Part Name",
-    "OEM",
-    "Vendor",
-    "# in Stock",
-    "Min/Max lvl",
+    "Part name",
+    "Description",
+    "In stock",
+    "Reorder at",
     "Location",
-    "Condition",
-    "Expiration Date",
+    "Low stock",
     "Actions",
   ];
-
-  const columnWidths = {
-    pn: 120,
-    partName: 150,
-    oem: 120,
-    vendor: 120,
-    inStock: 90,
-    minMax: 110,
-    location: 140,
-    condition: 120,
-    expiration: 140,
-    actions: 120,
-  };
 
   const inventoryData = useMemo(() => {
     return inventories.map((inv) => {
       const part = inv?.part || {};
-      const min = Number(inv?.stock_alert ?? 0);
-      const max = "";
+      const qty = Number(inv?.in_stock ?? inv?.quantity ?? 0);
+      const alert = Number(inv?.stock_alert ?? 0);
+      const lowStock = alert > 0 && qty <= alert;
       return {
         id: inv?.id,
         pn: part?.part_number ?? "",
         partName: part?.name ?? "",
-        oem: "—",
-        vendor: "—",
-        inStock: Number(inv?.in_stock ?? 0),
-        stockAlert: Number(inv?.stock_alert ?? 0),
-        minMax: `${min}${max ? ` / ${max}` : ""}`,
-        shopLocation: inv?.shop_location ?? "—",
-        location: inv?.shop_location ?? "—",
-        condition: "—",
-        expiration: "—",
+        partDescription: part?.description ?? "",
+        partNumber: part?.part_number ?? "",
+        inStock: qty,
+        stockAlert: alert,
+        shopLocation: inv?.shop_location ?? "",
+        location: inv?.shop_location || "—",
+        lowStock,
         partId: part?.id ?? null,
       };
     });
   }, [inventories]);
 
-  const currentStatus = (amount, minMax, expiration) => {
-    const [min, max] = minMax.split(" / ").map(Number);
-
-    if (amount <= 0) return "OUT";
-
-    if (!expiration || expiration === "N/A") {
-      if (amount === 0) return "OUT";
-      if (amount > min) return "LOW";
-      return "OK";
-    }
-
-    const expirationDate = new Date(expiration);
-    const today = new Date();
-
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const daysTilExp = Math.ceil((expirationDate - today) / msPerDay);
-
-    if (daysTilExp <= 0) return "EXPIRED";
-    if (daysTilExp < 10) return "EXPIRING";
-    if (amount < min) return "LOW";
-    return "OK";
-  };
-
-  // Keep table rows neutral while preserving the computed status logic.
-  const getStatusColor = () => "transparent";
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return inventoryData;
+    return inventoryData.filter((row) => {
+      const blob = [
+        row.pn,
+        row.partName,
+        row.partDescription,
+        row.location,
+        row.shopLocation,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [inventoryData, search]);
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -241,7 +251,7 @@ function PartsPage() {
                 Parts
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Inventory and low stock alerts
+                Part catalog and quantities for your company.
               </Typography>
             </Box>
           </Stack>
@@ -275,7 +285,9 @@ function PartsPage() {
                   fullWidth
                   size="small"
                   variant="outlined"
-                  placeholder="Search..."
+                  placeholder="Search part number, name, description, location…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
 
                 {error && (
@@ -305,31 +317,41 @@ function PartsPage() {
                     </TableRow>
                   </TableHead>
 
-                  {inventoryData.map((item) => {
-                    const status = currentStatus(item.inStock, item.minMax, item.expiration);
-                    const color = getStatusColor(status);
-                    return (
-                      <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
-                        <TableCell>{item.pn}</TableCell>
-                        <TableCell>{item.partName}</TableCell>
-                        <TableCell>{item.oem}</TableCell>
-                        <TableCell>{item.vendor}</TableCell>
-                        <TableCell>{item.inStock}</TableCell>
-                        <TableCell>{item.minMax}</TableCell>
-                        <TableCell>{item.location}</TableCell>
-                        <TableCell>{item.condition}</TableCell>
-                        <TableCell>{item.expiration}</TableCell>
-                        <TableCell>
-                          <IconButton
-                            onClick={(e) => openMenu(e, item)}
-                            disabled={isLoading}
-                          >
-                            <MoreVertIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {filteredRows.map((item) => (
+                    <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
+                      <TableCell>{item.pn}</TableCell>
+                      <TableCell>{item.partName}</TableCell>
+                      <TableCell
+                        sx={{
+                          maxWidth: 280,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={item.partDescription || ""}
+                      >
+                        {item.partDescription || "—"}
+                      </TableCell>
+                      <TableCell>{item.inStock}</TableCell>
+                      <TableCell>{item.stockAlert}</TableCell>
+                      <TableCell>{item.location}</TableCell>
+                      <TableCell>
+                        {item.lowStock ? (
+                          <Chip size="small" color="warning" label="Yes" />
+                        ) : (
+                          <Chip size="small" variant="outlined" label="No" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <IconButton
+                          onClick={(e) => openMenu(e, item)}
+                          disabled={isLoading}
+                        >
+                          <MoreVertIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </Table>
 
                 <Menu
@@ -375,17 +397,42 @@ function PartsPage() {
                   maxWidth="sm"
                   fullWidth
                 >
-                  <DialogTitle>Edit Inventory</DialogTitle>
+                  <DialogTitle>Edit part &amp; stock</DialogTitle>
                   <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Part (catalog)
+                      </Typography>
                       <TextField
-                        label="Part"
-                        value={`${selectedPart?.pn || ''}${
-                          selectedPart?.partName ? ` - ${selectedPart.partName}` : ''
-                        }`}
-                        disabled
+                        label="Part number"
+                        value={editValues.partNumber}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partNumber: e.target.value }))
+                        }
                         fullWidth
                       />
+                      <TextField
+                        label="Name"
+                        value={editValues.partName}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partName: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Description"
+                        value={editValues.partDescription}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partDescription: e.target.value }))
+                        }
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                      <Divider />
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Stock (this warehouse row)
+                      </Typography>
                       <TextField
                         label="In stock"
                         type="number"
@@ -396,7 +443,7 @@ function PartsPage() {
                         fullWidth
                       />
                       <TextField
-                        label="Stock alert"
+                        label="Reorder at (quantity)"
                         type="number"
                         value={editValues.stockAlert}
                         onChange={(e) =>
