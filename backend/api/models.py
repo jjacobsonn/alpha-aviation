@@ -493,18 +493,10 @@ class WorkOrder(models.Model):
         ("critical", "Critical"),
     ]
 
-    PRIORITY_CHOICES = [
-        ("low", "Low"),
-        ("medium", "Medium"),
-        ("high", "High"),
-        ("critical", "Critical"),
-    ]
-
     assignee = models.ForeignKey(
         'Profile', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='assigned_work_orders'
     )
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="medium")
     completion_notes = models.TextField(blank=True, null=True)
 
     aircraft = models.ForeignKey(

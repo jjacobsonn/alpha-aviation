@@ -32,11 +32,6 @@ class Migration(migrations.Migration):
             name='completion_notes',
             field=models.TextField(blank=True, null=True),
         ),
-        migrations.AddField(
-            model_name='workorder',
-            name='priority',
-            field=models.CharField(choices=[('low', 'Low'), ('medium', 'Medium'), ('high', 'High'), ('critical', 'Critical')], default='medium', max_length=10),
-        ),
         migrations.AlterField(
             model_name='pilot',
             name='pilot_certificate',
