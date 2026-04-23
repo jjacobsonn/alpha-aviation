@@ -96,7 +96,7 @@ function NavigationDrawer() {
       id: "management",
       title: "Management",
       icon: <DashboardIcon />,
-      color: "#273469",
+      color: "#2B7FD4",
       allowedRoles: ["owner", "manager"],
     },
     {
@@ -119,7 +119,7 @@ function NavigationDrawer() {
       id: "parts",
       title: "Parts",
       icon: <InventoryIcon />,
-      color: "#2196F3",
+      color: "#2B7FD4",
       allowedRoles: ["owner", "manager", "mechanic"],
     },
     {
@@ -181,7 +181,7 @@ function NavigationDrawer() {
       }}
     >
       {/* ... existing code ... */}
-      
+
       {/* Header Section */}
       <Box
         sx={{
@@ -200,18 +200,20 @@ function NavigationDrawer() {
             onClick={() => navigate("/")}
             sx={{ cursor: "pointer" }}
           >
-            <FlightTakeoffIcon sx={{ fontSize: 28, color: "primary.main" }} />
+            <img src="/logo.png" alt="AIMS" style={{ height: 28, width: 28 }} />
             <Typography
               variant="h6"
               sx={{ fontWeight: 600, color: "primary.main" }}
             >
-              AIMS Next
+              Alpha Aviation
             </Typography>
           </Stack>
         )}
         {!sidebarOpen && (
-          <FlightTakeoffIcon
-            sx={{ fontSize: 28, color: "primary.main", cursor: "pointer" }}
+          <img
+            src="/logo.png"
+            alt="AIMS"
+            style={{ height: 28, width: 28, cursor: "pointer" }}
             onClick={() => navigate("/")}
           />
         )}

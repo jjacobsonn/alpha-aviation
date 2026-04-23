@@ -172,21 +172,25 @@ function PartsPage() {
         title: "Parts in Stock",
         icon: <PendingActionsIcon />,
         number: isLoading ? "—" : partsInStockCount,
+        color: "success.main",
       },
       {
         title: "Low Stock Alert",
         icon: <HandymanIcon />,
         number: isLoading ? "—" : lowStockCount,
+        color: "warning.main",
       },
       {
         title: "Work orders awaiting parts",
         icon: <HourglassEmptyIcon />,
         number: isLoading ? "—" : awaitingPartsWoCount,
+        color: "info.main",
       },
       {
         title: "Total units on hand",
         icon: <Inventory2OutlinedIcon />,
         number: isLoading ? "—" : totalUnitsOnHand,
+        color: "info.main",
       },
     ];
   }, [isLoading, awaitingPartsWoCount, lowStockCount, partsInStockCount, totalUnitsOnHand]);
@@ -256,19 +260,19 @@ function PartsPage() {
             </Box>
           </Stack>
 
-          <Grid container spacing={3}>
+          <Grid container spacing={3} sx={{ display: "flex" }}>
             {dashboardNumbers.map((item) => (
-              <Grid item xs={12} sm={6} md={3} key={item.title}>
-                <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-                  <CardContent sx={{ py: 2.5 }}>
+              <Grid item sx={{ flex: 1, minWidth: 150 }} key={item.title}>
+                <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: "100%", display: "flex", flexDirection: "column", height: "100%" }}>
+                  <CardContent sx={{ py: 2.5, flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                     <Stack spacing={0.5} alignItems="center" textAlign="center">
-                      <Box sx={{ color: item.icon?.props?.color || 'primary.main' }}>
+                      <Box sx={{ color: item.color }}>
                         {item.icon}
                       </Box>
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                         {item.title}
                       </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 900 }}>
+                      <Typography variant="h4" sx={{ fontWeight: 900, color: item.color }}>
                         {item.number}
                       </Typography>
                     </Stack>

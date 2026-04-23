@@ -24,6 +24,8 @@ import {
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import { useEffect, useMemo, useState } from "react";
+import StatCard from "../components/StatCard";
+import DeleteConfirmationDialog from "../components/DeleteConfirmationDialog";
 import {
   createCompany,
   createAircraft,
@@ -68,6 +70,9 @@ export default function SiteAdminPortal() {
   const [discrepancies, setDiscrepancies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmType, setDeleteConfirmType] = useState(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [newCompanyLocation, setNewCompanyLocation] = useState("");
   const [creatingCompany, setCreatingCompany] = useState(false);
@@ -352,14 +357,10 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeleteUser = async (id) => {
-    setError("");
-    try {
-      await deleteProfile(id);
-      await refresh();
-    } catch (e) {
-      setError(e?.message || "Failed to delete user.");
-    }
+  const handleDeleteUser = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("user");
+    setDeleteConfirmId(id);
   };
 
   const pilotOptionsForCompany = (companyId) =>
@@ -525,14 +526,10 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeleteFlight = async (id) => {
-    setError("");
-    try {
-      await deleteFlight(id);
-      await refresh();
-    } catch (e) {
-      setError(e?.message || "Failed to delete flight.");
-    }
+  const handleDeleteFlight = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("flight");
+    setDeleteConfirmId(id);
   };
 
   const handleOpenCreatePart = () => {
@@ -578,13 +575,37 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeletePart = async (id) => {
+  const handleDeletePart = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("part");
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
     try {
-      await deletePart(id);
+      setError("");
+      if (deleteConfirmType === "flight") {
+        await deleteFlight(deleteConfirmId);
+      } else if (deleteConfirmType === "part") {
+        await deletePart(deleteConfirmId);
+      } else if (deleteConfirmType === "inventory") {
+        await deleteInventory(deleteConfirmId);
+      } else if (deleteConfirmType === "user") {
+        await deleteProfile(deleteConfirmId);
+      }
       await refresh();
+      setDeleteConfirmOpen(false);
+      setDeleteConfirmType(null);
+      setDeleteConfirmId(null);
     } catch (e) {
-      setError(e?.message || "Failed to delete part.");
+      setError(e?.message || "Failed to delete item.");
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setDeleteConfirmType(null);
+    setDeleteConfirmId(null);
   };
 
   const handleOpenCreateInventoryLine = () => {
@@ -646,13 +667,10 @@ export default function SiteAdminPortal() {
     }
   };
 
-  const handleDeleteInventoryLine = async (id) => {
-    try {
-      await deleteInventory(id);
-      await refresh();
-    } catch (e) {
-      setError(e?.message || "Failed to delete inventory line.");
-    }
+  const handleDeleteInventoryLine = (id) => {
+    setDeleteConfirmOpen(true);
+    setDeleteConfirmType("inventory");
+    setDeleteConfirmId(id);
   };
 
   const handleOpenCreateWorkorder = () => {
@@ -783,109 +801,37 @@ export default function SiteAdminPortal() {
           {error ? <Alert severity="error">{error}</Alert> : null}
         </Stack>
 
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Companies
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : companies.length}
-                </Typography>
-              </CardContent>
-            </Card>
+        <Grid container spacing={3} sx={{ mb: 3, display: "flex" }}>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Companies" value={companies.length} loading={loading} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Profiles
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : profiles.length}
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Profiles" value={profiles.length} loading={loading} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Aircraft
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : aircraft.length}
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Aircraft" value={aircraft.length} loading={loading} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Flights
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : flights.length}
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Flights" value={flights.length} loading={loading} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Parts
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : parts.length}
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Parts" value={parts.length} loading={loading} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Inventory Lines
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : inventories.length}
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Inventory Lines" value={inventories.length} loading={loading} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Work Orders
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : workorders.length}
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Work Orders" value={workorders.length} loading={loading} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Discrepancies
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  {loading ? "—" : discrepancies.length}
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid item sx={{ flex: 1, minWidth: 150 }}>
+            <StatCard label="Discrepancies" value={discrepancies.length} loading={loading} />
           </Grid>
         </Grid>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mb: 3 }}>
-          <CardContent>
-            <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mb: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 3 }}>
+            <Stack spacing={3}>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                 Create Company
               </Typography>
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -894,17 +840,20 @@ export default function SiteAdminPortal() {
                   value={newCompanyName}
                   onChange={(e) => setNewCompanyName(e.target.value)}
                   fullWidth
+                  size="small"
                 />
                 <TextField
                   label="Locations"
                   value={newCompanyLocation}
                   onChange={(e) => setNewCompanyLocation(e.target.value)}
                   fullWidth
+                  size="small"
                 />
                 <Button
                   variant="contained"
                   onClick={handleCreateCompany}
                   disabled={creatingCompany}
+                  sx={{ textTransform: "none", fontWeight: 600 }}
                 >
                   {creatingCompany ? "Creating..." : "Create"}
                 </Button>
@@ -913,10 +862,10 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary", mb: 1 }}>
                 Companies
               </Typography>
               <Table size="small">
@@ -962,14 +911,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                   Users
                 </Typography>
-                <Button variant="contained" onClick={() => handleOpenCreateUser()}>
+                <Button variant="contained" onClick={() => handleOpenCreateUser()} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create User
                 </Button>
               </Stack>
@@ -995,10 +944,10 @@ export default function SiteAdminPortal() {
                         {companies.find((c) => Number(c.id) === Number(u.company))?.name || "—"}
                       </TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditUser(u)}>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditUser(u)}>
                           Edit
                         </Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteUser(u.id)}>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteUser(u.id)}>
                           Delete
                         </Button>
                       </TableCell>
@@ -1010,14 +959,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                   Aircraft
                 </Typography>
-                <Button variant="contained" onClick={() => setCreateAircraftOpen(true)}>
+                <Button variant="contained" onClick={() => setCreateAircraftOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Aircraft
                 </Button>
               </Stack>
@@ -1046,12 +995,12 @@ export default function SiteAdminPortal() {
                       </TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={1}>
-                          <Button size="small" onClick={() => handleOpenEditAircraft(a)}>
+                          <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditAircraft(a)}>
                             Edit
                           </Button>
                           <Button
                             size="small"
-                            color="error"
+                            sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }}
                             onClick={() => handleDeleteAircraft(a.id)}
                           >
                             Delete
@@ -1066,14 +1015,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
                   Flights
                 </Typography>
-                <Button variant="contained" onClick={() => setCreateFlightOpen(true)}>
+                <Button variant="contained" onClick={() => setCreateFlightOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Flight
                 </Button>
               </Stack>
@@ -1108,10 +1057,10 @@ export default function SiteAdminPortal() {
                       <TableCell>{f.approved ? "Yes" : "No"}</TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={1}>
-                          <Button size="small" onClick={() => handleOpenEditFlight(f)}>
+                          <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditFlight(f)}>
                             Edit
                           </Button>
-                          <Button size="small" color="error" onClick={() => handleDeleteFlight(f.id)}>
+                          <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteFlight(f.id)}>
                             Delete
                           </Button>
                         </Stack>
@@ -1124,14 +1073,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Parts
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreatePart}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Parts
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreatePart} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Part
                 </Button>
               </Stack>
@@ -1151,8 +1100,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{p.name || "—"}</TableCell>
                       <TableCell>{p.aircraft_name || p.aircraft || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditPart(p)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeletePart(p.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditPart(p)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeletePart(p.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1162,14 +1111,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Inventory Lines
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreateInventoryLine}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Inventory Lines
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreateInventoryLine} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Add Inventory Line
                 </Button>
               </Stack>
@@ -1193,8 +1142,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{inv?.stock_alert ?? "—"}</TableCell>
                       <TableCell>{inv?.shop_location || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditInventoryLine(inv)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteInventoryLine(inv.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditInventoryLine(inv)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteInventoryLine(inv.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1204,14 +1153,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Work Orders
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreateWorkorder}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Work Orders
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreateWorkorder} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Work Order
                 </Button>
               </Stack>
@@ -1235,8 +1184,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{wo.aircraft || "—"}</TableCell>
                       <TableCell>{wo.due_by || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteWorkorder(wo.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteWorkorder(wo.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1246,14 +1195,14 @@ export default function SiteAdminPortal() {
           </CardContent>
         </Card>
 
-        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, mb: 3 }}>
-          <CardContent>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, mb: 3, borderRadius: 2 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Discrepancies
-              </Typography>
-              <Stack direction="row" justifyContent="flex-end">
-                <Button variant="contained" onClick={handleOpenCreateDiscrepancy}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Discrepancies
+                </Typography>
+                <Button variant="contained" onClick={handleOpenCreateDiscrepancy} sx={{ textTransform: "none", fontWeight: 600 }}>
                   Create Discrepancy
                 </Button>
               </Stack>
@@ -1277,8 +1226,8 @@ export default function SiteAdminPortal() {
                       <TableCell>{d.aircraft || "—"}</TableCell>
                       <TableCell>{d.reporter_name || d.reporter || "—"}</TableCell>
                       <TableCell>
-                        <Button size="small" onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>
+                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
+                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1573,7 +1522,7 @@ export default function SiteAdminPortal() {
             </TextField>
             <TextField label="Description" value={workorderForm.description} onChange={(e) => setWorkorderForm((s) => ({ ...s, description: e.target.value }))} />
             <TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))}>
-              {["open","in_progress","awaiting_parts","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["open", "in_progress", "awaiting_parts", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
             <TextField type="date" label="Due Date" InputLabelProps={{ shrink: true }} value={workorderForm.due_by} onChange={(e) => setWorkorderForm((s) => ({ ...s, due_by: e.target.value }))} />
           </Stack>
@@ -1595,7 +1544,7 @@ export default function SiteAdminPortal() {
             </TextField>
             <TextField label="Description" value={workorderForm.description} onChange={(e) => setWorkorderForm((s) => ({ ...s, description: e.target.value }))} />
             <TextField select label="Status" value={workorderForm.status} onChange={(e) => setWorkorderForm((s) => ({ ...s, status: e.target.value }))}>
-              {["open","in_progress","awaiting_parts","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["open", "in_progress", "awaiting_parts", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
             <TextField type="date" label="Due Date" InputLabelProps={{ shrink: true }} value={workorderForm.due_by} onChange={(e) => setWorkorderForm((s) => ({ ...s, due_by: e.target.value }))} />
           </Stack>
@@ -1622,7 +1571,7 @@ export default function SiteAdminPortal() {
             <TextField label="ATA Code" value={discrepancyForm.ata_code} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, ata_code: e.target.value }))} />
             <TextField label="Tach Time" value={discrepancyForm.tach_time} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, tach_time: e.target.value }))} />
             <TextField select label="Status" value={discrepancyForm.status} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, status: e.target.value }))}>
-              {["pending","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["pending", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </Stack>
         </DialogContent>
@@ -1640,7 +1589,7 @@ export default function SiteAdminPortal() {
             <TextField label="ATA Code" value={discrepancyForm.ata_code} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, ata_code: e.target.value }))} />
             <TextField label="Tach Time" value={discrepancyForm.tach_time} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, tach_time: e.target.value }))} />
             <TextField select label="Status" value={discrepancyForm.status} onChange={(e) => setDiscrepancyForm((s) => ({ ...s, status: e.target.value }))}>
-              {["pending","closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {["pending", "closed"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </Stack>
         </DialogContent>
@@ -1649,6 +1598,14 @@ export default function SiteAdminPortal() {
           <Button variant="contained" onClick={handleEditDiscrepancy}>Save</Button>
         </DialogActions>
       </Dialog>
+
+      <DeleteConfirmationDialog
+        open={deleteConfirmOpen}
+        itemType={deleteConfirmType}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        isLoading={loading}
+      />
     </Box>
   );
 }

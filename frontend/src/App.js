@@ -24,15 +24,34 @@ import Layout from './components/Layout';
 const theme = createTheme({
 	palette: {
 		primary: {
-			main: '#273469',
+			main: '#FF4C05',
+			light: '#FF7D3B',
+			dark: '#CC3A00',
 		},
 		secondary: {
-			main: '#FAFAFF',
+			main: '#FFF0E9',
 		},
 		background: {
-			default: '#FAFAFF',
+			default: '#F7F5F3',
 			paper: '#FFFFFF',
 		},
+		success: {
+			main: '#00A86B',
+		},
+		warning: {
+			main: '#F5A623',
+		},
+		error: {
+			main: '#D92B2B',
+		},
+		info: {
+			main: '#2B7FD4',
+		},
+		text: {
+			primary: '#3A3D40',
+			secondary: '#36454F',
+		},
+		divider: '#E2DDD9',
 	},
 	typography: {
 		fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
