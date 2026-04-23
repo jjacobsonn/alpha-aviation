@@ -30,6 +30,11 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+
+import KPICard from '../components/KPICard';
+import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
 	createDiscrepancy,
 	createWorkorder,
@@ -156,20 +161,6 @@ function MaintenanceActivityList({ items, emptyHint }) {
 	);
 }
 
-const KPICard = ({ title, color, trend }) => (
-		<div className='KPIcard' style={{
-			backgroundColor: color,
-        borderRadius: '10px',
-			width: '7em',
-			height: '7em',
-			textAlign: 'center',
-			fontWeight: "bold",
-		}}>
-			<p>{title}</p>
-			<p>{trend}</p>
-		</div>
-);
-    
 // --- MAIN COMPONENT ---
 
 const initialWorkorderForm = {
@@ -219,6 +210,11 @@ const Maintenance = () => {
 	const [discrepancyForm, setDiscrepancyForm] = useState(initialDiscrepancyForm);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
+	const [expandedWorkOrderId, setExpandedWorkOrderId] = useState(null);
+	const [expandedDiscrepancyId, setExpandedDiscrepancyId] = useState(null);
+	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+	const [deleteConfirmType, setDeleteConfirmType] = useState(null); // 'workorder' or 'discrepancy'
+	const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 	const [didHandleDeepLink, setDidHandleDeepLink] = useState(false);
 	const aircraftFilterFromQuery = new URLSearchParams(location.search).get('aircraft') || '';
 
@@ -367,11 +363,11 @@ const Maintenance = () => {
 				const partIds = Array.isArray(wo.parts_needed) ? wo.parts_needed : [];
 				const parts_summary = partIds.length
 					? partIds
-							.map((raw) => {
-								const id = typeof raw === 'object' && raw != null ? raw.id : raw;
-								return partLabelById.get(id) || `#${id}`;
-							})
-							.join(', ')
+						.map((raw) => {
+							const id = typeof raw === 'object' && raw != null ? raw.id : raw;
+							return partLabelById.get(id) || `#${id}`;
+						})
+						.join(', ')
 					: '';
 				return {
 					id: wo.id,
@@ -380,8 +376,8 @@ const Maintenance = () => {
 					aircraft:
 						typeof wo.aircraft === 'object' && wo.aircraft
 							? `${wo.aircraft.registration_number || ''} ${wo.aircraft.model || ''}`.trim() ||
-							  wo.aircraft.model ||
-							  wo.aircraft.registration_number
+							wo.aircraft.model ||
+							wo.aircraft.registration_number
 							: wo.aircraft,
 					assigned_to: resolveProfileName(wo.created_by),
 					status: wo.status,
@@ -402,8 +398,8 @@ const Maintenance = () => {
 				aircraft:
 					typeof d.aircraft === 'object' && d.aircraft
 						? `${d.aircraft.registration_number || ''} ${d.aircraft.model || ''}`.trim() ||
-						  d.aircraft.model ||
-						  d.aircraft.registration_number
+						d.aircraft.model ||
+						d.aircraft.registration_number
 						: d.aircraft,
 				status: d.status,
 				status_label: labelForDiscrepancyStatus(d.status),
@@ -584,15 +580,11 @@ const Maintenance = () => {
 		}
 	};
 
-	const handleDeleteWorkorder = async (id) => {
-		setError('');
-		try {
-			await deleteWorkorder(id);
-			closeWorkOrderDetail();
-			await refreshMaintenanceData();
-		} catch (e) {
-			setError(e?.message || 'Failed to delete work order.');
-		}
+	const handleDeleteWorkorder = (id) => {
+		setDeleteConfirmOpen(true);
+		setDeleteConfirmType('workorder');
+		setDeleteConfirmId(id);
+    closeWorkOrderDetail();
 	};
 
 	const populateDiscrepancyFormFromRow = (d) => {
@@ -665,17 +657,38 @@ const Maintenance = () => {
 		}
 	};
 
-	const handleDeleteDiscrepancy = async (id) => {
+	const handleDeleteDiscrepancy = (id) => {
+		setDeleteConfirmOpen(true);
+		setDeleteConfirmType('discrepancy');
+		setDeleteConfirmId(id);
+    closeDiscrepancyDetail();
+	};
+
+	const confirmDelete = async () => {
 		setError('');
 		try {
-			await deleteDiscrepancy(id);
-			closeDiscrepancyDetail();
+			if (deleteConfirmType === 'workorder') {
+				await deleteWorkorder(deleteConfirmId);
+        // closeWorkOrderDetail();  // might be necessary?
+			} else if (deleteConfirmType === 'discrepancy') {
+				await deleteDiscrepancy(deleteConfirmId);
+        // closeDiscrepancyDetail();  // might be necessary?
+			}
 			await refreshMaintenanceData();
+			setDeleteConfirmOpen(false);
+			setDeleteConfirmType(null);
+			setDeleteConfirmId(null);
 		} catch (e) {
-			setError(e?.message || 'Failed to delete discrepancy.');
+			setError(e?.message || 'Failed to delete item.');
 		}
 	};
 
+	const cancelDelete = () => {
+		setDeleteConfirmOpen(false);
+		setDeleteConfirmType(null);
+		setDeleteConfirmId(null);
+	};
+  
 	useEffect(() => {
 		if (isLoading || didHandleDeepLink) return;
 		const params = new URLSearchParams(location.search);
@@ -709,26 +722,81 @@ const Maintenance = () => {
 
 		setDidHandleDeepLink(true);
 	}, [isLoading, didHandleDeepLink, location.search, workOrders, discrepancies, navigate]);
-	return (
+	
+  return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
-				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-					<Box>
-						<Typography variant="h4" sx={{ fontWeight: 800 }}>
-							Maintenance
-						</Typography>
-						<Typography variant="body2" color="text.secondary">
-							{mechanicRole
-								? 'Your assigned work orders and related discrepancies; file new discrepancy reports as needed.'
-								: 'Work orders and discrepancy reports (company-scoped).'}
-						</Typography>
-					</Box>
-					<Stack direction="row" spacing={1}>
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="h4" sx={{ fontWeight: 800 }}>
+						Maintenance
+					</Typography>
+					<Typography variant="body2" color="text.secondary">
+						{mechanicRole
+							? 'Your assigned work orders and related discrepancies; file new discrepancy reports as needed.'
+							: 'Work orders and discrepancy reports (company-scoped).'}
+					</Typography>
+				</Box>
+
+				{error ? (
+					<Alert severity="error" sx={{ mb: 2 }}>
+						{error}
+					</Alert>
+				) : null}
+        {aircraftFilterFromQuery ? (
+					<Alert severity="info" sx={{ mb: 2 }}>
+						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
+					</Alert>
+				) : null}
+
+				{/* KPI Cards */}
+				<Grid container spacing={3} sx={{ mb: 3, alignItems: 'center' }}>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<WorkHistoryIcon />}
+							label="Pending"
+							value={discrepancies.length}
+							loading={isLoading}
+							iconBgColor="#2196F315"
+							iconColor="#2196F3"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<BuildIcon />}
+							label="Open"
+							value={workOrders.length}
+							loading={isLoading}
+							iconBgColor="#FF980015"
+							iconColor="#FF9800"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<WarningIcon />}
+							label="Overdue"
+							value={overdueWorkOrders.length}
+							loading={isLoading}
+							iconBgColor="#F4433615"
+							iconColor="#F44336"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<CheckCircleIcon />}
+							label="Due Soon"
+							value={dueSoonWorkOrders.length}
+							loading={isLoading}
+							iconBgColor="#4CAF5015"
+							iconColor="#4CAF50"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1 }}>
 						{superviseMaintenance ? (
 							<Button
 								variant="contained"
 								startIcon={<BuildIcon />}
 								onClick={openAddWorkOrder}
+								fullWidth
 							>
 								Add Work Order
 							</Button>
@@ -737,115 +805,17 @@ const Maintenance = () => {
 							variant="outlined"
 							startIcon={<WarningIcon />}
 							onClick={openAddDiscrepancy}
+							fullWidth
 						>
 							Add Discrepancy
 						</Button>
-					</Stack>
-				</Stack>
-
-				{error ? (
-					<Alert severity="error" sx={{ mb: 2 }}>
-						{error}
-					</Alert>
-				) : null}
-				{aircraftFilterFromQuery ? (
-					<Alert severity="info" sx={{ mb: 2 }}>
-						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
-					</Alert>
-				) : null}
-
-				{/* KPI Cards */}
-				<Grid container spacing={3} sx={{ mb: 3 }}>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#2196F315', color: '#2196F3', p: 1.25, borderRadius: 2 }}>
-											<WorkHistoryIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Pending
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : discrepancies.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#FF980015', color: '#FF9800', p: 1.25, borderRadius: 2 }}>
-											<BuildIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Open
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : workOrders.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#F4433615', color: '#F44336', p: 1.25, borderRadius: 2 }}>
-											<WarningIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Overdue
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : overdueWorkOrders.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#4CAF5015', color: '#4CAF50', p: 1.25, borderRadius: 2 }}>
-											<CheckCircleIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Due Soon
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : dueSoonWorkOrders.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
 					</Grid>
 				</Grid>
 
 				{/* Tables */}
-				<Grid container spacing={3}>
-					<Grid item xs={12} lg={7}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+				<Grid container spacing={3} sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
 									Work Orders
@@ -859,34 +829,65 @@ const Maintenance = () => {
 									<Table size="small">
 										<TableHead>
 											<TableRow>
+												<TableCell></TableCell>
 												<TableCell>ID</TableCell>
 												<TableCell>Parts</TableCell>
 												<TableCell>Aircraft</TableCell>
 												<TableCell>Assigned</TableCell>
 												<TableCell>Status</TableCell>
 												<TableCell>Due</TableCell>
-												<TableCell>Description</TableCell>
 												<TableCell>Actions</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{displayedWorkOrders.map((order) => (
-												<TableRow key={order.id}>
-													<TableCell>{order.order_number}</TableCell>
-													<TableCell sx={{ maxWidth: 220, whiteSpace: 'normal', wordBreak: 'break-word' }}>
-														{order.parts_summary || '—'}
-													</TableCell>
-													<TableCell>{order.aircraft || '—'}</TableCell>
-													<TableCell>{order.assigned_to || '—'}</TableCell>
-													<TableCell>{order.status_label}</TableCell>
-													<TableCell>{order.due_date || '—'}</TableCell>
-													<TableCell>{order.description || '—'}</TableCell>
-													<TableCell>
-														<Button size="small" onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}>
-															View
+											{displayedWorkOrders.map((order) => ( // merge note: changed mappedWorkOrders to displayedWorkOrders
+												<React.Fragment key={order.id}>
+													<TableRow>
+														<TableCell sx={{ width: 40, padding: '8px 4px' }}>
+														</TableCell>
+														<TableCell>{order.order_number}</TableCell>
+														<TableCell sx={{ maxWidth: 220, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+															{order.parts_summary || '—'}
+														</TableCell>
+														<TableCell>{order.aircraft || '—'}</TableCell>
+														<TableCell>{order.assigned_to || '—'}</TableCell>
+														<TableCell>{order.status_label}</TableCell>
+														<TableCell>{order.due_date || '—'}</TableCell>
+														<TableCell>
+															{superviseMaintenance ? (
+																<>
+																	<Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em' }} onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}>
+																		Edit
+																	</Button>
+																	<Button size="small" sx={{ background: '#D92B2B', color: 'white', borderRadius: '10px', margin: '1em' }} onClick={() => handleDeleteWorkorder(order.id)}>
+																		Delete
+																	</Button>
+																</>
+															) : (
+																<Button size="small" variant="outlined" onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}>
+																	View / log progress
+																</Button>
+															)}
+														</TableCell>
+														<Button
+															size="large"
+															onClick={() => setExpandedWorkOrderId(expandedWorkOrderId === order.id ? null : order.id)}
+															sx={{ minWidth: 0, padding: '4px' }}
+														>
+															{expandedWorkOrderId === order.id ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
 														</Button>
-													</TableCell>
-												</TableRow>
+													</TableRow>
+													{expandedWorkOrderId === order.id && (
+														<TableRow sx={{ bgcolor: 'action.hover' }}>
+															<TableCell colSpan={8} sx={{ p: 2 }}>
+																<Stack spacing={1}>
+																	<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Description</Typography>
+																	<Typography variant="body2">{order.description || '—'}</Typography>
+																</Stack>
+															</TableCell>
+														</TableRow>
+													)}
+												</React.Fragment>
 											))}
 											{displayedWorkOrders.length === 0 ? (
 												<TableRow>
@@ -902,8 +903,8 @@ const Maintenance = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} lg={5}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
 									Discrepancies
@@ -917,28 +918,59 @@ const Maintenance = () => {
 									<Table size="small">
 										<TableHead>
 											<TableRow>
+												<TableCell></TableCell>
 												<TableCell>ID</TableCell>
 												<TableCell>ATA</TableCell>
 												<TableCell>Aircraft</TableCell>
 												<TableCell>Status</TableCell>
-												<TableCell>Description</TableCell>
 												<TableCell>Actions</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{displayedDiscrepancies.map((d) => (
-												<TableRow key={d.id}>
-													<TableCell>{d.discrepancy_number}</TableCell>
-													<TableCell>{d.part_number || '—'}</TableCell>
-													<TableCell>{d.aircraft || '—'}</TableCell>
-													<TableCell>{d.status_label}</TableCell>
-													<TableCell>{d.description || '—'}</TableCell>
-													<TableCell>
-														<Button size="small" onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}>
-															View
+											{displayedDiscrepancies.map((d) => ( // merge note: changed mappedDiscrepancies to displayedDiscrepancies
+												<React.Fragment key={d.id}>
+													<TableRow>
+														<TableCell sx={{ width: 40, padding: '8px 4px' }}>
+														</TableCell>
+														<TableCell>{d.discrepancy_number}</TableCell>
+														<TableCell>{d.part_number || '—'}</TableCell>
+														<TableCell>{d.aircraft || '—'}</TableCell>
+														<TableCell>{d.status_label}</TableCell>
+														<TableCell>
+															{superviseMaintenance ? (
+																<>
+																	<Button size="small" onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}>
+																		Edit
+																	</Button>
+																	<Button size="small" sx={{ background: '#D92B2B', color: 'white', borderRadius: '10px' }} onClick={() => handleDeleteDiscrepancy(d.id)}>
+																		Delete
+																	</Button>
+																</>
+															) : (
+																<Button size="small" variant="outlined" onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}>
+																	View / update
+																</Button>
+															)}
+														</TableCell>
+														<Button
+															size="large"
+															onClick={() => setExpandedDiscrepancyId(expandedDiscrepancyId === d.id ? null : d.id)}
+															sx={{ minWidth: 0, padding: '4px' }}
+														>
+															{expandedDiscrepancyId === d.id ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
 														</Button>
-													</TableCell>
-												</TableRow>
+													</TableRow>
+													{expandedDiscrepancyId === d.id && (
+														<TableRow sx={{ bgcolor: 'action.hover' }}>
+															<TableCell colSpan={6} sx={{ p: 2 }}>
+																<Stack spacing={1}>
+																	<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Description</Typography>
+																	<Typography variant="body2">{d.description || '—'}</Typography>
+																</Stack>
+															</TableCell>
+														</TableRow>
+													)}
+												</React.Fragment>
 											))}
 											{displayedDiscrepancies.length === 0 ? (
 												<TableRow>
@@ -1404,6 +1436,14 @@ const Maintenance = () => {
 						)}
 					</DialogActions>
 				</Dialog>
+
+				<DeleteConfirmationDialog
+					open={deleteConfirmOpen}
+					itemType={deleteConfirmType === 'workorder' ? 'work order' : 'discrepancy'}
+					onConfirm={confirmDelete}
+					onCancel={cancelDelete}
+					isLoading={isLoading}
+				/>
 			</Container>
 		</Box>
 	);
