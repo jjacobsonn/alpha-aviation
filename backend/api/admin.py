@@ -208,7 +208,6 @@ class FlightInline(admin.TabularInline):
             "departure_time",
             "arrival_time",
             "flight_type",
-            "approved",
       )
       autocomplete_fields = ["aircraft"]
       def formfield_for_foreignkey(self, db_field, request, **kwargs):
@@ -233,12 +232,34 @@ class CompanyAdmin(admin.ModelAdmin):
 def clear_expired_medical_dates():
       Profile.objects.filter(medically_cleared_until__lt = timezone.now().date()).update(medically_cleared_until=None)
 
+class CalibrationRecordInline(admin.TabularInline):
+    model = CalibrationRecord
+    extra = 0
+    fields = ("calibration_date", "performed_by", "next_due_date", "notes")
+    ordering = ("-calibration_date",)
+
+
+class ToolAdmin(admin.ModelAdmin):
+    list_display = ("name", "serial_number", "company", "calibration_due_date", "calibration_alert", "location")
+    list_filter = ("company",)
+    search_fields = ("name", "serial_number")
+    inlines = [CalibrationRecordInline]
+
+    def calibration_alert(self, obj):
+        colours = {"green": "#2e7d32", "amber": "#f57c00", "red": "#c62828"}
+        label = obj.calibration_alert.capitalize()
+        colour = colours[obj.calibration_alert]
+        return format_html('<span style="color: {}; font-weight: bold;">{}</span>', colour, label)
+
+    calibration_alert.short_description = "Alert"
+
+
 #register all of the admin pages
 admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Aircraft, AircraftAdmin)
 admin.site.register(Part, PartAdmin)
-admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(Flight, FlightAdmin)
+admin.site.register(Tool, ToolAdmin)
 admin.site.register(WorkOrder, WorkOrderAdmin)
 admin.site.register(Discrepancy, DiscrepancyAdmin)

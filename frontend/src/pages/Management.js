@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
 	Box,
 	Container,
@@ -12,12 +12,18 @@ import {
 	Chip,
 	Typography,
 	Button,
+	MenuItem,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
 	Table,
 	TableBody,
 	TableCell,
 	TableHead,
 	TableRow,
 	Link,
+	TextField,
 } from '@mui/material';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import BuildIcon from '@mui/icons-material/Build';
@@ -32,6 +38,7 @@ import {
 	fetchCompanyDiscrepancies,
 	fetchCompanyUsers,
 	fetchManagementDashboard,
+	updateProfile,
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
@@ -44,7 +51,33 @@ const ROLE_LABELS = {
 	dispatcher: 'Dispatcher',
 };
 
+function maintenanceLinkForActivity(item) {
+	if (item.entityType === 'workorder') {
+		return `/maintenance?wo=${item.entityId}`;
+	}
+	if (item.entityType === 'discrepancy') {
+		return `/maintenance?disc=${item.entityId}`;
+	}
+	return '/maintenance';
+}
+
+function maintenanceActionForActivity(item) {
+	if (item.entityType === 'workorder') {
+		if (!item.assignedToId) return 'Assign';
+		if (item.status === 'open') return 'Start';
+		if (item.status === 'in_progress') return 'Review';
+		if (item.status === 'awaiting_parts') return 'Review parts';
+		if (item.status === 'closed') return 'View';
+	}
+	if (item.entityType === 'discrepancy') {
+		if (item.status === 'pending') return 'Triage';
+		return 'View';
+	}
+	return 'Open';
+}
+
 const Management = () => {
+	const navigate = useNavigate();
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
@@ -54,6 +87,16 @@ const Management = () => {
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
 	const [companyUsers, setCompanyUsers] = useState([]);
+	const [editUserOpen, setEditUserOpen] = useState(false);
+	const [editingUserId, setEditingUserId] = useState(null);
+	const [editingUserForm, setEditingUserForm] = useState({
+		first_name: '',
+		last_name: '',
+		email: '',
+		phone_number: '',
+		company_role: '',
+	});
+	const [savingUser, setSavingUser] = useState(false);
 
 	useEffect(() => {
 		let mounted = true;
@@ -158,6 +201,13 @@ const Management = () => {
 				color: wo?.status === 'closed' ? '#4CAF50' : '#FF9800',
 				title: wo?.status === 'closed' ? 'Work Order Completed' : 'Work Order Updated',
 				detail: wo?.title || `Work Order #${wo.id}`,
+				entityType: 'workorder',
+				entityId: wo?.id,
+				status: wo?.status,
+				assignedToId:
+					typeof wo?.created_by === 'object' && wo?.created_by != null
+						? wo.created_by.id
+						: wo?.created_by ?? null,
 			};
 		});
 
@@ -168,6 +218,9 @@ const Management = () => {
 			color: '#f32f21ff',
 			title: 'New Discrepancy',
 			detail: d?.description || `Discrepancy #${d.id}`,
+			entityType: 'discrepancy',
+			entityId: d?.id,
+			status: d?.status,
 		}));
 
 		return [...woItems, ...discItems].sort((a, b) => {
@@ -187,6 +240,40 @@ const Management = () => {
 		});
 		return list;
 	}, [companyUsers]);
+	const canEditRoster = platformAdmin || state.user?.role === 'owner';
+
+	const openEditUser = (u) => {
+		setEditingUserId(u.id);
+		setEditingUserForm({
+			first_name: u.first_name || '',
+			last_name: u.last_name || '',
+			email: u.email || '',
+			phone_number: u.phone_number || '',
+			company_role: u.company_role || '',
+		});
+		setEditUserOpen(true);
+	};
+
+	const closeEditUser = () => {
+		setEditUserOpen(false);
+		setEditingUserId(null);
+	};
+
+	const saveEditedUser = async () => {
+		if (!editingUserId) return;
+		setSavingUser(true);
+		setError('');
+		try {
+			await updateProfile(editingUserId, editingUserForm);
+			const users = await fetchCompanyUsers();
+			setCompanyUsers(Array.isArray(users) ? users : []);
+			closeEditUser();
+		} catch (e) {
+			setError(e?.message || 'Failed to update user.');
+		} finally {
+			setSavingUser(false);
+		}
+	};
 
 	const companyBlock = dashboard?.company;
 	const displayCompanyName =
@@ -395,6 +482,7 @@ const Management = () => {
 											<TableCell>Username</TableCell>
 											<TableCell>Role</TableCell>
 											<TableCell>Email</TableCell>
+											{canEditRoster ? <TableCell>Actions</TableCell> : null}
 										</TableRow>
 									</TableHead>
 									<TableBody>
@@ -408,6 +496,13 @@ const Management = () => {
 													<Chip size="small" label={ROLE_LABELS[u.company_role] || u.company_role || '—'} />
 												</TableCell>
 												<TableCell>{u.email || '—'}</TableCell>
+												{canEditRoster ? (
+													<TableCell>
+														<Button size="small" variant="outlined" onClick={() => openEditUser(u)}>
+															Edit
+														</Button>
+													</TableCell>
+												) : null}
 											</TableRow>
 										))}
 									</TableBody>
@@ -419,9 +514,14 @@ const Management = () => {
 
 				{/* Recent Activity Section */}
 				<Box sx={{ mt: 2 }}>
-					<Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-						Recent Activity
-					</Typography>
+					<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+						<Typography variant="h5" sx={{ fontWeight: 600 }}>
+							Recent Activity
+						</Typography>
+						<Button component={RouterLink} to="/work-orders" variant="text" size="small">
+							View all
+						</Button>
+					</Stack>
 					<Card
 						elevation={0}
 						sx={{
@@ -440,7 +540,16 @@ const Management = () => {
 								<Stack spacing={2.5}>
 									{recentActivity.slice(0, 4).map((it, idx) => (
 										<React.Fragment key={it.key}>
-											<Stack direction="row" spacing={2} alignItems="center">
+											<Stack
+												direction="row"
+												spacing={2}
+												alignItems="center"
+												onClick={(e) => {
+													if (e.target.closest('a')) return;
+													navigate(maintenanceLinkForActivity(it));
+												}}
+												sx={{ cursor: 'pointer' }}
+											>
 												<Avatar sx={{ bgcolor: it.color }}>
 													{it.icon}
 												</Avatar>
@@ -452,9 +561,19 @@ const Management = () => {
 														{it.detail}
 													</Typography>
 												</Box>
-												<Typography variant="caption" color="text.secondary">
-													{it.when ? new Date(it.when).toLocaleString() : ''}
-												</Typography>
+												<Stack alignItems="flex-end" spacing={0.5}>
+													<Typography variant="caption" color="text.secondary">
+														{it.when ? new Date(it.when).toLocaleString() : ''}
+													</Typography>
+													<Button
+														size="small"
+														variant="outlined"
+														component={RouterLink}
+														to={maintenanceLinkForActivity(it)}
+													>
+														{maintenanceActionForActivity(it)}
+													</Button>
+												</Stack>
 											</Stack>
 											{idx !== Math.min(3, recentActivity.length - 1) && <Divider />}
 										</React.Fragment>
@@ -464,6 +583,49 @@ const Management = () => {
 						</CardContent>
 					</Card>
 				</Box>
+				<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
+					<DialogTitle>Edit user</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField
+								label="First name"
+								value={editingUserForm.first_name}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, first_name: e.target.value }))}
+							/>
+							<TextField
+								label="Last name"
+								value={editingUserForm.last_name}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, last_name: e.target.value }))}
+							/>
+							<TextField
+								label="Email"
+								value={editingUserForm.email}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, email: e.target.value }))}
+							/>
+							<TextField
+								label="Phone number"
+								value={editingUserForm.phone_number}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, phone_number: e.target.value }))}
+							/>
+							<TextField
+								select
+								label="Role"
+								value={editingUserForm.company_role}
+								onChange={(e) => setEditingUserForm((s) => ({ ...s, company_role: e.target.value }))}
+							>
+								{Object.entries(ROLE_LABELS).map(([value, label]) => (
+									<MenuItem key={value} value={value}>{label}</MenuItem>
+								))}
+							</TextField>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={closeEditUser}>Cancel</Button>
+						<Button variant="contained" onClick={saveEditedUser} disabled={savingUser}>
+							Save
+						</Button>
+					</DialogActions>
+				</Dialog>
 			</Container>
 		</Box>
 	);

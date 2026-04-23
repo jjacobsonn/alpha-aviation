@@ -27,12 +27,14 @@ import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import HandymanIcon from "@mui/icons-material/Handyman";
-import WorkHistoryIcon from "@mui/icons-material/WorkHistory";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import {
   deleteInventory,
   fetchCompanyInventoriesDetailed,
+  fetchCompanyWorkorders,
   updateInventory,
   updatePart,
 } from "../shared/Api";
@@ -43,6 +45,7 @@ function PartsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [inventories, setInventories] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
   const [search, setSearch] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -72,9 +75,13 @@ function PartsPage() {
       setIsLoading(true);
       setError("");
       try {
-        const data = await fetchCompanyInventoriesDetailed();
+        const [data, wos] = await Promise.all([
+          fetchCompanyInventoriesDetailed(),
+          fetchCompanyWorkorders(),
+        ]);
         if (!mounted) return;
         setInventories(Array.isArray(data) ? data : []);
+        setWorkOrders(Array.isArray(wos) ? wos : []);
       } catch (e) {
         if (!mounted) return;
         setError(e?.message || "Failed to load inventory.");
@@ -148,6 +155,17 @@ function PartsPage() {
     return inventories.filter((inv) => Number(inv?.in_stock ?? 0) > 0).length;
   }, [inventories]);
 
+  const awaitingPartsWoCount = useMemo(() => {
+    return (workOrders || []).filter((wo) => wo?.status === "awaiting_parts").length;
+  }, [workOrders]);
+
+  const totalUnitsOnHand = useMemo(() => {
+    return inventories.reduce((sum, inv) => {
+      const qty = Number(inv?.in_stock ?? inv?.quantity ?? 0);
+      return sum + (Number.isFinite(qty) ? qty : 0);
+    }, 0);
+  }, [inventories]);
+
   const dashboardNumbers = useMemo(() => {
     return [
       {
@@ -163,19 +181,19 @@ function PartsPage() {
         color: "warning.main",
       },
       {
-        title: "Parts on Order",
-        icon: <WorkHistoryIcon />,
-        number: "—",
+        title: "Work orders awaiting parts",
+        icon: <HourglassEmptyIcon />,
+        number: isLoading ? "—" : awaitingPartsWoCount,
         color: "info.main",
       },
       {
-        title: "Tools Due for Calibration",
-        icon: <WorkHistoryIcon />,
-        number: "—",
-        color: "warning.main",
+        title: "Total units on hand",
+        icon: <Inventory2OutlinedIcon />,
+        number: isLoading ? "—" : totalUnitsOnHand,
+        color: "info.main",
       },
     ];
-  }, [isLoading, lowStockCount, partsInStockCount]);
+  }, [isLoading, awaitingPartsWoCount, lowStockCount, partsInStockCount, totalUnitsOnHand]);
 
   const inventoryFields = [
     "P/N",

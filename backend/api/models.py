@@ -311,11 +311,26 @@ class Mechanic(models.Model):
 
 #Aircraft model, has basic information about the aircraft and a str function.
 class Aircraft(models.Model):
+    FLEET_STATUS_CHOICES = [
+        ("active", "Active"),
+        ("maintenance_due", "Maintenance Due"),
+        ("aog", "AOG"),
+        ("grounded", "Grounded"),
+    ]
+
     registration_number = models.CharField(max_length=50)
     model = models.CharField(max_length=200)
     manufacturer = models.CharField(max_length=200)
     engine_type = models.CharField(max_length=200, null= True)
     year_built = models.IntegerField(validators=[MaxValueValidator(9999),MinValueValidator(1903)])
+    location = models.CharField(max_length=100, blank=True, default="")
+    tach_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    hobbs_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    fleet_status = models.CharField(
+        max_length=40, choices=FLEET_STATUS_CHOICES, default="active"
+    )
+    aircraft_type = models.CharField(max_length=60, blank=True, default="")
+    specs = models.JSONField(default=dict, blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="aircraft", null=True, blank=True )
     
     def __str__(self):
@@ -471,6 +486,18 @@ class WorkOrder(models.Model):
         ("awaiting_parts", "Awaiting Parts"),
         ("closed", "Closed"),
     ]
+    PRIORITY_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("critical", "Critical"),
+    ]
+
+    assignee = models.ForeignKey(
+        'Profile', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assigned_work_orders'
+    )
+    completion_notes = models.TextField(blank=True, null=True)
 
     aircraft = models.ForeignKey(
         Aircraft, on_delete=models.CASCADE, related_name="work_orders"
@@ -485,6 +512,9 @@ class WorkOrder(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(
         max_length=50, choices=STATUS_CHOICES, default="open"
+    )
+    priority = models.CharField(
+        max_length=20, choices=PRIORITY_CHOICES, default="medium"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -546,6 +576,8 @@ class Discrepancy(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="pending"
     )
+    signature = models.ImageField(upload_to="discrepancies_signatures/", null=True, blank=True)
+    signature_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"Discrepancy on {self.aircraft} ({self.status})"
@@ -615,3 +647,89 @@ class DiscrepancyActivity(models.Model):
 
     def __str__(self):
         return f"DISC#{self.discrepancy_id} {self.event_type} @ {self.created_at}"
+
+      
+class Tool(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="tools")
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    serial_number = models.CharField(max_length=200)
+    calibration_due_date = models.DateField()
+    location = models.CharField(max_length=200, blank=True, null=True)
+
+    @property
+    def calibration_alert(self):
+        today = timezone.now().date()
+        delta = (self.calibration_due_date - today).days
+        if delta < 0:
+            return "red"
+        if delta <= 10:
+            return "amber"
+        return "green"
+
+    @property
+    def status(self):
+        today = timezone.now().date()
+        delta = (self.calibration_due_date - today).days
+        if delta < 0:
+            return "overdue"
+        if delta <= 10:
+            return "calibration_due"
+        return "available"
+
+    def __str__(self):
+        return f"{self.name} (S/N: {self.serial_number})"
+
+
+class CalibrationRecord(models.Model):
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="calibration_history")
+    calibration_date = models.DateField()
+    performed_by = models.CharField(max_length=200)
+    next_due_date = models.DateField()
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Calibration of {self.tool.name} on {self.calibration_date} by {self.performed_by}"
+        
+
+class AircraftPhoto(models.Model):
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="photos"
+    )
+    image = models.ImageField(upload_to="aircraft_photos/")
+    caption = models.CharField(max_length=200, blank=True, default="")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+
+class AircraftMaintenanceInterval(models.Model):
+    INTERVAL_TYPE_CHOICES = [
+        ("hours", "Hours"),
+        ("days", "Days"),
+        ("both", "Both"),
+    ]
+
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="maintenance_intervals"
+    )
+    name = models.CharField(max_length=120)
+    interval_type = models.CharField(
+        max_length=20, choices=INTERVAL_TYPE_CHOICES, default="hours"
+    )
+    due_every_hours = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    due_every_days = models.PositiveIntegerField(null=True, blank=True)
+    last_done_tach = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_hobbs = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_date = models.DateField(null=True, blank=True)
+    is_ad = models.BooleanField(default=False)
+    ad_number = models.CharField(max_length=80, blank=True, default="")
+    ad_revision = models.CharField(max_length=40, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]

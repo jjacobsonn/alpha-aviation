@@ -18,7 +18,9 @@ import {
 import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import InventoryIcon from "@mui/icons-material/Inventory";
+import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
+import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -102,8 +104,16 @@ function NavigationDrawer() {
       title: "Organizations",
       icon: <DomainIcon />,
       color: "#00695c",
-      allowedRoles: ["owner", "manager"],
+      allowedRoles: ["manager"],
       to: "/admin/companies",
+    },
+    {
+      id: "fleet",
+      title: "Fleet",
+      icon: <AirlinesIcon />,
+      color: "#1976d2",
+      allowedRoles: ["owner", "manager", "mechanic", "pilot", "dispatcher"],
+      to: "/fleet",
     },
     {
       id: "parts",
@@ -120,11 +130,19 @@ function NavigationDrawer() {
       allowedRoles: ["owner", "manager", "mechanic"],
     },
     {
+      id: "work-orders",
+      title: "Work Orders",
+      icon: <WorkOutlineIcon />,
+      color: "#fb8c00",
+      allowedRoles: ["owner", "manager", "mechanic"],
+      to: "/work-orders",
+    },
+    {
       id: "pilot-dashboard",
       title: "Pilot Dashboard",
       icon: <FlightTakeoffIcon />,
       color: "#7b1fa2",
-      allowedRoles: ["pilot"],
+      allowedRoles: ["pilot", "owner"],
       to: "/pilot-dashboard",
     },
     {
@@ -132,7 +150,7 @@ function NavigationDrawer() {
       title: "Dispatcher Dashboard",
       icon: <DashboardIcon />,
       color: "#00897b",
-      allowedRoles: ["dispatcher"],
+      allowedRoles: ["dispatcher", "owner"],
       to: "/dispatcher-dashboard",
     },
   ];

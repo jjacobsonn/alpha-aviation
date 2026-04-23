@@ -31,7 +31,7 @@ const forceLogout = () => {
 };
 
 const apiClient = axios.create({
-	baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+	baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api',
 	headers: {
 		Accept: 'application/json',
 		'Content-Type': 'application/json',
@@ -112,7 +112,7 @@ apiClient.interceptors.response.use(
 			try {
 				const response = await axios.post(
 					`${
-						process.env.REACT_APP_API_URL || 'http://localhost:8000/api'
+						process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api'
 					}/auth/token/refresh/`,
 					{ refresh: tokens.refreshToken }
 				);
@@ -285,6 +285,37 @@ export const fetchCompanyAircrafts = async () => {
 
 export const fetchCompanyFlights = async () => {
 	return await makeApiRequest('GET', '/company/flights/');
+};
+
+// Fleet module APIs
+export const fetchFleetAircraft = async (queryParams = {}) => {
+	const data = await makeApiRequest('GET', '/fleet/aircraft/', null, queryParams);
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+};
+
+export const fetchFleetAircraftDetail = async (id) => {
+	return await makeApiRequest('GET', `/fleet/aircraft/${id}/`);
+};
+
+export const fetchAircraftIntervals = async (aircraftId) => {
+	const data = await makeApiRequest('GET', `/fleet/aircraft/${aircraftId}/intervals/`);
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+};
+
+export const createAircraftInterval = async (aircraftId, payload) => {
+	return await makeApiRequest('POST', `/fleet/aircraft/${aircraftId}/intervals/`, payload);
+};
+
+export const updateAircraftInterval = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/fleet/intervals/${id}/`, payload);
+};
+
+export const completeAircraftInterval = async (id, payload) => {
+	return await makeApiRequest('POST', `/fleet/intervals/${id}/complete/`, payload);
 };
 
 export const createCompanyFlightRequest = async (payload) => {
