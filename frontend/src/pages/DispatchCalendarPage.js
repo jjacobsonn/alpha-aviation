@@ -184,6 +184,8 @@ function buildDayLayout(events) {
 export default function CalendarPage() {
   const { state } = useAppContext();
   const platformAdmin = isPlatformAdmin(state.user);
+  const effectiveRole = state.viewAsUser?.role || state.user?.role;
+  const canDeleteCalendarEvent = effectiveRole === "owner";
   const hasCompanyContext =
     Boolean(state.user?.companyId) || Boolean(localStorage.getItem("adminCompanyId"));
   const [loading, setLoading] = useState(true);
@@ -429,7 +431,7 @@ export default function CalendarPage() {
   };
 
   const removeEvent = (event) => {
-    if (!event?.editable) return;
+    if (!event?.editable || !canDeleteCalendarEvent) return;
     setCustomEvents((prev) => prev.filter((e) => e.id !== event.id));
     setSelectedEvent(null);
   };
@@ -972,7 +974,11 @@ export default function CalendarPage() {
       />
       <EventDetailsPanel
         open={Boolean(selectedEvent)}
-        event={selectedEvent}
+        event={
+          selectedEvent
+            ? { ...selectedEvent, editable: Boolean(selectedEvent.editable && canDeleteCalendarEvent) }
+            : selectedEvent
+        }
         onClose={() => setSelectedEvent(null)}
         onEdit={openEditEvent}
         onDelete={removeEvent}

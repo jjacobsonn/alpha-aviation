@@ -52,6 +52,26 @@ function formatFleetStatusLabel(status) {
 		.join(' ');
 }
 
+function splitIntervalNotes(notesValue) {
+	const raw = String(notesValue || '');
+	const match = raw.match(/^\[Submitted By:\s*(.+?)\]\s*\n?/i);
+	if (!match) {
+		return { submittedBy: '', notes: raw };
+	}
+	return {
+		submittedBy: match[1]?.trim() || '',
+		notes: raw.replace(match[0], '').trimStart(),
+	};
+}
+
+function joinIntervalNotes(submittedBy, notes) {
+	const who = String(submittedBy || '').trim();
+	const body = String(notes || '').trim();
+	if (who && body) return `[Submitted By: ${who}]\n${body}`;
+	if (who) return `[Submitted By: ${who}]`;
+	return body;
+}
+
 const FleetDetailPage = () => {
 	const { id } = useParams();
 	const { state } = useAppContext();
@@ -69,6 +89,7 @@ const FleetDetailPage = () => {
 		interval_type: 'hours',
 		hours_remaining_input: '',
 		days_remaining_input: '',
+		submitted_by: '',
 		notes: '',
 	});
 	const [editInterval, setEditInterval] = useState({
@@ -76,12 +97,14 @@ const FleetDetailPage = () => {
 		interval_type: 'hours',
 		hours_remaining_input: '',
 		days_remaining_input: '',
+		submitted_by: '',
 		notes: '',
 	});
 
 	const userRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
 	const canEditDetail =
-		isPlatformAdmin(state.user) || ['owner', 'manager', 'mechanic'].includes(userRole);
+		isPlatformAdmin(state.user) || ['owner', 'manager', 'mechanic', 'dispatcher'].includes(userRole);
+	const canDeleteIntervals = userRole === 'owner';
 
 	useEffect(() => {
 		let mounted = true;
@@ -167,7 +190,7 @@ const FleetDetailPage = () => {
 				last_done_tach: hoursRemaining === null ? null : aircraft?.tach_current ?? null,
 				last_done_hobbs: hoursRemaining === null ? null : aircraft?.hobbs_current ?? null,
 				last_done_date: daysRemaining === null ? null : today,
-				notes: newInterval.notes || '',
+				notes: joinIntervalNotes(newInterval.submitted_by, newInterval.notes),
 			};
 			const created = await createAircraftInterval(id, payload);
 			setIntervals((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
@@ -176,6 +199,7 @@ const FleetDetailPage = () => {
 				interval_type: 'hours',
 				hours_remaining_input: '',
 				days_remaining_input: '',
+				submitted_by: '',
 				notes: '',
 			});
 			return true;
@@ -188,6 +212,10 @@ const FleetDetailPage = () => {
 	};
 
 	const handleDeleteInterval = async (intervalId) => {
+		if (!canDeleteIntervals) {
+			setError('Only owners can delete intervals.');
+			return;
+		}
 		try {
 			setSavingIntervalId(intervalId);
 			setError('');
@@ -201,6 +229,7 @@ const FleetDetailPage = () => {
 	};
 
 	const openEditIntervalDialog = (row) => {
+		const parsed = splitIntervalNotes(row.notes);
 		setEditingIntervalId(row.id);
 		setEditInterval({
 			name: row.name || '',
@@ -213,7 +242,8 @@ const FleetDetailPage = () => {
 				row.days_remaining === null || row.days_remaining === undefined
 					? ''
 					: String(row.days_remaining),
-			notes: row.notes || '',
+			submitted_by: parsed.submittedBy,
+			notes: parsed.notes,
 		});
 		setIsEditDialogOpen(true);
 	};
@@ -254,7 +284,7 @@ const FleetDetailPage = () => {
 				last_done_tach: hoursRemaining === null ? null : aircraft?.tach_current ?? null,
 				last_done_hobbs: hoursRemaining === null ? null : aircraft?.hobbs_current ?? null,
 				last_done_date: daysRemaining === null ? null : today,
-				notes: editInterval.notes || '',
+				notes: joinIntervalNotes(editInterval.submitted_by, editInterval.notes),
 			};
 			const updated = await updateAircraftInterval(editingIntervalId, payload);
 			setIntervals((prev) =>
@@ -397,12 +427,15 @@ const FleetDetailPage = () => {
 													<TableCell>Hours Remaining</TableCell>
 													<TableCell>Days Remaining</TableCell>
 													<TableCell>Compliance</TableCell>
+												<TableCell>Submitted By</TableCell>
 													<TableCell>Notes</TableCell>
 													{canEditDetail ? <TableCell>Actions</TableCell> : null}
 												</TableRow>
 											</TableHead>
 											<TableBody>
-												{intervals.map((row) => (
+												{intervals.map((row) => {
+													const parsed = splitIntervalNotes(row.notes);
+													return (
 													<TableRow key={row.id}>
 														<TableCell>{row.name}</TableCell>
 														<TableCell>{row.interval_type}</TableCell>
@@ -415,8 +448,9 @@ const FleetDetailPage = () => {
 																label={row.compliance_status || 'ok'}
 															/>
 														</TableCell>
+														<TableCell>{parsed.submittedBy || '—'}</TableCell>
 														<TableCell sx={{ minWidth: 220 }}>
-															{row.notes || '—'}
+															{parsed.notes || '—'}
 														</TableCell>
 														{canEditDetail ? (
 															<TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -437,23 +471,25 @@ const FleetDetailPage = () => {
 																>
 																	Mark Complete
 																</Button>
-																<Button
-																	size="small"
-																	sx={{ ml: 1 }}
-																	color="error"
-																	variant="text"
-																	onClick={() => handleDeleteInterval(row.id)}
-																	disabled={savingIntervalId === row.id}
-																>
-																	Delete
-																</Button>
+																{canDeleteIntervals ? (
+																	<Button
+																		size="small"
+																		sx={{ ml: 1 }}
+																		color="error"
+																		variant="text"
+																		onClick={() => handleDeleteInterval(row.id)}
+																		disabled={savingIntervalId === row.id}
+																	>
+																		Delete
+																	</Button>
+																) : null}
 															</TableCell>
 														) : null}
 													</TableRow>
-												))}
+												)})}
 												{intervals.length === 0 ? (
 													<TableRow>
-														<TableCell colSpan={canEditDetail ? 7 : 6} sx={{ color: 'text.secondary', py: 3 }}>
+														<TableCell colSpan={canEditDetail ? 8 : 7} sx={{ color: 'text.secondary', py: 3 }}>
 															No maintenance intervals found.
 														</TableCell>
 													</TableRow>
@@ -546,6 +582,18 @@ const FleetDetailPage = () => {
 							}
 							fullWidth
 						/>
+						<TextField
+							size="small"
+							label="Submitted By"
+							value={newInterval.submitted_by}
+							onChange={(e) =>
+								setNewInterval((prev) => ({
+									...prev,
+									submitted_by: e.target.value,
+								}))
+							}
+							fullWidth
+						/>
 					</Stack>
 				</DialogContent>
 				<DialogActions>
@@ -633,6 +681,18 @@ const FleetDetailPage = () => {
 							minRows={3}
 							value={editInterval.notes}
 							onChange={(e) => setEditInterval((prev) => ({ ...prev, notes: e.target.value }))}
+							fullWidth
+						/>
+						<TextField
+							size="small"
+							label="Submitted By"
+							value={editInterval.submitted_by}
+							onChange={(e) =>
+								setEditInterval((prev) => ({
+									...prev,
+									submitted_by: e.target.value,
+								}))
+							}
 							fullWidth
 						/>
 					</Stack>

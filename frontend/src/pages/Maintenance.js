@@ -201,6 +201,8 @@ const Maintenance = () => {
 	const platformAdmin = isPlatformAdmin(state.user);
 	const mechanicRole = isMechanicRole(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state.user);
+	const effectiveRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
+	const canDeleteMaintenanceRecords = effectiveRole === 'owner';
 	const canEditWorkOrderAssignment = superviseMaintenance || platformAdmin;
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
@@ -586,6 +588,10 @@ const Maintenance = () => {
 	};
 
 	const handleDeleteWorkorder = async (id) => {
+		if (!canDeleteMaintenanceRecords) {
+			setError('Only owners can delete work orders.');
+			return;
+		}
 		setError('');
 		try {
 			await deleteWorkorder(id);
@@ -667,6 +673,10 @@ const Maintenance = () => {
 	};
 
 	const handleDeleteDiscrepancy = async (id) => {
+		if (!canDeleteMaintenanceRecords) {
+			setError('Only owners can delete discrepancies.');
+			return;
+		}
 		setError('');
 		try {
 			await deleteDiscrepancy(id);
@@ -1246,7 +1256,7 @@ const Maintenance = () => {
 						{!workOrderDetailEditing ? (
 							<>
 								<Button onClick={closeWorkOrderDetail}>Close</Button>
-								{superviseMaintenance ? (
+								{canDeleteMaintenanceRecords ? (
 									<Button color="error" onClick={() => handleDeleteWorkorder(selectedWorkOrder.id)}>
 										Delete
 									</Button>
@@ -1398,7 +1408,7 @@ const Maintenance = () => {
 						{!discrepancyDetailEditing ? (
 							<>
 								<Button onClick={closeDiscrepancyDetail}>Close</Button>
-								{superviseMaintenance ? (
+								{canDeleteMaintenanceRecords ? (
 									<Button color="error" onClick={() => handleDeleteDiscrepancy(selectedDiscrepancy.id)}>
 										Delete
 									</Button>

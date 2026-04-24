@@ -61,6 +61,8 @@ export default function DispatcherDashboard() {
   const navigate = useNavigate();
   const { state } = useAppContext();
   const platformAdmin = isPlatformAdmin(state.user);
+  const effectiveRole = state.viewAsUser?.role || state.user?.role;
+  const canDeleteFlights = effectiveRole === "owner";
   const hasCompanyContext =
     Boolean(state.user?.companyId) || Boolean(localStorage.getItem("adminCompanyId"));
 
@@ -225,6 +227,10 @@ export default function DispatcherDashboard() {
   };
 
   const removeFlight = async (id) => {
+    if (!canDeleteFlights) {
+      setError("Only owners can delete flights.");
+      return;
+    }
     setBusyId(id);
     setError("");
     try {
@@ -257,7 +263,7 @@ export default function DispatcherDashboard() {
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
               <Box>
                 <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                  Dispatch
+                  Dispatcher
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Review flight requests, approve or cancel, and monitor scheduled flights.
@@ -477,14 +483,16 @@ export default function DispatcherDashboard() {
                             <Button size="small" variant="outlined" onClick={() => openEdit(f)}>
                               Edit
                             </Button>
-                            <Button
-                              size="small"
-                              color="error"
-                              onClick={() => removeFlight(f.id)}
-                              disabled={busyId === f.id}
-                            >
-                              Remove
-                            </Button>
+                            {canDeleteFlights ? (
+                              <Button
+                                size="small"
+                                color="error"
+                                onClick={() => removeFlight(f.id)}
+                                disabled={busyId === f.id}
+                              >
+                                Remove
+                              </Button>
+                            ) : null}
                           </Stack>
                         </TableCell>
                       </TableRow>

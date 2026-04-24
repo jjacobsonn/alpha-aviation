@@ -32,6 +32,7 @@ from .models import (
 from .permissions import (
     HasCompanyRole,
     IsCompanyMember,
+    IsOwner,
     IsManagerOrOwner,
     IsMechanicOrManager,
     IsMechanicOrManagerOrPilot,
@@ -194,8 +195,6 @@ def company_scoped_workorder_queryset(request):
     user = request.user
     if _is_platform_admin(user):
         return qs
-    if getattr(user, "company_role", None) == "mechanic":
-        return qs.filter(created_by_id=user.id)
     return qs
 
 
@@ -218,12 +217,6 @@ def company_scoped_discrepancy_queryset(request):
     user = request.user
     if _is_platform_admin(user):
         return qs
-    if getattr(user, "company_role", None) == "mechanic":
-        return qs.filter(
-            Q(reporter_id=user.id) | Q(work_order__created_by_id=user.id)
-        )
-    if getattr(user, "company_role", None) == "pilot":
-        return qs.filter(reporter_id=user.id)
     return qs
 
 
@@ -625,7 +618,7 @@ def company_inventory_view(request):
 
 #endpoint for company's workorders
 @api_view(['GET'])
-@permission_classes([IsMechanicOrManager])
+@permission_classes([IsAuthenticated])
 def company_workorders_view(request):
     company = get_request_company(request)
     if company is None:
@@ -636,7 +629,7 @@ def company_workorders_view(request):
 
 #endpoint for company's discrepancies
 @api_view(['GET'])
-@permission_classes([IsMechanicOrManagerOrPilot])
+@permission_classes([IsAuthenticated])
 def company_discrepancies_view(request):
     company = get_request_company(request)
     if company is None:
@@ -776,7 +769,12 @@ class AircraftViewSet(viewsets.ModelViewSet):
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
     serializer_class = PartSerializer
-    permission_classes = [IsMechanicOrManager]
+    def get_permissions(self):
+        # Allow all authenticated company users to read parts for maintenance/work-order context.
+        # Keep write operations restricted to mechanic/manager/owner via existing permission.
+        if self.action in ("list", "retrieve"):
+            return [IsAuthenticated()]
+        return [IsMechanicOrManager()]
 
 class DiscrepancyViewSet(viewsets.ModelViewSet):
     serializer_class = DiscrepancySerializer
@@ -789,7 +787,7 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
         if self.action == "create":
             return [IsAuthenticated()]
         if self.action == "destroy":
-            return [IsManagerOrOwner()]
+            return [IsOwner()]
         return [IsMechanicOrManager()]
 
     def perform_create(self, serializer):
@@ -807,8 +805,10 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # Supervisors (manager/owner) create and delete work orders; mechanics execute assigned work.
-        if self.action in ("create", "destroy"):
-            return [IsManagerOrOwner()]
+        if self.action == "create":
+            return [IsAuthenticated()]
+        if self.action == "destroy":
+            return [IsOwner()]
         return [IsMechanicOrManager()]
 
     def perform_create(self, serializer):
@@ -923,7 +923,7 @@ class FleetAircraftIntervalListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         role = getattr(request.user, "company_role", None)
         if not (
-            role in {"mechanic", "manager", "owner"}
+            role in {"mechanic", "dispatcher", "manager", "owner"}
             or _is_platform_admin(request.user)
         ):
             return Response(
@@ -945,7 +945,7 @@ class FleetAircraftIntervalUpdateView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         role = getattr(request.user, "company_role", None)
         if not (
-            role in {"mechanic", "manager", "owner"}
+            role in {"mechanic", "dispatcher", "manager", "owner"}
             or _is_platform_admin(request.user)
         ):
             return Response(
@@ -963,7 +963,7 @@ class FleetAircraftIntervalUpdateView(generics.RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         role = getattr(request.user, "company_role", None)
         if not (
-            role in {"mechanic", "manager", "owner"}
+            role in {"owner"}
             or _is_platform_admin(request.user)
         ):
             return Response(
@@ -984,7 +984,7 @@ class FleetAircraftIntervalUpdateView(generics.RetrieveUpdateDestroyAPIView):
 def fleet_interval_complete_view(request, interval_id):
     role = getattr(request.user, "company_role", None)
     if not (
-        role in {"mechanic", "manager", "owner"}
+        role in {"mechanic", "dispatcher", "manager", "owner"}
         or _is_platform_admin(request.user)
     ):
         return Response(

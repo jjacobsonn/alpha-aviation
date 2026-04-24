@@ -87,6 +87,8 @@ export default function WorkOrders() {
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state.user);
+	const effectiveRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
+	const canDeleteWorkOrders = effectiveRole === 'owner';
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [workOrders, setWorkOrders] = useState([]);
@@ -290,6 +292,10 @@ export default function WorkOrders() {
 	};
 
 	const quickDelete = async (wo) => {
+		if (!canDeleteWorkOrders) {
+			setError('Only owners can delete work orders.');
+			return;
+		}
 		setError('');
 		try {
 			await deleteWorkorder(wo.id);
@@ -497,7 +503,7 @@ export default function WorkOrders() {
 																{wo.status !== 'closed' ? (
 																	<Button size="small" variant="contained" color="secondary" sx={actionBtnSx} onClick={() => quickStatus(wo, 'closed')}>Close</Button>
 																) : null}
-																{superviseMaintenance ? (
+																{canDeleteWorkOrders ? (
 																	<Button size="small" variant="contained" color="error" sx={actionBtnSx} onClick={() => quickDelete(wo)}>Delete</Button>
 																) : null}
 															</Box>

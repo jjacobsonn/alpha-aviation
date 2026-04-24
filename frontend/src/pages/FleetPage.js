@@ -61,13 +61,6 @@ function formatFleetStatusLabel(status) {
 		.join(' ');
 }
 
-function formatIntervalSummary(summary) {
-	if (!summary) return 'No interval data';
-	const overdue = summary.overdue_count || 0;
-	const dueSoon = summary.due_soon_count || 0;
-	return `Overdue: ${overdue} | Due Soon: ${dueSoon}`;
-}
-
 const FleetPage = () => {
 	const navigate = useNavigate();
 	const { state } = useAppContext();
@@ -96,6 +89,7 @@ const FleetPage = () => {
 
 	const effectiveRole = state.viewAsUser?.role || state.user?.role;
 	const canManageFleet = isPlatformAdmin(state.user) || ['owner', 'manager'].includes(effectiveRole);
+	const canDeleteFleet = effectiveRole === 'owner';
 
 	useEffect(() => {
 		let mounted = true;
@@ -168,6 +162,7 @@ const FleetPage = () => {
 	};
 
 	const openCreate = () => {
+		if (!canManageFleet) return;
 		setEditingId(null);
 		setForm({
 			registration_number: '',
@@ -185,6 +180,7 @@ const FleetPage = () => {
 	};
 
 	const openEdit = async (row) => {
+		if (!canManageFleet) return;
 		try {
 			setSaving(true);
 			setError('');
@@ -211,6 +207,10 @@ const FleetPage = () => {
 	};
 
 	const handleSave = async () => {
+		if (!canManageFleet) {
+			setError('You do not have permission to make this change.');
+			return;
+		}
 		if (!form.registration_number.trim() || !form.model.trim() || !form.manufacturer.trim() || !form.year_built) {
 			setError('Tail number, model, manufacturer, and year built are required.');
 			return;
@@ -242,6 +242,10 @@ const FleetPage = () => {
 	};
 
 	const handleDelete = async (id) => {
+		if (!canDeleteFleet) {
+			setError('You do not have permission to delete aircraft.');
+			return;
+		}
 		try {
 			setSaving(true);
 			setError('');
@@ -354,7 +358,6 @@ const FleetPage = () => {
 											<TableCell>Tach</TableCell>
 											<TableCell>Hobbs</TableCell>
 											<TableCell>Status</TableCell>
-											<TableCell>Intervals</TableCell>
 											{canManageFleet ? <TableCell>Actions</TableCell> : null}
 										</TableRow>
 									</TableHead>
@@ -380,23 +383,22 @@ const FleetPage = () => {
 															color={statusChipColor(row.fleet_status)}
 														/>
 													</TableCell>
-													<TableCell>
-														{formatIntervalSummary(row?.interval_summary)}
-													</TableCell>
 													{canManageFleet ? (
 														<TableCell onClick={(e) => e.stopPropagation()} sx={{ whiteSpace: 'nowrap' }}>
 															<Button size="small" variant="outlined" onClick={() => openEdit(row)}>
 																Edit
 															</Button>
-															<Button
-																size="small"
-																color="error"
-																sx={{ ml: 1 }}
-																onClick={() => handleDelete(row.id)}
-																disabled={saving}
-															>
-																Delete
-															</Button>
+															{canDeleteFleet ? (
+																<Button
+																	size="small"
+																	color="error"
+																	sx={{ ml: 1 }}
+																	onClick={() => handleDelete(row.id)}
+																	disabled={saving}
+																>
+																	Delete
+																</Button>
+															) : null}
 														</TableCell>
 													) : null}
 												</TableRow>
@@ -404,7 +406,7 @@ const FleetPage = () => {
 										{isLoading
 											? [...Array(6)].map((_, idx) => (
 													<TableRow key={`fleet-skeleton-${idx}`}>
-														<TableCell colSpan={canManageFleet ? 9 : 8}>
+														<TableCell colSpan={canManageFleet ? 8 : 7}>
 															<Skeleton variant="text" />
 														</TableCell>
 													</TableRow>
@@ -412,7 +414,7 @@ const FleetPage = () => {
 											: null}
 										{!isLoading && filteredRows.length === 0 ? (
 											<TableRow>
-												<TableCell colSpan={canManageFleet ? 9 : 8} sx={{ color: 'text.secondary', py: 3 }}>
+												<TableCell colSpan={canManageFleet ? 8 : 7} sx={{ color: 'text.secondary', py: 3 }}>
 													No aircraft found for current filters. Try clearing search/filter values.
 												</TableCell>
 											</TableRow>

@@ -41,8 +41,12 @@ import {
   updateInventory,
   updatePart,
 } from "../shared/Api";
+import { useAppContext } from "../context/AppContext";
 
 function PartsPage() {
+  const { state } = useAppContext();
+  const effectiveRole = state.viewAsUser?.role || state.user?.role;
+  const canDeleteParts = effectiveRole === "owner";
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -428,28 +432,30 @@ function PartsPage() {
                   open={Boolean(menuAnchor)}
                   onClose={closeMenu}
                 >
-                  <MenuItem
-                    onClick={() => {
-                      if (!selectedPart?.id) {
+                  {canDeleteParts ? (
+                    <MenuItem
+                      onClick={() => {
+                        if (!selectedPart?.id) {
+                          closeMenu();
+                          return;
+                        }
+                        deleteInventory(selectedPart.id)
+                          .then(() => {
+                            setInventories((prev) =>
+                              prev.filter((inv) => inv?.id !== selectedPart.id)
+                            );
+                          })
+                          .catch((e) => {
+                            console.error('Failed to delete inventory', e);
+                            setError(e?.message || 'Failed to delete inventory item.');
+                          })
+                          .finally(() => closeMenu());
                         closeMenu();
-                        return;
-                      }
-                      deleteInventory(selectedPart.id)
-                        .then(() => {
-                          setInventories((prev) =>
-                            prev.filter((inv) => inv?.id !== selectedPart.id)
-                          );
-                        })
-                        .catch((e) => {
-                          console.error('Failed to delete inventory', e);
-                          setError(e?.message || 'Failed to delete inventory item.');
-                        })
-                        .finally(() => closeMenu());
-                      closeMenu();
-                    }}
-                  >
-                    Delete
-                  </MenuItem>
+                      }}
+                    >
+                      Delete
+                    </MenuItem>
+                  ) : null}
 
                   <MenuItem
                     onClick={() => {
