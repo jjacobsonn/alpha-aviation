@@ -7,25 +7,24 @@ import {
   CardContent,
   Chip,
   Container,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  IconButton,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import { fetchCompanyDiscrepancies, fetchCompanyFlights, fetchCompanyWorkorders } from "../shared/Api";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
+import AddEventModal from "../components/calendar/AddEventModal";
+import EventDetailsPanel from "../components/calendar/EventDetailsPanel";
+import CalendarEventCard from "../components/calendar/CalendarEventCard";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HOUR_ROW_HEIGHT = 56;
 const START_HOUR = 0;
 const END_HOUR = 24;
 const WEEK_GRID_MIN_WIDTH = 980;
+const EVENT_KIND_OPTIONS = ["flight", "workorder", "discrepancy", "other"];
 
 function dateKey(d) {
   return d.toISOString().slice(0, 10);
@@ -61,31 +60,6 @@ function humanDate(d) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function eventChip(event) {
-  const palette = eventPalette(event.kind);
-  return (
-    <Chip
-      size="small"
-      label={event.title}
-      sx={{
-        borderRadius: 999,
-        fontWeight: 600,
-        maxWidth: "100%",
-        border: "1px solid",
-        borderColor: palette.border,
-        bgcolor: palette.background,
-        color: palette.text,
-        "& .MuiChip-label": {
-          px: 1.25,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        },
-      }}
-    />
-  );
-}
-
 function eventPalette(kind) {
   if (kind === "flight") {
     return {
@@ -101,11 +75,38 @@ function eventPalette(kind) {
       text: "#8d4200",
     };
   }
+  if (kind === "discrepancy") {
+    return {
+      border: "#d14343",
+      background: "#fdecec",
+      text: "#8c1f1f",
+    };
+  }
+  if (kind === "other") {
+    return {
+      border: "#7b4dce",
+      background: "#f2ecff",
+      text: "#4b2a87",
+    };
+  }
   return {
-    border: "#6d4c41",
-    background: "#f7ece8",
-    text: "#5a2f23",
+    border: "#4b5563",
+    background: "#f4f5f7",
+    text: "#1f2937",
   };
+}
+
+// Backward-compatible helper for HMR refresh edge-cases.
+// Some hot-update chunks may still call eventChip during fast refresh.
+function eventChip(event, onClick) {
+  return (
+    <CalendarEventCard
+      event={event}
+      palette={eventPalette(event?.kind)}
+      variant="chip"
+      onClick={onClick}
+    />
+  );
 }
 
 function startOfDay(date) {
@@ -121,6 +122,19 @@ function minutesSinceDayStart(date) {
 function formatTimeRange(start, end) {
   const opts = { hour: "numeric", minute: "2-digit" };
   return `${start.toLocaleTimeString([], opts)} - ${end.toLocaleTimeString([], opts)}`;
+}
+
+function kindLabel(kind) {
+  if (kind === "flight") return "Flight";
+  if (kind === "workorder") return "Work Order";
+  if (kind === "discrepancy") return "Discrepancy";
+  if (kind === "other") return "Other";
+  return "Event";
+}
+
+function dateInputValue(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function buildDayLayout(events) {
@@ -177,9 +191,23 @@ export default function CalendarPage() {
   const [view, setView] = useState("month");
   const [cursorDate, setCursorDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [visibleKinds, setVisibleKinds] = useState(EVENT_KIND_OPTIONS);
+  const [customEvents, setCustomEvents] = useState([]);
+  const [addEventOpen, setAddEventOpen] = useState(false);
+  const [eventDraft, setEventDraft] = useState(null);
+  const [editingEventId, setEditingEventId] = useState(null);
   const [flights, setFlights] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [discrepancies, setDiscrepancies] = useState([]);
+
+  const aircraftOptions = useMemo(() => {
+    const unique = new Set(
+      flights
+        .map((f) => f?.aircraft_name || "")
+        .filter(Boolean)
+    );
+    return Array.from(unique).sort();
+  }, [flights]);
 
   const load = useCallback(async () => {
     if (platformAdmin && !hasCompanyContext) {
@@ -224,11 +252,23 @@ export default function CalendarPage() {
         parseDate(f?.arrival_time || f?.scheduled_arrival || f?.end_time || f?.requested_arrival) ||
         new Date(departure.getTime() + 60 * 60 * 1000);
       push(dateKey(departure), {
+        id: `flight-${f.id}`,
+        source: "flight",
         kind: "flight",
         title: `${f.flight_number || "Flight"} • ${f.origin || "—"}→${f.destination || "—"}`,
         start: departure,
         end: arrival > departure ? arrival : new Date(departure.getTime() + 45 * 60 * 1000),
         allDay: false,
+        route: `${f.origin || "—"} -> ${f.destination || "—"}`,
+        aircraft: f.aircraft_name || "",
+        status: f.status || "",
+        notes: f.notes || "",
+        editable: false,
+        typeLabel: "Flight",
+        timeLabel: formatTimeRange(
+          departure,
+          arrival > departure ? arrival : new Date(departure.getTime() + 45 * 60 * 1000)
+        ),
         subtitle: f.aircraft_name || "Aircraft TBD",
       });
     });
@@ -237,11 +277,19 @@ export default function CalendarPage() {
       const dt = parseDate(wo?.due_by || wo?.due_date || wo?.target_date || wo?.created_at || wo?.updated_at);
       if (!dt || String(wo?.status || "").toLowerCase() === "closed") return;
       push(dateKey(dt), {
+        id: `workorder-${wo.id}`,
+        source: "workorder",
         kind: "workorder",
         title: `WO #${wo.id} ${wo.title || ""}`.trim(),
         start: startOfDay(dt),
         end: startOfDay(dt),
         allDay: true,
+        status: wo.status || "open",
+        notes: wo.description || wo.notes || "",
+        workRef: `WO #${wo.id}`,
+        editable: false,
+        typeLabel: "Work Order",
+        timeLabel: "All day",
         subtitle: `Status: ${wo.status || "open"}`,
       });
     });
@@ -252,17 +300,35 @@ export default function CalendarPage() {
       );
       if (!dt || String(disc?.status || "").toLowerCase() === "closed") return;
       push(dateKey(dt), {
+        id: `discrepancy-${disc.id}`,
+        source: "discrepancy",
         kind: "discrepancy",
         title: `Discrepancy #${disc.id}`,
         start: startOfDay(dt),
         end: startOfDay(dt),
         allDay: true,
+        status: disc.status || "open",
+        notes: disc.description || "",
+        workRef: disc?.ata ? `ATA ${disc.ata}` : `Discrepancy #${disc.id}`,
+        editable: false,
+        typeLabel: "Discrepancy",
+        timeLabel: "All day",
         subtitle: disc.ata || "Open issue",
       });
     });
 
+    customEvents.forEach((evt) => {
+      if (!evt?.start) return;
+      const key = dateKey(new Date(evt.start));
+      push(key, {
+        ...evt,
+        typeLabel: kindLabel(evt.kind),
+        timeLabel: formatTimeRange(new Date(evt.start), new Date(evt.end)),
+      });
+    });
+
     return out;
-  }, [flights, workOrders, discrepancies]);
+  }, [flights, workOrders, discrepancies, customEvents]);
 
   const monthDays = useMemo(() => {
     const start = startOfMonth(cursorDate);
@@ -285,6 +351,15 @@ export default function CalendarPage() {
     return eventsByDay.get(dateKey(cursorDate)) || [];
   }, [eventsByDay, cursorDate]);
 
+  const isKindVisible = (kind) => visibleKinds.includes(kind);
+  const filterByVisibleKinds = (events) => events.filter((evt) => isKindVisible(evt.kind));
+  const toggleKind = (kind) => {
+    setVisibleKinds((prev) => {
+      if (prev.includes(kind)) return prev.filter((k) => k !== kind);
+      return [...prev, kind];
+    });
+  };
+
   const title = useMemo(() => {
     if (view === "month") return cursorDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
     if (view === "week") {
@@ -300,6 +375,63 @@ export default function CalendarPage() {
     if (view === "month") next.setMonth(next.getMonth() + dir);
     else next.setDate(next.getDate() + (view === "week" ? 7 * dir : dir));
     setCursorDate(next);
+  };
+
+  const openAddEvent = ({ date, minutes = 9 * 60, endMinutes } = {}) => {
+    const base = date ? new Date(date) : new Date(cursorDate);
+    const start = new Date(base);
+    start.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+    const end = new Date(base);
+    const endMins = endMinutes != null ? endMinutes : Math.min(minutes + 60, 23 * 60 + 59);
+    end.setHours(Math.floor(endMins / 60), endMins % 60, 0, 0);
+    setEditingEventId(null);
+    setEventDraft({ kind: "flight", start, end, date: dateInputValue(base) });
+    setAddEventOpen(true);
+  };
+
+  const minuteFromClick = (event, rowHeight = HOUR_ROW_HEIGHT) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+    const minutes = Math.floor((y / rowHeight) * 60);
+    return Math.max(0, Math.min(23 * 60 + 30, Math.round(minutes / 30) * 30));
+  };
+
+  const saveCustomEvent = (payload) => {
+    const built = {
+      id: editingEventId || `custom-${Date.now()}`,
+      source: "custom",
+      kind: payload.eventType,
+      title: payload.title,
+      start: payload.start,
+      end: payload.end,
+      allDay: false,
+      aircraft: payload.aircraft,
+      route: payload.route,
+      notes: payload.notes,
+      status: payload.status,
+      editable: true,
+    };
+    setCustomEvents((prev) => {
+      const next = prev.filter((e) => e.id !== built.id);
+      return [...next, built];
+    });
+    setAddEventOpen(false);
+    setEventDraft(null);
+    setEditingEventId(null);
+  };
+
+  const openEditEvent = (event) => {
+    if (!event?.editable) return;
+    setEditingEventId(event.id);
+    setEventDraft(event);
+    setAddEventOpen(true);
+    setSelectedEvent(null);
+  };
+
+  const removeEvent = (event) => {
+    if (!event?.editable) return;
+    setCustomEvents((prev) => prev.filter((e) => e.id !== event.id));
+    setSelectedEvent(null);
   };
 
   if (platformAdmin && !hasCompanyContext) {
@@ -339,116 +471,115 @@ export default function CalendarPage() {
               <Stack spacing={0.75} sx={{ mb: 1.25 }}>
                 <Box
                   sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1.25,
-                    minWidth: 0,
-                    overflowX: "auto",
-                    pb: 0.25,
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
+                    columnGap: 2,
+                    rowGap: 0.75,
+                    alignItems: "start",
                   }}
                 >
-                  <Typography
-                    variant="h5"
-                    sx={{ fontWeight: 800, whiteSpace: "nowrap", pr: 0.5 }}
-                  >
-                    {title}
-                  </Typography>
-                  <Box sx={{ flexGrow: 1 }} />
-                  <Stack
-                    direction="row"
-                    spacing={0.5}
-                    sx={{
-                      p: 0.35,
-                      borderRadius: 999,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      bgcolor: "background.paper",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Button
-                      variant="text"
-                      onClick={() => moveCursor(-1)}
-                      sx={{ borderRadius: 999, minWidth: 58, fontWeight: 700, color: "text.secondary" }}
+                  <Stack spacing={0.75} sx={{ minWidth: 0 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>
+                      {title}
+                    </Typography>
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{
+                        p: 0.35,
+                        borderRadius: 999,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        bgcolor: "background.paper",
+                        width: "fit-content",
+                      }}
                     >
-                      Prev
-                    </Button>
+                      <Button
+                        variant="text"
+                        onClick={() => moveCursor(-1)}
+                        sx={{ borderRadius: 999, minWidth: 58, fontWeight: 700, color: "text.secondary" }}
+                      >
+                        Prev
+                      </Button>
+                      <Button
+                        variant="contained"
+                        disableElevation
+                        onClick={() => setCursorDate(new Date())}
+                        sx={{ borderRadius: 999, minWidth: 68, fontWeight: 700 }}
+                      >
+                        Today
+                      </Button>
+                      <Button
+                        variant="text"
+                        onClick={() => moveCursor(1)}
+                        sx={{ borderRadius: 999, minWidth: 58, fontWeight: 700, color: "text.secondary" }}
+                      >
+                        Next
+                      </Button>
+                    </Stack>
+                    <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" sx={{ opacity: 0.9 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, mr: 0.25, opacity: 0.9 }}>
+                        Legend:
+                      </Typography>
+                      {EVENT_KIND_OPTIONS.map((kind) => {
+                        const p = eventPalette(kind);
+                        const selected = isKindVisible(kind);
+                        return (
+                          <Chip
+                            key={kind}
+                            label={kindLabel(kind)}
+                            size="small"
+                            clickable
+                            onClick={() => toggleKind(kind)}
+                            variant={selected ? "filled" : "outlined"}
+                            sx={{
+                              fontWeight: 700,
+                              border: "1px solid",
+                              borderColor: p.border,
+                              bgcolor: selected ? p.background : "transparent",
+                              color: selected ? p.text : "text.secondary",
+                              opacity: selected ? 1 : 0.75,
+                            }}
+                          />
+                        );
+                      })}
+                    </Stack>
+                  </Stack>
+
+                  <Stack spacing={0.75} alignItems={{ xs: "flex-start", md: "flex-end" }}>
                     <Button
                       variant="contained"
-                      disableElevation
-                      onClick={() => setCursorDate(new Date())}
-                      sx={{ borderRadius: 999, minWidth: 68, fontWeight: 700 }}
+                      onClick={() => openAddEvent({ date: cursorDate })}
+                      sx={{ borderRadius: 999, minWidth: 98, fontWeight: 700, flexShrink: 0 }}
                     >
-                      Today
+                      Add Event
                     </Button>
-                    <Button
-                      variant="text"
-                      onClick={() => moveCursor(1)}
-                      sx={{ borderRadius: 999, minWidth: 58, fontWeight: 700, color: "text.secondary" }}
+                    <ToggleButtonGroup
+                      value={view}
+                      exclusive
+                      onChange={(_, v) => v && setView(v)}
+                      sx={{
+                        flexShrink: 0,
+                        "& .MuiToggleButton-root": {
+                          textTransform: "uppercase",
+                          fontWeight: 800,
+                          letterSpacing: 0.2,
+                          px: 2.1,
+                          py: 0.75,
+                          minHeight: 40,
+                          fontSize: "0.82rem",
+                        },
+                        "& .MuiToggleButton-root.Mui-selected": {
+                          bgcolor: "action.selected",
+                          color: "text.primary",
+                        },
+                      }}
                     >
-                      Next
-                    </Button>
+                      <ToggleButton value="day">Day</ToggleButton>
+                      <ToggleButton value="week">Week</ToggleButton>
+                      <ToggleButton value="month">Month</ToggleButton>
+                    </ToggleButtonGroup>
                   </Stack>
-                </Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    minWidth: 0,
-                    flexWrap: "wrap",
-                    opacity: 0.9,
-                  }}
-                >
-                  <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, mr: 0.25, opacity: 0.9 }}>
-                      Legend
-                    </Typography>
-                    <Chip
-                      label="Flights"
-                      size="small"
-                      variant="outlined"
-                      sx={{ borderColor: "#b8c8ff", color: "#12308c", bgcolor: "#f7f9ff", fontWeight: 600 }}
-                    />
-                    <Chip
-                      label="Work Orders"
-                      size="small"
-                      variant="outlined"
-                      sx={{ borderColor: "#ffd5b0", color: "#8d4200", bgcolor: "#fffaf5", fontWeight: 600 }}
-                    />
-                    <Chip
-                      label="Discrepancies"
-                      size="small"
-                      variant="outlined"
-                      sx={{ borderColor: "#e6cbc1", color: "#5a2f23", bgcolor: "#fff8f6", fontWeight: 600 }}
-                    />
-                  </Stack>
-                  <Box sx={{ flexGrow: 1 }} />
-                  <ToggleButtonGroup
-                    value={view}
-                    exclusive
-                    onChange={(_, v) => v && setView(v)}
-                    sx={{
-                      flexShrink: 0,
-                      "& .MuiToggleButton-root": {
-                        textTransform: "uppercase",
-                        fontWeight: 800,
-                        letterSpacing: 0.2,
-                        px: 2.25,
-                        py: 0.9,
-                        minHeight: 42,
-                        fontSize: "0.82rem",
-                      },
-                      "& .MuiToggleButton-root.Mui-selected": {
-                        bgcolor: "action.selected",
-                        color: "text.primary",
-                      },
-                    }}
-                  >
-                    <ToggleButton value="day">Day</ToggleButton>
-                    <ToggleButton value="week">Week</ToggleButton>
-                    <ToggleButton value="month">Month</ToggleButton>
-                  </ToggleButtonGroup>
                 </Box>
               </Stack>
 
@@ -491,10 +622,11 @@ export default function CalendarPage() {
                       const key = dateKey(d);
                       const isCurrentMonth = d.getMonth() === cursorDate.getMonth();
                       const isToday = dateKey(d) === dateKey(new Date());
-                      const events = eventsByDay.get(key) || [];
+                      const events = filterByVisibleKinds(eventsByDay.get(key) || []);
                       return (
                         <Box
                           key={key}
+                          onClick={() => openAddEvent({ date: d, minutes: 9 * 60 })}
                           sx={{
                             height: 156,
                             minWidth: 0,
@@ -527,9 +659,11 @@ export default function CalendarPage() {
                           >
                             {d.getDate()}
                           </Typography>
-                          <Stack spacing={0.5} sx={{ minHeight: 0, overflowY: "auto", pr: 0.25 }}>
+                          <Stack spacing={0.75} sx={{ minHeight: 0, overflowY: "auto", pr: 0.25 }}>
                             {events.map((e, idx) => (
-                              <Box key={`${key}-${idx}`}>{eventChip(e)}</Box>
+                              <Box key={`${key}-${idx}`}>
+                                {eventChip(e, setSelectedEvent)}
+                              </Box>
                             ))}
                           </Stack>
                         </Box>
@@ -604,11 +738,14 @@ export default function CalendarPage() {
                           </Box>
                           {weekDays.map((d) => {
                             const key = dateKey(d);
-                            const dayEvents = eventsByDay.get(key) || [];
+                            const dayEvents = filterByVisibleKinds(eventsByDay.get(key) || []);
                             const layout = buildDayLayout(dayEvents);
                             return (
                               <Box
                                 key={`week-col-${key}`}
+                                onClick={(evt) =>
+                                  openAddEvent({ date: d, minutes: minuteFromClick(evt) })
+                                }
                                 sx={{
                                   position: "relative",
                                   borderLeft: "1px solid",
@@ -616,25 +753,14 @@ export default function CalendarPage() {
                                   backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${HOUR_ROW_HEIGHT - 1}px, rgba(0,0,0,0.06) ${HOUR_ROW_HEIGHT - 1}px, rgba(0,0,0,0.06) ${HOUR_ROW_HEIGHT}px)`,
                                 }}
                               >
-                                <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ p: 0.5, position: "absolute", top: 0, left: 0, right: 0, zIndex: 2 }}>
+                                <Stack direction="row" spacing={0.75} flexWrap="wrap" sx={{ p: 0.75, position: "absolute", top: 0, left: 0, right: 0, zIndex: 2 }}>
                                   {layout.allDay.map((e, idx) => (
-                                    <Chip
+                                    <CalendarEventCard
                                       key={`all-day-${key}-${idx}`}
-                                      size="small"
-                                      label={e.title}
-                                      onClick={() => setSelectedEvent(e)}
-                                      sx={{
-                                        cursor: "pointer",
-                                        borderRadius: 1.5,
-                                        maxWidth: "100%",
-                                        ...eventPalette(e.kind),
-                                        "& .MuiChip-label": {
-                                          px: 1,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                        },
-                                      }}
+                                      event={e}
+                                      palette={eventPalette(e.kind)}
+                                      variant="chip"
+                                      onClick={setSelectedEvent}
                                     />
                                   ))}
                                 </Stack>
@@ -679,12 +805,12 @@ export default function CalendarPage() {
                                         },
                                       }}
                                     >
-                                      <Typography variant="caption" sx={{ fontWeight: 800, display: "block", lineHeight: 1.2 }}>
-                                        {e.title}
-                                      </Typography>
-                                      <Typography variant="caption" sx={{ display: "block", opacity: 0.9 }}>
-                                        {formatTimeRange(e.start, e.end)}
-                                      </Typography>
+                                      <CalendarEventCard
+                                        event={{ ...e, timeLabel: formatTimeRange(e.start, e.end) }}
+                                        palette={palette}
+                                        variant="block"
+                                        onClick={setSelectedEvent}
+                                      />
                                     </Box>
                                   );
                                 })}
@@ -753,23 +879,26 @@ export default function CalendarPage() {
                         </Box>
                       </Box>
                       <Box
+                        onClick={(evt) =>
+                          openAddEvent({ date: cursorDate, minutes: minuteFromClick(evt) })
+                        }
                         sx={{
                           position: "relative",
                           backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${HOUR_ROW_HEIGHT - 1}px, rgba(0,0,0,0.06) ${HOUR_ROW_HEIGHT - 1}px, rgba(0,0,0,0.06) ${HOUR_ROW_HEIGHT}px)`,
                         }}
                       >
                         {(() => {
-                          const layout = buildDayLayout(dayEvents);
+                          const layout = buildDayLayout(filterByVisibleKinds(dayEvents));
                           return (
                             <>
-                              <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ p: 0.75, position: "absolute", top: 0, left: 0, right: 0, zIndex: 2 }}>
+                              <Stack direction="row" spacing={0.75} flexWrap="wrap" sx={{ p: 0.9, position: "absolute", top: 0, left: 0, right: 0, zIndex: 2 }}>
                                 {layout.allDay.map((e, idx) => (
-                                  <Chip
+                                  <CalendarEventCard
                                     key={`day-all-${idx}`}
-                                    label={e.title}
-                                    size="small"
-                                    onClick={() => setSelectedEvent(e)}
-                                    sx={{ cursor: "pointer", borderRadius: 1.5, ...eventPalette(e.kind) }}
+                                    event={e}
+                                    palette={eventPalette(e.kind)}
+                                    variant="chip"
+                                    onClick={setSelectedEvent}
                                   />
                                 ))}
                               </Stack>
@@ -808,12 +937,12 @@ export default function CalendarPage() {
                                       boxShadow: "0 2px 8px rgba(16,24,40,.16)",
                                     }}
                                   >
-                                    <Typography variant="caption" sx={{ fontWeight: 800, display: "block" }}>
-                                      {e.title}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ display: "block", opacity: 0.9 }}>
-                                      {formatTimeRange(e.start, e.end)}
-                                    </Typography>
+                                    <CalendarEventCard
+                                      event={{ ...e, timeLabel: formatTimeRange(e.start, e.end) }}
+                                      palette={palette}
+                                      variant="block"
+                                      onClick={setSelectedEvent}
+                                    />
                                   </Box>
                                 );
                               })}
@@ -829,41 +958,26 @@ export default function CalendarPage() {
           </Card>
         </Stack>
       </Container>
-      <Dialog open={Boolean(selectedEvent)} onClose={() => setSelectedEvent(null)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ pr: 6 }}>
-          {selectedEvent?.title || "Event"}
-          <IconButton
-            aria-label="close"
-            onClick={() => setSelectedEvent(null)}
-            sx={{ position: "absolute", right: 8, top: 8 }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {selectedEvent ? (
-            <Stack spacing={1.25}>
-              <Chip
-                size="small"
-                label={selectedEvent.kind === "flight" ? "Flight" : selectedEvent.kind === "workorder" ? "Work Order" : "Discrepancy"}
-                sx={{
-                  alignSelf: "flex-start",
-                  fontWeight: 700,
-                  ...eventPalette(selectedEvent.kind),
-                }}
-              />
-              <Typography variant="body2" color="text.secondary">
-                {selectedEvent.allDay
-                  ? "All day"
-                  : formatTimeRange(selectedEvent.start, selectedEvent.end)}
-              </Typography>
-              {selectedEvent.subtitle ? (
-                <Typography variant="body2">{selectedEvent.subtitle}</Typography>
-              ) : null}
-            </Stack>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <AddEventModal
+        open={addEventOpen}
+        onClose={() => {
+          setAddEventOpen(false);
+          setEditingEventId(null);
+          setEventDraft(null);
+        }}
+        onSave={saveCustomEvent}
+        aircraftOptions={aircraftOptions}
+        initialValues={eventDraft}
+        mode={editingEventId ? "edit" : "create"}
+      />
+      <EventDetailsPanel
+        open={Boolean(selectedEvent)}
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        onEdit={openEditEvent}
+        onDelete={removeEvent}
+        palette={selectedEvent ? eventPalette(selectedEvent.kind) : undefined}
+      />
     </Box>
   );
 }
