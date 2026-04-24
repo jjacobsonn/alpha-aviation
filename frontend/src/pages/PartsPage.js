@@ -1,8 +1,9 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
-import '../theme.css';
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
+  Chip,
+  Divider,
   IconButton,
   Stack,
   Table,
@@ -13,16 +14,50 @@ import {
   TextField,
   Typography,
   Menu,
-  MenuItem
+  MenuItem,
+  Container,
+  Card,
+  CardContent,
+  Grid,
 } from "@mui/material";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import HandymanIcon from "@mui/icons-material/Handyman";
-import WorkHistoryIcon from "@mui/icons-material/WorkHistory";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import {
+  deleteInventory,
+  fetchCompanyInventoriesDetailed,
+  fetchCompanyWorkorders,
+  updateInventory,
+  updatePart,
+} from "../shared/Api";
 
 function PartsPage() {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [inventories, setInventories] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
+  const [search, setSearch] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editValues, setEditValues] = useState({
+    inStock: "",
+    stockAlert: "",
+    shopLocation: "",
+    partId: null,
+    partNumber: "",
+    partName: "",
+    partDescription: "",
+  });
 
   const openMenu = (event, part) => {
     setMenuAnchor(event.currentTarget);
@@ -33,294 +68,421 @@ function PartsPage() {
     setMenuAnchor(null);
   };
 
-  const dashboardNumbers = [
-    {
-      title: "Parts in Stock",
-      icon: <PendingActionsIcon />,
-      number: 100,
-    },
-    {
-      title: "Low Stock Alert",
-      icon: <HandymanIcon />,
-      number: 23,
-    },
-    {
-      title: "Parts on Order",
-      icon: <WorkHistoryIcon />,
-      number: 34,
-    },
-    {
-      title: "Tools Due for Calibration",
-      icon: <WorkHistoryIcon />,
-      number: 9,
-    },
-  ];
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError("");
+      try {
+        const [data, wos] = await Promise.all([
+          fetchCompanyInventoriesDetailed(),
+          fetchCompanyWorkorders(),
+        ]);
+        if (!mounted) return;
+        setInventories(Array.isArray(data) ? data : []);
+        setWorkOrders(Array.isArray(wos) ? wos : []);
+      } catch (e) {
+        if (!mounted) return;
+        setError(e?.message || "Failed to load inventory.");
+      } finally {
+        if (!mounted) return;
+        setIsLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleOpenEdit = (invRow) => {
+    if (!invRow?.id) return;
+    setSelectedPart(invRow);
+    setEditValues({
+      inStock: String(invRow?.inStock ?? ""),
+      stockAlert: String(invRow?.stockAlert ?? ""),
+      shopLocation: String(invRow?.shopLocation ?? ""),
+      partId: invRow?.partId ?? null,
+      partNumber: invRow?.partNumber ?? "",
+      partName: invRow?.partName ?? "",
+      partDescription: invRow?.partDescription ?? "",
+    });
+    setEditOpen(true);
+    setMenuAnchor(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedPart?.id) return;
+    setIsSavingEdit(true);
+    setError("");
+    try {
+      if (editValues.partId != null) {
+        await updatePart(editValues.partId, {
+          part_number: editValues.partNumber,
+          name: editValues.partName,
+          description: editValues.partDescription,
+        });
+      }
+      const payload = {
+        in_stock: Number(editValues.inStock),
+        stock_alert: Number(editValues.stockAlert),
+        shop_location: editValues.shopLocation,
+        part_id: editValues.partId,
+      };
+      await updateInventory(selectedPart.id, payload);
+      const data = await fetchCompanyInventoriesDetailed();
+      setInventories(Array.isArray(data) ? data : []);
+      setEditOpen(false);
+    } catch (e) {
+      setError(e?.message || "Failed to save.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const lowStockCount = useMemo(() => {
+    return inventories.filter((inv) => {
+      const inStock = Number(inv?.in_stock ?? 0);
+      const alert = Number(inv?.stock_alert ?? 0);
+      return inStock <= alert;
+    }).length;
+  }, [inventories]);
+
+  const partsInStockCount = useMemo(() => {
+    return inventories.filter((inv) => Number(inv?.in_stock ?? 0) > 0).length;
+  }, [inventories]);
+
+  const awaitingPartsWoCount = useMemo(() => {
+    return (workOrders || []).filter((wo) => wo?.status === "awaiting_parts").length;
+  }, [workOrders]);
+
+  const totalUnitsOnHand = useMemo(() => {
+    return inventories.reduce((sum, inv) => {
+      const qty = Number(inv?.in_stock ?? inv?.quantity ?? 0);
+      return sum + (Number.isFinite(qty) ? qty : 0);
+    }, 0);
+  }, [inventories]);
+
+  const dashboardNumbers = useMemo(() => {
+    return [
+      {
+        title: "Parts in Stock",
+        icon: <PendingActionsIcon />,
+        number: isLoading ? "—" : partsInStockCount,
+        color: "success.main",
+      },
+      {
+        title: "Low Stock Alert",
+        icon: <HandymanIcon />,
+        number: isLoading ? "—" : lowStockCount,
+        color: "warning.main",
+      },
+      {
+        title: "Work orders awaiting parts",
+        icon: <HourglassEmptyIcon />,
+        number: isLoading ? "—" : awaitingPartsWoCount,
+        color: "info.main",
+      },
+      {
+        title: "Total units on hand",
+        icon: <Inventory2OutlinedIcon />,
+        number: isLoading ? "—" : totalUnitsOnHand,
+        color: "info.main",
+      },
+    ];
+  }, [isLoading, awaitingPartsWoCount, lowStockCount, partsInStockCount, totalUnitsOnHand]);
 
   const inventoryFields = [
     "P/N",
-    "Part Name",
-    "OEM",
-    "Vendor",
-    "# in Stock",
-    "Min/Max lvl",
+    "Part name",
+    "Description",
+    "In stock",
+    "Reorder at",
     "Location",
-    "Condition",
-    "Expiration Date",
+    "Low stock",
     "Actions",
   ];
 
-  const columnWidths = {
-    pn: 120,
-    partName: 150,
-    oem: 120,
-    vendor: 120,
-    inStock: 90,
-    minMax: 110,
-    location: 140,
-    condition: 120,
-    expiration: 140,
-    actions: 120,
-  };
+  const inventoryData = useMemo(() => {
+    return inventories.map((inv) => {
+      const part = inv?.part || {};
+      const qty = Number(inv?.in_stock ?? inv?.quantity ?? 0);
+      const alert = Number(inv?.stock_alert ?? 0);
+      const lowStock = alert > 0 && qty <= alert;
+      return {
+        id: inv?.id,
+        pn: part?.part_number ?? "",
+        partName: part?.name ?? "",
+        partDescription: part?.description ?? "",
+        partNumber: part?.part_number ?? "",
+        inStock: qty,
+        stockAlert: alert,
+        shopLocation: inv?.shop_location ?? "",
+        location: inv?.shop_location || "—",
+        lowStock,
+        partId: part?.id ?? null,
+      };
+    });
+  }, [inventories]);
 
-  const [inventoryData, setInventoryData] = useState([
-    {
-      pn: "A-10234",
-      partName: "Hydraulic Pump Seal",
-      oem: "AeroSeal Co.",
-      vendor: "SkyTech Supplies",
-      inStock: 12,
-      minMax: "5 / 20",
-      location: "Aisle 3 – Bin 12",
-      condition: "New",
-      expiration: "2025-11-19",
-      actions: "Edit / Delete",
-      status: "OK",
-    },
-    {
-      pn: "B-55321",
-      partName: "Fuel Line Hose",
-      oem: "FuelWorks Inc.",
-      vendor: "Global Parts LLC",
-      inStock: 32,
-      minMax: "10 / 30",
-      location: "Aisle 1 – Bin 4",
-      condition: "New",
-      expiration: "2026-11-02",
-      actions: "Edit / Delete",
-      status: "EXPIRING",
-    },
-    {
-      pn: "C-99102",
-      partName: "Cooling Fan Assembly",
-      oem: "ThermoFlight",
-      vendor: "Aviation Central",
-      inStock: 18,
-      minMax: "3 / 15",
-      location: "Aisle 4 – Bin 9",
-      condition: "Used – Serviceable",
-      expiration: "N/A",
-      actions: "Edit / Delete",
-      status: "OK",
-    },
-    {
-      pn: "D-22011",
-      partName: "Brake Pad Set",
-      oem: "BrakePro",
-      vendor: "SkyTech Supplies",
-      inStock: 2,
-      minMax: "5 / 10",
-      location: "Aisle 2 – Bin 7",
-      condition: "New",
-      expiration: "2025-09-18",
-      actions: "Edit / Delete",
-      status: "EXPIRED",
-    },
-    {
-      pn: "E-88410",
-      partName: "Main Rotor Bolt",
-      oem: "RotorWorks",
-      vendor: "Flight Components Co.",
-      inStock: 47,
-      minMax: "20 / 60",
-      location: "Aisle 5 – Bin 2",
-      condition: "New",
-      expiration: "2030-01-01",
-      actions: "Edit / Delete",
-      status: "EXPIRED",
-    },
-  ]);
-
-  const currentStatus = (amount, minMax, expiration) => {
-    const [min, max] = minMax.split(" / ").map(Number);
-
-    if (amount <= 0) return "OUT";
-
-    if (!expiration || expiration === "N/A") {
-      if (amount === 0) return "OUT";
-      if (amount > min) return "LOW";
-      return "OK";
-    }
-
-    const expirationDate = new Date(expiration);
-    const today = new Date();
-
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const daysTilExp = Math.ceil((expirationDate - today) / msPerDay);
-
-    if (daysTilExp <= 0) return "EXPIRED";
-    if (daysTilExp < 10) return "EXPIRING";
-    if (amount < min) return "LOW";
-    return "OK";
-  };
-
-  const getStatusColor = (status) => {
-    status = status.toUpperCase();
-    switch (status) {
-      case "OK":
-        return "rgba(0, 200, 0, 0.15)"; // light green
-      case "EXPIRING":
-        return "rgba(255, 200, 0, 0.25)"; // light amber
-      case "LOW":
-        return "rgba(255, 200, 0, 0.25)"; // same as expiring
-      case "EXPIRED":
-        return "rgba(255, 0, 0, 0.20)"; // light red
-      case "OUT":
-        return "rgba(255, 0, 0, 0.20)"; // same as expired
-      default:
-        return "transparent";
-    }
-  };
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return inventoryData;
+    return inventoryData.filter((row) => {
+      const blob = [
+        row.pn,
+        row.partName,
+        row.partDescription,
+        row.location,
+        row.shopLocation,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [inventoryData, search]);
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", flexDirection: "column" }}>
-      <Box
-        mb={2}
-        sx={{
-          display: "flex",
-          flexDirection: "row",
-          minHeight: "100px",
-          justifyContent: "center",
-        }}
-      >
-        <Stack
-          sx={{
-            flexDirection: "row",
-          }}
-        >
-          {dashboardNumbers.map((item) => (
-            <Box
-              key={item.title}
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
-                margin: 3,
-              }}
-            >
-              <Typography variant="h5">{item.title}</Typography>
-              <Typography
-                variant="p"
-                sx={{ fontSize: 24, textAlign: "center" }}
-              >
-                {item.number}
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Stack spacing={3}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                Parts
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Part catalog and quantities for your company.
               </Typography>
             </Box>
-          ))}
+          </Stack>
+
+          <Grid container spacing={3} sx={{ display: "flex" }}>
+            {dashboardNumbers.map((item) => (
+              <Grid item sx={{ flex: 1, minWidth: 150 }} key={item.title}>
+                <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: "100%", display: "flex", flexDirection: "column", height: "100%" }}>
+                  <CardContent sx={{ py: 2.5, flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                    <Stack spacing={0.5} alignItems="center" textAlign="center">
+                      <Box sx={{ color: item.color }}>
+                        {item.icon}
+                      </Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        {item.title}
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 900, color: item.color }}>
+                        {item.number}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  variant="outlined"
+                  placeholder="Search part number, name, description, location…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+
+                {error && (
+                  <Box sx={{ color: 'error.main' }}>
+                    {error}
+                  </Box>
+                )}
+
+                <Table
+                  size="small"
+                  sx={{
+                    minWidth: '100%',
+                    '& .MuiTableCell-head': {
+                      bgcolor: 'primary.main',
+                      color: 'common.white',
+                      fontWeight: 700,
+                      borderColor: 'divider',
+                    },
+                    '& .MuiTableCell-root': { borderColor: 'divider' },
+                  }}
+                >
+                  <TableHead>
+                    <TableRow>
+                      {inventoryFields.map((item) => (
+                        <TableCell key={item}>{item}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+
+                  {filteredRows.map((item) => (
+                    <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
+                      <TableCell>{item.pn}</TableCell>
+                      <TableCell>{item.partName}</TableCell>
+                      <TableCell
+                        sx={{
+                          maxWidth: 280,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={item.partDescription || ""}
+                      >
+                        {item.partDescription || "—"}
+                      </TableCell>
+                      <TableCell>{item.inStock}</TableCell>
+                      <TableCell>{item.stockAlert}</TableCell>
+                      <TableCell>{item.location}</TableCell>
+                      <TableCell>
+                        {item.lowStock ? (
+                          <Chip size="small" color="warning" label="Yes" />
+                        ) : (
+                          <Chip size="small" variant="outlined" label="No" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <IconButton
+                          onClick={(e) => openMenu(e, item)}
+                          disabled={isLoading}
+                        >
+                          <MoreVertIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Table>
+
+                <Menu
+                  anchorEl={menuAnchor}
+                  open={Boolean(menuAnchor)}
+                  onClose={closeMenu}
+                >
+                  <MenuItem
+                    onClick={() => {
+                      if (!selectedPart?.id) {
+                        closeMenu();
+                        return;
+                      }
+                      deleteInventory(selectedPart.id)
+                        .then(() => {
+                          setInventories((prev) =>
+                            prev.filter((inv) => inv?.id !== selectedPart.id)
+                          );
+                        })
+                        .catch((e) => {
+                          console.error('Failed to delete inventory', e);
+                          setError(e?.message || 'Failed to delete inventory item.');
+                        })
+                        .finally(() => closeMenu());
+                      closeMenu();
+                    }}
+                  >
+                    Delete
+                  </MenuItem>
+
+                  <MenuItem
+                    onClick={() => {
+                      handleOpenEdit(selectedPart);
+                    }}
+                  >
+                    Edit
+                  </MenuItem>
+                </Menu>
+
+                <Dialog
+                  open={editOpen}
+                  onClose={() => setEditOpen(false)}
+                  maxWidth="sm"
+                  fullWidth
+                >
+                  <DialogTitle>Edit part &amp; stock</DialogTitle>
+                  <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Part (catalog)
+                      </Typography>
+                      <TextField
+                        label="Part number"
+                        value={editValues.partNumber}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partNumber: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Name"
+                        value={editValues.partName}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partName: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Description"
+                        value={editValues.partDescription}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, partDescription: e.target.value }))
+                        }
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                      <Divider />
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Stock (this warehouse row)
+                      </Typography>
+                      <TextField
+                        label="In stock"
+                        type="number"
+                        value={editValues.inStock}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, inStock: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Reorder at (quantity)"
+                        type="number"
+                        value={editValues.stockAlert}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, stockAlert: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Shop location"
+                        value={editValues.shopLocation}
+                        onChange={(e) =>
+                          setEditValues((p) => ({ ...p, shopLocation: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                    </Stack>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setEditOpen(false)} disabled={isSavingEdit}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={handleSaveEdit}
+                      disabled={isSavingEdit || editValues.partId == null}
+                    >
+                      {isSavingEdit ? <CircularProgress size={18} /> : 'Save'}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+              </Stack>
+            </CardContent>
+          </Card>
         </Stack>
-      </Box>
-
-      <Box sx={{ display: "flex", flexDirection: "row" }}>
-        {/* <FleetStatusPanel /> */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            // bgcolor: "#4b4b4bff",
-            flexGrow: 1,
-            mt: 2,
-            mb: 2,
-            mr: 0,
-            ml: 0,
-            borderRadius: 2,
-          }}
-        >
-          <TextField
-            variant="outlined"
-            placeholder="Search..."
-            sx={{
-              m: 2,
-              borderRadius: 2,
-              bgcolor: "#FFFFFF",
-            }}
-          />
-
-          {/* Inventory Column Fields */}
-          <Table sx={{ minWidth: "100%" }}>
-            <TableHead>
-              <TableRow>
-                {inventoryFields.map((item) => {
-                  return <TableCell key={item}>{item}</TableCell>;
-                })}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {inventoryData.map((item) => {
-                const status = currentStatus(
-                  item.inStock,
-                  item.minMax,
-                  item.expiration
-                );
-                const color = getStatusColor(status);
-
-                return (
-                  <TableRow key={item.pn} sx={{ bgcolor: color }}>
-                    <TableCell>{item.pn}</TableCell>
-                    <TableCell>{item.partName}</TableCell>
-                    <TableCell>{item.oem}</TableCell>
-                    <TableCell>{item.vendor}</TableCell>
-                    <TableCell>{item.inStock}</TableCell>
-                    <TableCell>{item.minMax}</TableCell>
-                    <TableCell>{item.location}</TableCell>
-                    <TableCell>{item.condition}</TableCell>
-                    <TableCell>{item.expiration}</TableCell>
-                    <TableCell>
-                      <IconButton onClick={(e) => openMenu(e, item)}>
-                        <MoreVertIcon></MoreVertIcon>
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          <Menu
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor)}
-            onClose={closeMenu}
-          >
-            <MenuItem
-              onClick={() => {
-                setInventoryData(prev =>
-                  prev.filter(item => item !== selectedPart)
-                )
-                // console.log("Delete", selectedPart);
-                closeMenu();
-              }}
-            >
-              Delete
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                closeMenu();
-              }}
-            >
-              Edit
-            </MenuItem>
-          </Menu>
-        </Box>
-      </Box>
+      </Container>
     </Box>
   );
 }

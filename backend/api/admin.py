@@ -3,12 +3,30 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 from .models import *
 from django.utils.html import format_html
-from django.forms import BaseInlineFormSet
+
+
+class WorkOrderActivityInline(admin.TabularInline):
+    model = WorkOrderActivity
+    extra = 0
+    can_delete = False
+    readonly_fields = ("created_at", "actor", "event_type", "summary", "metadata")
+    ordering = ("-created_at",)
+
+
+class DiscrepancyActivityInline(admin.TabularInline):
+    model = DiscrepancyActivity
+    extra = 0
+    can_delete = False
+    readonly_fields = ("created_at", "actor", "event_type", "summary", "metadata")
+    ordering = ("-created_at",)
+
+
 #Admin display for discrepancies
 class DiscrepancyAdmin(admin.ModelAdmin):
     list_display = ('id', 'aircraft', 'status', 'date_reported', 'reporter')
     list_filter = ('status', 'aircraft')
-    search_fields = ('description', 'ata_code', 'component_affected')
+    search_fields = ('description', 'ata_code')
+    inlines = [DiscrepancyActivityInline]
 
 #Inline display used when refrenced on other page for discrepancies
 class DiscrepancyInline(admin.TabularInline):
@@ -21,23 +39,11 @@ class WorkOrderPartInline(admin.TabularInline):
       model = WorkOrderPart
       extra = 1
 
-#Inline display used when refrenced on other page for flights
-class FlightInline(admin.TabularInline):
-      model = Flight
-      extra = 0
-      fields = ("aircraft", "company", "flight_number", "primary_pilot", "secondary_pilot", "origin", "destination", "departure_time", "arrival_time", "pilot_requirement", "route", "flight_type")
-      autocomplete_fields = ["aircraft"]
-      def formfield_for_foreignkey(self, db_field, request, **kwargs):
-            if db_field.name in  ("primary_pilot", "secondary_pilot"):
-                  kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
-            return super().formfield_for_foreignkey(db_field, request, **kwargs)
-
-
 #Admin display for Work orders
 class WorkOrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'aircraft', 'status', 'created_by', 'created_at', 'due_by', 'tach_time', 'hobbs_time', 'ATA_code', 'components_affected', 'signed_by', 'signature_date', 'signature')
     list_filter = ('status', 'aircraft')
-    inlines = [WorkOrderPartInline]
+    inlines = [WorkOrderPartInline, WorkOrderActivityInline]
     search_fields = ('title', 'description')
 
 #Inline display used when refrenced on other page for workorders
@@ -45,31 +51,6 @@ class WorkOrderInline(admin.TabularInline):
       model = WorkOrder
       extra = 0
       fields = ('id', 'aircraft', 'status', 'description')
-
-class AircraftPartFormSet(BaseInlineFormSet):
-    def clean(self):
-        super().clean()
-        for form in self.forms:
-            if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
-                instance = form.instance
-                instance.aircraft = self.instance
-                instance.expiration_hobbs = form.cleaned_data.get('expiration_hobbs')
-                instance.expiration_date = form.cleaned_data.get('expiration_date')
-                instance.part = form.cleaned_data.get('part')
-                try:
-                    instance.clean()
-                except ValidationError as e:
-                    form.add_error(None, e)
-
-class AircraftPartInline(admin.TabularInline):
-    model = AircraftPart
-    formset = AircraftPartFormSet
-    extra = 1
-    fields = ('part', 'expiration_date', 'expiration_hobbs')
-
-class AircraftPartAdmin(admin.ModelAdmin):
-    list_display = ('aircraft', 'part', 'expiration_date', 'expiration_hobbs')
-    search_fields = ('aircraft__registration_number', 'part__name')
 
 #Inline display used when refrenced on other page for aircrafts
 class AircraftInline(admin.TabularInline):
@@ -79,7 +60,7 @@ class AircraftInline(admin.TabularInline):
 
 #Admin display for Aircrafts
 class AircraftAdmin(admin.ModelAdmin):
-      inlines = [WorkOrderInline, DiscrepancyInline, AircraftPartInline, FlightInline]
+      inlines = [WorkOrderInline, DiscrepancyInline]
       search_fields = ["registration_number", "model"]
 
 #Admin display for users/profiles
@@ -88,10 +69,39 @@ class CustomUserAdmin(UserAdmin):
       inlines = []
       readonly_fields = ("profile_img_preview",)
       fieldsets = (
-            ('Personal info', {'fields': ('first_name', 'middle_name', 'last_name', 'profile_img', 'profile_img_preview')}),
-            ('Company Info', {'fields': ('company', 'phone_number', 'email', 'employee_id', 'company_role')}),
-            ('Web Permissions', {'fields':('is_active', 'is_staff', 'is_superuser','groups', 'user_permissions')}),
-            ('Important Dates', {'fields':('last_login', 'date_joined')}),
+            ('Personal info', {
+                  'fields': (
+                        'first_name',
+                        'middle_name',
+                        'last_name',
+                        'profile_img',
+                        'profile_img_preview',
+                  )
+            }),
+            ('Company Info', {
+                  'fields': (
+                        'company',
+                        'phone_number',
+                        'email',
+                        'employee_id',
+                        'company_role',
+                  )
+            }),
+            ('Authentication', {
+                  'fields': ('password',)
+            }),
+            ('Web Permissions', {
+                  'fields': (
+                        'is_active',
+                        'is_staff',
+                        'is_superuser',
+                        'groups',
+                        'user_permissions',
+                  )
+            }),
+            ('Important Dates', {
+                  'fields': ('last_login', 'date_joined')
+            }),
       )
 
       add_fieldsets = (
@@ -128,8 +138,9 @@ class CustomUserAdmin(UserAdmin):
 #Inline display used when refrenced on other page for users
 class UserInline(admin.TabularInline):
       model = Profile
-      fields = ('first_name', 'middle_name', 'last_name', 'profile_img', 'phone_number', 'email', 'employee_id', 'company_role', 'last_login', 'date_joined')
-      readonly_fields = ('first_name', 'middle_name', 'last_name', 'phone_number', 'email', 'last_login', 'date_joined')
+      # Compact but useful: show login + basic identity + contact + role.
+      fields = ('username', 'first_name', 'middle_name', 'last_name', 'phone_number', 'email', 'company_role')
+      readonly_fields = ()
       extra = 0
 
 #Inline display used when refrenced on other page for  pilots
@@ -162,13 +173,17 @@ class InventoryPartInline(admin.TabularInline):
 
 #Admin display for inventories
 class InventoryAdmin(admin.ModelAdmin):
-      search_fields = ["shop_location"]
+      list_display = ("id", "company")
+      list_filter = ("company",)
+      search_fields = ("company__name",)
       inlines = [InventoryPartInline]
 
-#Inline display used when refrenced on other page for inventories
+# One company has inventory buckets; line items are InventoryPart rows.
 class InventoryInline(admin.TabularInline):
       model = Inventory
       extra = 0
+      show_change_link = True
+
 
 #Admin display for flights
 class FlightAdmin(admin.ModelAdmin):
@@ -179,21 +194,72 @@ class FlightAdmin(admin.ModelAdmin):
                 kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
           return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
+#Inline display used when refrenced on other page for flights
+class FlightInline(admin.TabularInline):
+      model = Flight
+      extra = 0
+      # Keep the inline focused on the core scheduling info so it's readable.
+      fields = (
+            "aircraft",
+            "flight_number",
+            "primary_pilot",
+            "origin",
+            "destination",
+            "departure_time",
+            "arrival_time",
+            "flight_type",
+      )
+      autocomplete_fields = ["aircraft"]
+      def formfield_for_foreignkey(self, db_field, request, **kwargs):
+            if db_field.name in  ("primary_pilot", "secondary_pilot"):
+                  kwargs["queryset"] = Profile.objects.filter(company__isnull = False, company_role = "pilot")
+            return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 #Admin display for the company
 class CompanyAdmin(admin.ModelAdmin):
       inlines = [UserInline, AircraftInline, InventoryInline, FlightInline]
+
+      class Media:
+            css = {
+                  'all': ('api/admin.css',)
+            }
+            js = ('api/admin_inventory.js',)
+
+
+
 
 #function to see if medical dates expire before today and then clear them
 def clear_expired_medical_dates():
       Profile.objects.filter(medically_cleared_until__lt = timezone.now().date()).update(medically_cleared_until=None)
 
+class CalibrationRecordInline(admin.TabularInline):
+    model = CalibrationRecord
+    extra = 0
+    fields = ("calibration_date", "performed_by", "next_due_date", "notes")
+    ordering = ("-calibration_date",)
+
+
+class ToolAdmin(admin.ModelAdmin):
+    list_display = ("name", "serial_number", "company", "calibration_due_date", "calibration_alert", "location")
+    list_filter = ("company",)
+    search_fields = ("name", "serial_number")
+    inlines = [CalibrationRecordInline]
+
+    def calibration_alert(self, obj):
+        colours = {"green": "#2e7d32", "amber": "#f57c00", "red": "#c62828"}
+        label = obj.calibration_alert.capitalize()
+        colour = colours[obj.calibration_alert]
+        return format_html('<span style="color: {}; font-weight: bold;">{}</span>', colour, label)
+
+    calibration_alert.short_description = "Alert"
+
+
 #register all of the admin pages
 admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Aircraft, AircraftAdmin)
-admin.site.register(AircraftPart, AircraftPartAdmin)
 admin.site.register(Part, PartAdmin)
-admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(Flight, FlightAdmin)
-admin.site.register(Discrepancy, DiscrepancyAdmin)
+admin.site.register(Tool, ToolAdmin)
 admin.site.register(WorkOrder, WorkOrderAdmin)
+admin.site.register(Discrepancy, DiscrepancyAdmin)

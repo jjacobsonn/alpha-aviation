@@ -1,5 +1,7 @@
 # Deploy Alpha Aviation on Render
 
+> NOTE: This document reflects the current live Render deployment. Be careful changing commands, env var names, or URLs without coordinating with whoever owns the deployment.
+
 This guide covers deploying the monorepo to [Render](https://render.com) so the app is live and **auto-deploys on push to `main`**. Use it when setting up a new Render project or a new GitHub repo (e.g. a dev fork).
 
 ---

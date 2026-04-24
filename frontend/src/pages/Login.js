@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
 	Box,
 	Container,
@@ -17,11 +17,13 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { AppContext } from '../context/AppContext';
-import { loginUser } from '../shared/Api';
+import { ACTION_TYPES } from '../context/AppContext';
+import { loginUser, fetchCurrentUser } from '../shared/Api';
+import { getDefaultRouteForUser } from '../shared/rbac';
 
 const Login = () => {
 	const navigate = useNavigate();
-	const { dispatch } = useContext(AppContext);
+	const { state, dispatch } = useContext(AppContext);
 	const location = useLocation();
 	const [formData, setFormData] = useState({
 		username: '',
@@ -34,10 +36,13 @@ const Login = () => {
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
-    if (accessToken && refreshToken) {
-      navigate('/management', { replace: true });
+    if (accessToken && refreshToken && (state.user?.role || state.user?.isStaff || state.user?.isSuperuser)) {
+      const defaultPath = getDefaultRouteForUser(state.user);
+      if (defaultPath !== '/login' && location.pathname !== defaultPath) {
+        navigate(defaultPath, { replace: true });
+      }
     }
-  }, [navigate]);
+  }, [navigate, state.user, location.pathname]);
 
 	const handleChange = (e) => {
 		setFormData({
@@ -54,7 +59,20 @@ const Login = () => {
 
 		try {
 			await loginUser(formData, dispatch);
-			navigate(location.state?.from?.pathname || '/management', {
+			// Fetch the current user to get role/company and route accordingly
+			const userData = await fetchCurrentUser();
+			dispatch({
+				type: ACTION_TYPES.UPDATE_USER,
+				payload: userData,
+			});
+			const defaultPath = getDefaultRouteForUser(userData);
+			if (defaultPath === '/login') {
+				throw new Error('Your account does not have a configured frontend role yet.');
+			}
+
+			// Always route to the role-based default after login;
+      // don't reuse a previous user's "from" location.
+			navigate(defaultPath, {
 				replace: true,
 			});
 		} catch (err) {

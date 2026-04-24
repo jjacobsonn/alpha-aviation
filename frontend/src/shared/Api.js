@@ -31,7 +31,7 @@ const forceLogout = () => {
 };
 
 const apiClient = axios.create({
-	baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+	baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api',
 	headers: {
 		Accept: 'application/json',
 		'Content-Type': 'application/json',
@@ -45,6 +45,14 @@ apiClient.interceptors.request.use(
 		const tokens = getTokens();
 		if (tokens.accessToken) {
 			config.headers.Authorization = `Bearer ${tokens.accessToken}`;
+		}
+		// Custom header triggers CORS preflight; skip auth endpoints so login works
+		// even if older backend CORS config omitted x-company-id.
+		const path = String(config.url || '');
+		const isAuthPath = path.includes('/auth/');
+		const adminCompanyId = localStorage.getItem('adminCompanyId');
+		if (adminCompanyId && !isAuthPath) {
+			config.headers['X-Company-Id'] = adminCompanyId;
 		}
 		return config;
 	},
@@ -104,7 +112,7 @@ apiClient.interceptors.response.use(
 			try {
 				const response = await axios.post(
 					`${
-						process.env.REACT_APP_API_URL || 'http://localhost:8000/api'
+						process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api'
 					}/auth/token/refresh/`,
 					{ refresh: tokens.refreshToken }
 				);
@@ -232,4 +240,209 @@ export const logoutUser = async () => {
 		localStorage.removeItem('accessToken');
 		localStorage.removeItem('refreshToken');
 	}
+};
+
+// ** RBAC / Company scoped **
+
+export const fetchCurrentUser = async () => {
+	return await makeApiRequest('GET', '/users/me/');
+};
+
+export const fetchCompanyInventoriesDetailed = async () => {
+	const data = await makeApiRequest('GET', '/company/inventories/detailed/');
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+};
+
+export const fetchCompanyLowStockInventoriesDetailed = async () => {
+	return await makeApiRequest('GET', '/company/inventories/detailed/low-stock/');
+};
+
+export const deleteInventory = async (id) => {
+	return await makeApiRequest('DELETE', `/inventories/${id}/`);
+};
+
+export const updateInventory = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/inventories/${id}/`, payload);
+};
+
+export const fetchCompanyWorkorders = async () => {
+	return await makeApiRequest('GET', '/company/workorders/');
+};
+
+export const fetchCompanyDiscrepancies = async () => {
+	return await makeApiRequest('GET', '/company/discrepancies/');
+};
+
+export const fetchCompanyUsers = async () => {
+	return await makeApiRequest('GET', '/company/users/');
+};
+
+export const fetchCompanyAircrafts = async () => {
+	return await makeApiRequest('GET', '/company/aircrafts/');
+};
+
+export const fetchCompanyFlights = async () => {
+	return await makeApiRequest('GET', '/company/flights/');
+};
+
+// Fleet module APIs
+export const fetchFleetAircraft = async (queryParams = {}) => {
+	const data = await makeApiRequest('GET', '/fleet/aircraft/', null, queryParams);
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+};
+
+export const fetchFleetAircraftDetail = async (id) => {
+	return await makeApiRequest('GET', `/fleet/aircraft/${id}/`);
+};
+
+export const fetchAircraftIntervals = async (aircraftId) => {
+	const data = await makeApiRequest('GET', `/fleet/aircraft/${aircraftId}/intervals/`);
+	if (Array.isArray(data)) return data;
+	if (data && Array.isArray(data.results)) return data.results;
+	return [];
+};
+
+export const createAircraftInterval = async (aircraftId, payload) => {
+	return await makeApiRequest('POST', `/fleet/aircraft/${aircraftId}/intervals/`, payload);
+};
+
+export const updateAircraftInterval = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/fleet/intervals/${id}/`, payload);
+};
+
+export const completeAircraftInterval = async (id, payload) => {
+	return await makeApiRequest('POST', `/fleet/intervals/${id}/complete/`, payload);
+};
+
+export const createCompanyFlightRequest = async (payload) => {
+	return await makeApiRequest('POST', '/company/flights/request/', payload);
+};
+
+export const patchCompanyFlightDispatch = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/company/flights/${id}/dispatch/`, payload);
+};
+
+export const fetchManagementDashboard = async () => {
+	return await makeApiRequest('GET', '/management/dashboard/');
+};
+
+// Site admin (global scope)
+export const fetchCompanies = async () => {
+	return await makeApiRequest('GET', '/companies/');
+};
+
+export const fetchCompanyById = async (id) => {
+	return await makeApiRequest('GET', `/companies/${id}/`);
+};
+
+export const createCompany = async (payload) => {
+	return await makeApiRequest('POST', '/companies/', payload);
+};
+
+export const fetchProfiles = async () => {
+	return await makeApiRequest('GET', '/profiles/');
+};
+
+export const fetchAircraft = async () => {
+	return await makeApiRequest('GET', '/aircraft/');
+};
+
+export const createProfile = async (payload) => {
+	return await makeApiRequest('POST', '/profiles/', payload);
+};
+
+export const updateProfile = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/profiles/${id}/`, payload);
+};
+
+export const deleteProfile = async (id) => {
+	return await makeApiRequest('DELETE', `/profiles/${id}/`);
+};
+
+export const createAircraft = async (payload) => {
+	return await makeApiRequest('POST', '/aircraft/', payload);
+};
+
+export const updateAircraft = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/aircraft/${id}/`, payload);
+};
+
+export const deleteAircraft = async (id) => {
+	return await makeApiRequest('DELETE', `/aircraft/${id}/`);
+};
+
+export const fetchFlights = async () => {
+	return await makeApiRequest('GET', '/flights/');
+};
+
+export const fetchParts = async () => {
+	return await makeApiRequest('GET', '/parts/');
+};
+
+export const createPart = async (payload) => {
+	return await makeApiRequest('POST', '/parts/', payload);
+};
+
+export const updatePart = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/parts/${id}/`, payload);
+};
+
+export const deletePart = async (id) => {
+	return await makeApiRequest('DELETE', `/parts/${id}/`);
+};
+
+export const fetchInventories = async () => {
+	return await makeApiRequest('GET', '/inventories/');
+};
+
+export const createInventory = async (payload) => {
+	return await makeApiRequest('POST', '/inventories/', payload);
+};
+
+export const fetchWorkorders = async () => {
+	return await makeApiRequest('GET', '/workorders/');
+};
+
+export const createWorkorder = async (payload) => {
+	return await makeApiRequest('POST', '/workorders/', payload);
+};
+
+export const updateWorkorder = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/workorders/${id}/`, payload);
+};
+
+export const deleteWorkorder = async (id) => {
+	return await makeApiRequest('DELETE', `/workorders/${id}/`);
+};
+
+export const fetchDiscrepancies = async () => {
+	return await makeApiRequest('GET', '/discrepancies/');
+};
+
+export const updateDiscrepancy = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/discrepancies/${id}/`, payload);
+};
+
+export const deleteDiscrepancy = async (id) => {
+	return await makeApiRequest('DELETE', `/discrepancies/${id}/`);
+};
+
+export const createFlight = async (payload) => {
+	return await makeApiRequest('POST', '/flights/', payload);
+};
+
+export const updateFlight = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/flights/${id}/`, payload);
+};
+
+export const deleteFlight = async (id) => {
+	return await makeApiRequest('DELETE', `/flights/${id}/`);
+};
+
+export const createDiscrepancy = async (payload) => {
+	return await makeApiRequest('POST', '/discrepancies/', payload);
 };

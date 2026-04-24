@@ -1,0 +1,33 @@
+/* Make inline tables respect the container width and avoid overflow */
+
+.inline-group table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.inline-group thead th,
+.inline-group tbody td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Give the delete/action column a small, fixed width so it stays visible */
+.inline-group thead th:last-child,
+.inline-group tbody td:last-child {
+  width: 60px;
+  text-align: center;
+}
+
+/* Slightly reduce padding so more columns fit comfortably */
+.inline-group tbody td input,
+.inline-group tbody td select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Keep the "Add another ..." row left-aligned instead of centered */
+.inline-group .add-row {
+  text-align: left;
+}
+

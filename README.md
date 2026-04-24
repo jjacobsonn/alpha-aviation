@@ -31,6 +31,8 @@ Monorepo for the Alpha Aviation application: backend API and web frontend.
 
 ## Live links
 
+> NOTE: These URLs point at the current live Render deployment. If you change or replace them, make sure you’re not breaking links that people or docs rely on.
+
 | Link | URL |
 |------|-----|
 | **Website (app)** | [https://alpha-aviation-dev-1.onrender.com/](https://alpha-aviation-dev-1.onrender.com/) |

@@ -1,10 +1,10 @@
 from django.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Q
-from decimal import Decimal
 
 #Company model, points to user, aircraft, inventory, and flights. Has two methods for checking availability of aircraft and for giving all of the flights in a given time period.
 class Company(models.Model):
@@ -37,7 +37,7 @@ class Company(models.Model):
             if not aircraft:
                 return []
 
-            for flight in aircraft.flights.exclude(id=self.id):
+            for flight in aircraft.flights.all():
                 if flight.departure_time < end_date and flight.arrival_time > start_date:
                     return []
             return [aircraft]
@@ -92,7 +92,6 @@ class Company(models.Model):
                 'manufacturer': plane.manufacturer,
                 'engine_type': plane.engine_type,
                 'year_built': plane.year_built,
-                'hobbs_time': plane.hobbs_time,
             })
         return aircraft_data
     
@@ -128,7 +127,6 @@ class Company(models.Model):
         for inventory in self.inventories.all():
             for item in inventory.inventorypart_set.all():
                 inventory_data.append({
-                    "Inventory_name":inventory.inventory_name,
                     "id": item.id,
                     "part_number": item.part.part_number,
                     "name": item.part.name,
@@ -141,19 +139,6 @@ class Company(models.Model):
                 })
 
         return inventory_data
-    
-    #for the endpoint to check the companies inventories for parts that are low stock
-    def get_company_low_stock(self):
-        low_stock_parts = []
-        for inventory in self.inventories.all():
-            for item in inventory.inventorypart_set.all():
-                if item.low_stock():
-                    low_stock_parts.append({"Inventory_id":inventory.id,
-                    "Inventory_name":inventory.inventory_name,
-                    "part_id":item.part.id,
-                    "part_name":item.part.name,
-                    "part_number":item.part.part_number,})
-        return low_stock_parts
 
     #for endpoint for all of the workorders that is under this company
     def get_workorders_data(self):
@@ -188,39 +173,6 @@ class Company(models.Model):
                 })
         return workorder_data
 
-    #endpoint for workorders that are overdue
-    def get_overdue_workorders_data(self):
-        overdue_workorders = []
-        today = timezone.now().date()
-        for aircraft in self.aircraft.all():
-            workorders = aircraft.work_orders.filter(due_by__lt=today, status__in=['open', 'in_progress', 'awaiting_parts'])
-            for workorder in workorders:
-                overdue_workorders.append({
-                    'id': workorder.id,
-                    'title': workorder.title,
-                    'created_by': (workorder.created_by.first_name, workorder.created_by.last_name),
-                    'description': workorder.description,
-                    'parts_needed': [
-                        {
-                        'name':item.part.name,
-                        'quantity':item.quantity
-                        } for item in workorder.workorderpart_set.all()],
-                    'status': workorder.status,
-                    'created_at': workorder.created_at,
-                    'updated_at': workorder.updated_at,
-                    'due_by':workorder.due_by,
-                    'aircraft': {'registration_number':workorder.aircraft.registration_number, 'model':workorder.aircraft.model},
-                    'tach_time':workorder.tach_time,
-                    'hobbs_time':workorder.hobbs_time,
-                    'ATA_code':workorder.ATA_code,
-                    'components_affected': workorder.components_affected,
-                    'components_image':workorder.components_image.url if workorder.components_image else None,
-                    'signed_by': (workorder.signed_by.first_name, workorder.signed_by.last_name) if workorder.signed_by else None,
-                    'signature':workorder.signature.url if workorder.signature else None,
-                    'signature_date': workorder.signature_date,
-                })
-        return overdue_workorders
-    
     #for endpoint for all of the discrepancies that is under this company
     def get_discrepancy_data(self):
         aircrafts = self.aircraft.all()
@@ -264,10 +216,11 @@ class Company(models.Model):
 class Profile(AbstractUser):
     role_choices = [
         ('owner', 'Owner'),
+        ('manager', 'Manager'),
         ('mechanic', 'Mechanic'),
         ('dispatcher', 'Dispatcher'),
         ('pilot', 'Pilot'),
-        ('manager', 'Manager'),
+        ('dispatcher', 'Dispatcher'),
     ]
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="users", null=True, blank=True)
     company_role = models.CharField(max_length= 255, choices=role_choices, default='pilot' )
@@ -288,7 +241,6 @@ class Profile(AbstractUser):
     
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        self.full_clean()
         if self.company_role == "pilot":
             Pilot.objects.get_or_create(profile = self)
         elif self.company_role == "mechanic":
@@ -306,7 +258,9 @@ class Profile(AbstractUser):
     def is_manager(self):
         return self.company_role == 'manager'
     
-#Pilot model, Is a sub class of profile, that anyone that is of the company role pilot will have. Has method to check if they are cleared to fly. Has method to return if they are certifed, given the certification level.
+    def is_dispatcher(self):
+        return self.company_role == 'dispatcher'
+    
 class Pilot(models.Model):
     profile = models.OneToOneField(
         Profile,
@@ -321,7 +275,7 @@ class Pilot(models.Model):
         ('commercial', 'Commercial'),#3
         ('airline', 'Airline'),#4
     ]
-    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default= 'None')
+    pilot_certificate = models.CharField(max_length= 255, choices=certificates, default='none')
     
 
     def is_cleared_to_fly(self, flight_date):
@@ -339,7 +293,9 @@ class Pilot(models.Model):
             'commercial': 3,
             'airline': 4,
         }
-        return levels[self.pilot_certificate] >= levels[required]
+        current_level = levels.get(self.pilot_certificate, 0)
+        required_level = levels.get(required, 0)
+        return current_level >= required_level
 
 #Mechanic model, Is a sub class of profile, that anyone that is of the company role mechanic will have. has basic information about mechanics and their certifications.
 class Mechanic(models.Model):
@@ -355,43 +311,30 @@ class Mechanic(models.Model):
 
 #Aircraft model, has basic information about the aircraft and a str function.
 class Aircraft(models.Model):
-    registration_number = models.IntegerField()
+    FLEET_STATUS_CHOICES = [
+        ("active", "Active"),
+        ("maintenance_due", "Maintenance Due"),
+        ("aog", "AOG"),
+        ("grounded", "Grounded"),
+    ]
+
+    registration_number = models.CharField(max_length=50)
     model = models.CharField(max_length=200)
     manufacturer = models.CharField(max_length=200)
     engine_type = models.CharField(max_length=200, null= True)
     year_built = models.IntegerField(validators=[MaxValueValidator(9999),MinValueValidator(1903)])
+    location = models.CharField(max_length=100, blank=True, default="")
+    tach_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    hobbs_current = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    fleet_status = models.CharField(
+        max_length=40, choices=FLEET_STATUS_CHOICES, default="active"
+    )
+    aircraft_type = models.CharField(max_length=60, blank=True, default="")
+    specs = models.JSONField(default=dict, blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="aircraft", null=True, blank=True )
-    aircraft_parts = models.ManyToManyField('Part', blank = True, through='aircraftpart', related_name="aircrafts")
-    hobbs_time = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-
-    
-    #function to add all the time of all the flights for aircraft and see if time is over part hobbs
-    def check_part_hobbs(self):
-        flight_time = Decimal('0')
-        for flight in self.flights.all():
-            if flight.departure_time > timezone.now():
-                flight_hours = (flight.arrival_time - flight.departure_time).total_seconds() / 3600
-                flight_time += Decimal(str(flight_hours))
-        for part in self.aircraft_parts.all():
-            aircraft_part = AircraftPart.objects.filter(aircraft=self, part=part).first()
-            if aircraft_part and aircraft_part.expiration_hobbs is not None:
-                if self.hobbs_time + flight_time >= aircraft_part.expiration_hobbs:
-                    raise ValidationError(f"Flight time({flight_time}) plus current hobbs time({self.hobbs_time}) goes over aircraft part {part.name} expiration hobbs time({aircraft_part.expiration_hobbs}).")
-
     
     def __str__(self):
         return f"{self.registration_number} ({self.model})"
-
-    def add_hobbs_time(self, hobbs_time):
-        self.hobbs_time = (self.hobbs_time) + Decimal(str(hobbs_time))
-        self.check_part_hobbs()
-        self.save()
-    
-    def clean(self):
-        pass
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
 
 #Part model, has basic information about the part and a str function. It is related to aircraft.
 class Part(models.Model):
@@ -403,77 +346,16 @@ class Part(models.Model):
     def __str__(self):
         return f"{self.part_number} - {self.name}"
 
-
-# to do:
-# check each flight to see where the aircraft hobbs time will be. *multiple flights
-# then verify that hobbs won't be over any parts expiration time
-# hobbs alert time and percentage
-#parts requisition update inventory
-# Apis
-class AircraftPart(models.Model):
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE)
-    part = models.ForeignKey('Part', on_delete=models.CASCADE, related_name="part_aircrafts")
-    expiration_date = models.DateField(null=True, blank=True)
-    expiration_hobbs = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
-
-    def clean(self):
-        super().clean()
-        if self.expiration_date and self.expiration_date < timezone.now().date():
-            raise ValidationError({
-                "expiration_date": "Expiration date cannot be in the past."
-            })
-        self._old_part = None
-        existing = AircraftPart.objects.filter(aircraft=self.aircraft, part=self.part).exclude(pk=self.pk).order_by('-expiration_hobbs').first()
-
-        if existing:
-            if self.expiration_hobbs is not None and existing.expiration_hobbs is not None:
-                if self.expiration_hobbs <= existing.expiration_hobbs:
-                    raise ValidationError({
-                        "expiration_hobbs": f"New expiration hobbs {self.expiration_hobbs} must be greater than existing hobbs {existing.expiration_hobbs}."
-                    })
-                else:
-                    self._old_part = existing
-        if self.expiration_hobbs is not None:
-            aircraft = self.aircraft
-
-            flight_time = Decimal('0')
-            now = timezone.now()
-
-            for flight in aircraft.flights.all():
-                if not flight.departure_time or not flight.arrival_time:
-                    continue
-
-                if flight.arrival_time > now:
-                    start = max(flight.departure_time, now)
-                    end = flight.arrival_time
-                    hours = (end - start).total_seconds() / 3600
-                    flight_time += Decimal(str(hours))
-
-            if aircraft.hobbs_time + flight_time >= self.expiration_hobbs:
-                raise ValidationError({
-                    "expiration_hobbs": (
-                        f"Too low. Current ({aircraft.hobbs_time}) + projected "
-                        f"({flight_time}) exceeds limit."
-                    )
-                })
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-        if hasattr(self, "_old_part") and self._old_part:
-            self._old_part.delete()
-
 #Inventory model, is to show the inventory of parts for the company, points to company and part. Has a function(low_stock) to show the if the stock is lower than the stock alert percentage.
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
     parts = models.ManyToManyField(Part, blank=True, through='InventoryPart', related_name="inventories")
-    inventory_name = models.CharField(max_length=100, default="Main")
 
     def __str__(self):
         items =self.inventorypart_set.all()
         if not items:
-            return f"Inventory {self.inventory_name} for {self.company.name} with no parts"
-        return f"Inventory {self.inventory_name} for {self.company.name} with: {len(items)} items"
+            return f"Inventory for {self.company.name} with no parts"
+        return ",".join([f"{item.part.name} (Qty: {item.quantity})" for item in items])
 
 #sub model for inventory to have a list of parts and their quantities, since inventory can have multiple parts and parts can be in multiple inventories.
 class InventoryPart(models.Model):
@@ -485,206 +367,369 @@ class InventoryPart(models.Model):
     shop_location = models.CharField(max_length=100, blank= True, null= True)
 
     def low_stock(self):
-        return (
-            self.stock_alert >= self.quantity * (1 + self.stock_alert_percentage)
-            or self.stock_alert >= self.quantity
-        )
+        """
+        Consider this item low stock when current quantity is less than
+        or equal to the alert threshold.
+        """
+        if self.quantity is None or self.stock_alert is None:
+            return False
+        return self.quantity <= self.stock_alert
 
     low_stock.boolean = True
     low_stock.short_description = "Low Stock?"
     def __str__(self):
-        return f"{self.part.name} in {self.inventory.company.name} with {self.quantity} in stock"
+        return f"{self.part.name} with {self.quantity} in stock"
 
-#Work order model, points to an aircraft, and the profile that created the work order, can have any number of parts needed. and other basic information needed for a work order.
-class WorkOrder(models.Model):
-    STATUS_CHOICES = [
-        ('open', 'Open'),
-        ('in_progress', 'In Progress'),
-        ('awaiting_parts', 'Awaiting Parts'),
-        ('closed', 'Closed'),
-    ]
-    
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="work_orders")
-    created_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
-    parts_needed = models.ManyToManyField(Part, blank=True, through='WorkOrderPart')
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='open')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    due_by = models.DateField(null=True, blank=True)
-    tach_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
-    hobbs_time = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
-    ATA_code =models.IntegerField(null=True, blank=True)
-    components_affected = models.CharField(max_length=200, blank=True)
-    components_image = models.ImageField(upload_to='work_order_components/', null=True, blank=True)
-    signed_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="signed_work_orders")
-    signature = models.ImageField(upload_to='work_order_signatures/', null=True, blank=True)
-    signature_date = models.DateField(null=True, blank=True)
-    
 
-    def __str__(self):
-        return f"Work Order #{self.id} - {self.aircraft.registration_number}"
-
-#Sub model for work order to have a list of parts.  
-class WorkOrderPart(models.Model):
-    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
-    part = models.ForeignKey(Part, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField()
-
-#Discrepancy model, points to an aircraft, and the profile that created the discrepancy, can be related to a work order to show that it is being worked on.
-class Discrepancy(models.Model):
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('closed', 'Closed'),
-    ]
-    work_order = models.ForeignKey(WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="discrepancies")
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, related_name="discrepancies")
-    reporter = models.ForeignKey(Profile, on_delete=models.CASCADE)
-    date_reported = models.DateField(auto_now_add=True)
-    description = models.CharField(max_length=200)
-    ata_code = models.CharField(max_length=50, blank=True)
-    tach_time = models.CharField(max_length=100, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-
-    def __str__(self):
-        return f"Discrepancy on {self.aircraft} ({self.status})"
-
-#flight model, points to company, aircraft, primary pilot, secondary pilot, and dispatcher. Model is for the scheduling page. has basic information about the flight and a clean function to check that the pilots are not the same person, that the departure and arrival times make sense, and that the pilots are cleared to fly and have the right certifications.
 class Flight(models.Model):
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, null = True, related_name="flights")
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null = True, related_name="flights")
-    flight_number = models.CharField(max_length= 250, null = True)
-    origin = models.CharField(max_length= 250, null = True)# location
-    destination = models.CharField(max_length=250, null = True) #location
-    departure_time = models.DateTimeField(null = True)
-    arrival_time = models.DateTimeField(null = True)
-    route = models.CharField(blank= True, null= True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, related_name="flights")
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null=True, related_name="flights")
+    flight_number = models.CharField(max_length=250, null=True)
+    origin = models.CharField(max_length=250, null=True)
+    destination = models.CharField(max_length=250, null=True)
+    departure_time = models.DateTimeField(null=True)
+    arrival_time = models.DateTimeField(null=True)
+    route = models.CharField(blank=True, null=True)
     flight_type_options = [
-        ('training', 'Training'),
-        ('charter', 'Charter'),
-        ('positioning', 'Positioning'),
-        ('maintenance ferry', 'Maintenance Ferry'),
+        ("training", "Training"),
+        ("charter", "Charter"),
+        ("positioning", "Positioning"),
+        ("maintenance ferry", "Maintenance Ferry"),
     ]
-    flight_type = models.CharField(max_length= 255, choices=flight_type_options, default='training' )
-    primary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "primary_pilot")
-    secondary_pilot = models.ForeignKey(Profile, on_delete=models.CASCADE, null= True, related_name= "secondary_pilot")
-    dispatcher = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="flight_dispatcher")
-    pilot_req_options =[
-        ('student', 'Student'),#1
-        ('private', 'Private'),#2
-        ('commercial', 'Commercial'),#3
-        ('airline', 'Airline'),#4
+    flight_type = models.CharField(max_length=255, choices=flight_type_options, default="training")
+    primary_pilot = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="primary_pilot",
+    )
+    secondary_pilot = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="secondary_pilot",
+    )
+    pilot_req_options = [
+        ("student", "Student"),
+        ("private", "Private"),
+        ("commercial", "Commercial"),
+        ("airline", "Airline"),
     ]
-    pilot_requirement = models.CharField(max_length= 255, choices=pilot_req_options, default = "private")
+    pilot_requirement = models.CharField(max_length=255, choices=pilot_req_options, default="private")
+    dispatcher = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="flight_dispatcher",
+    )
     status_type_options = [
-        ('scheduled', 'Scheduled'),
-        ('approved', 'Approved'),
-        ('pending approval', 'Pending Approval'),
-        ('delayed', 'Delayed'),
-        ('cancelled', 'Cancelled'),
-        ('completed', 'Completed'),
+        ("scheduled", "Scheduled"),
+        ("approved", "Approved"),
+        ("pending approval", "Pending Approval"),
+        ("delayed", "Delayed"),
+        ("cancelled", "Cancelled"),
+        ("completed", "Completed"),
     ]
-    status = models.CharField(max_length= 255, choices=status_type_options, default='pending approval' )
-    
-    def save(self, *args, **kwargs):
-        self.full_clean() 
-        super().save(*args, **kwargs)
+    status = models.CharField(max_length=255, choices=status_type_options, default="pending approval")
 
-
-    #verification when adding flights
     def clean(self):
         errors = {}
 
-        # Auto-assign company from aircraft
-        if self.aircraft and not self.company:
-            self.company = self.aircraft.company
+        if self.primary_pilot and self.secondary_pilot and self.primary_pilot == self.secondary_pilot:
+            errors["secondary_pilot"] = (
+                "Secondary pilot cannot be the same person as Primary pilot!"
+            )
 
-        # --- Basic time validation ---
         if not self.departure_time:
             errors["departure_time"] = "Departure time does not exist"
 
         if not self.arrival_time:
             errors["arrival_time"] = "Arrival time does not exist"
         elif self.departure_time and self.arrival_time < self.departure_time:
-            errors["arrival_time"] = "Arrival time cannot be before departure time"
+            errors["arrival_time"] = "Arrival time can not be before departure time."
 
-        # --- Pilot validation ---
-        def check_pilot(pilot, field_name):
+        def check_pilot(pilot, which_pilot):
             if not pilot:
                 return
-
-            if pilot.company_role != "pilot":
-                errors[field_name] = f"{pilot.first_name} is not a pilot"
+            if getattr(pilot, "company_role", None) != "pilot":
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a pilot"
                 return
-
-            if pilot.company != self.company:
-                errors[field_name] = f"{pilot.first_name} is not in this company"
+            if getattr(pilot, "company", None) != self.company:
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not of company {self.company}"
                 return
-
-            if not hasattr(pilot, "pilot_info") or not pilot.pilot_info:
-                errors[field_name] = f"{pilot.first_name} has no pilot profile"
+            pilot_info = getattr(pilot, "pilot_info", None)
+            if not pilot_info:
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is missing pilot_info"
                 return
-
-            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
-                errors[field_name] = f"{pilot.first_name} is not medically cleared"
-
-            if not pilot.pilot_info.is_certified(self.pilot_requirement):
-                errors[field_name] = f"{pilot.first_name} is not certified for this flight"
-
-        # Prevent same pilot
-        if self.primary_pilot and self.secondary_pilot:
-            if self.primary_pilot == self.secondary_pilot:
-                errors["secondary_pilot"] = "Secondary pilot cannot be the same as primary"
+            if (
+                not getattr(pilot_info, "medically_cleared_until", None)
+                or (self.arrival_time and pilot_info.medically_cleared_until < self.arrival_time.date())
+            ):
+                errors[which_pilot] = (
+                    f"{getattr(pilot, 'first_name', 'Pilot')} is not cleared to fly until {self.arrival_time.date() if self.arrival_time else 'N/A'}"
+                )
+            if hasattr(pilot_info, "is_certified") and not pilot_info.is_certified(self.pilot_requirement):
+                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a high enough certification"
 
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
 
-        # --- Aircraft checks ---
-        if self.aircraft and self.departure_time and self.arrival_time:
-            aircraft = Aircraft.objects.get(pk=self.aircraft_id)
-
-            # Work order check
-            if aircraft.work_orders.filter(status__in=['open', 'in_progress', 'awaiting_parts']).exists():
-                errors["aircraft"] = f"{aircraft} has pending work orders"
-
-            # Conflict check
-            conflict = aircraft.flights.exclude(pk=self.pk).filter(
-                departure_time__lt=self.arrival_time,
-                arrival_time__gt=self.departure_time
-            )
-            if conflict.exists():
-                errors["aircraft"] = f"{aircraft} has a conflicting flight"
-
-            # --- Hobbs projection check ---
-            flight_time = Decimal('0')
-            now = timezone.now()
-
-            # Existing flights
-            for flight in aircraft.flights.exclude(pk=self.pk):
-                if not flight.departure_time or not flight.arrival_time:
-                    continue
-
-                if flight.arrival_time > now:
-                    start = max(flight.departure_time, now)
-                    end = flight.arrival_time
-                    hours = (end - start).total_seconds() / 3600
-                    flight_time += Decimal(str(hours))
-
-            # THIS flight
-            if self.arrival_time > now:
-                start = max(self.departure_time, now)
-                end = self.arrival_time
-                hours = (end - start).total_seconds() / 3600
-                flight_time += Decimal(str(hours))
-
-            # Check against part limits
-            for ap in AircraftPart.objects.filter(aircraft=aircraft, expiration_hobbs__isnull=False):
-                if aircraft.hobbs_time + flight_time >= ap.expiration_hobbs:
-                    errors["aircraft"] = (
-                        f"{aircraft} exceeds hobbs limit for part {ap.part.name}"
-                    )
-                    break
-
         if errors:
             raise ValidationError(errors)
+
+
+class WorkOrder(models.Model):
+    STATUS_CHOICES = [
+        ("open", "Open"),
+        ("in_progress", "In Progress"),
+        ("awaiting_parts", "Awaiting Parts"),
+        ("closed", "Closed"),
+    ]
+    PRIORITY_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("critical", "Critical"),
+    ]
+
+    assignee = models.ForeignKey(
+        'Profile', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assigned_work_orders'
+    )
+    completion_notes = models.TextField(blank=True, null=True)
+
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="work_orders"
+    )
+    created_by = models.ForeignKey(
+        Profile, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    parts_needed = models.ManyToManyField(
+        Part, blank=True, through="WorkOrderPart"
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=50, choices=STATUS_CHOICES, default="open"
+    )
+    priority = models.CharField(
+        max_length=20, choices=PRIORITY_CHOICES, default="medium"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    due_by = models.DateField(null=True, blank=True)
+    tach_time = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+    hobbs_time = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+    ATA_code = models.IntegerField(null=True, blank=True)
+    components_affected = models.CharField(max_length=200, blank=True)
+    components_image = models.ImageField(
+        upload_to="work_order_components/", null=True, blank=True
+    )
+    signed_by = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="signed_work_orders",
+    )
+    signature = models.ImageField(
+        upload_to="work_order_signatures/", null=True, blank=True
+    )
+    signature_date = models.DateField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Work Order #{self.id} - {self.aircraft.registration_number}"
+
+
+class WorkOrderPart(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+
+
+class Discrepancy(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("closed", "Closed"),
+    ]
+
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discrepancies",
+    )
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="discrepancies"
+    )
+    reporter = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    date_reported = models.DateField(auto_now_add=True)
+    description = models.CharField(max_length=200)
+    ata_code = models.CharField(max_length=50, blank=True)
+    tach_time = models.CharField(max_length=100, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending"
+    )
+    signature = models.ImageField(upload_to="discrepancies_signatures/", null=True, blank=True)
+    signature_date = models.DateField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Discrepancy on {self.aircraft} ({self.status})"
+
+
+class WorkOrderActivity(models.Model):
+    """History entries for work order changes."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="activities"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="work_order_activities",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"WO#{self.work_order_id} {self.event_type} @ {self.created_at}"
+
+
+class DiscrepancyActivity(models.Model):
+    """History entries for discrepancy updates."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+
+    discrepancy = models.ForeignKey(
+        Discrepancy, on_delete=models.CASCADE, related_name="activities"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discrepancy_activities",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"DISC#{self.discrepancy_id} {self.event_type} @ {self.created_at}"
+
+      
+class Tool(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="tools")
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    serial_number = models.CharField(max_length=200)
+    calibration_due_date = models.DateField()
+    location = models.CharField(max_length=200, blank=True, null=True)
+
+    @property
+    def calibration_alert(self):
+        today = timezone.now().date()
+        delta = (self.calibration_due_date - today).days
+        if delta < 0:
+            return "red"
+        if delta <= 10:
+            return "amber"
+        return "green"
+
+    @property
+    def status(self):
+        today = timezone.now().date()
+        delta = (self.calibration_due_date - today).days
+        if delta < 0:
+            return "overdue"
+        if delta <= 10:
+            return "calibration_due"
+        return "available"
+
+    def __str__(self):
+        return f"{self.name} (S/N: {self.serial_number})"
+
+
+class CalibrationRecord(models.Model):
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="calibration_history")
+    calibration_date = models.DateField()
+    performed_by = models.CharField(max_length=200)
+    next_due_date = models.DateField()
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Calibration of {self.tool.name} on {self.calibration_date} by {self.performed_by}"
+        
+
+class AircraftPhoto(models.Model):
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="photos"
+    )
+    image = models.ImageField(upload_to="aircraft_photos/")
+    caption = models.CharField(max_length=200, blank=True, default="")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+
+class AircraftMaintenanceInterval(models.Model):
+    INTERVAL_TYPE_CHOICES = [
+        ("hours", "Hours"),
+        ("days", "Days"),
+        ("both", "Both"),
+    ]
+
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.CASCADE, related_name="maintenance_intervals"
+    )
+    name = models.CharField(max_length=120)
+    interval_type = models.CharField(
+        max_length=20, choices=INTERVAL_TYPE_CHOICES, default="hours"
+    )
+    due_every_hours = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    due_every_days = models.PositiveIntegerField(null=True, blank=True)
+    last_done_tach = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_hobbs = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    last_done_date = models.DateField(null=True, blank=True)
+    is_ad = models.BooleanField(default=False)
+    ad_number = models.CharField(max_length=80, blank=True, default="")
+    ad_revision = models.CharField(max_length=40, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]

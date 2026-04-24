@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router';
+import { BrowserRouter } from 'react-router-dom';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAppContext } from '../../context/AppContext';
 
@@ -9,8 +9,8 @@ jest.mock('../../context/AppContext', () => ({
 }));
 
 // Mock the react-router Navigate component
-jest.mock('react-router', () => ({
-	...jest.requireActual('react-router'),
+jest.mock('react-router-dom', () => ({
+	...jest.requireActual('react-router-dom'),
 	Navigate: ({ to, state, replace }) => (
 		<div data-testid="navigate-mock" data-to={to} data-replace={replace.toString()}>
 			Navigate to {to}
@@ -30,7 +30,7 @@ describe('ProtectedRoute', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		// Mock useLocation
-		const { useLocation } = require('react-router');
+		const { useLocation } = require('react-router-dom');
 		useLocation.mockReturnValue(mockLocation);
 	});
 

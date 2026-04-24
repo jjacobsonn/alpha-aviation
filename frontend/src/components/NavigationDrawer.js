@@ -18,17 +18,21 @@ import {
 import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import InventoryIcon from "@mui/icons-material/Inventory";
+import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
+import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
+import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { useNavigate, useLocation } from "react-router";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
 import { ACTION_TYPES } from "../context/AppContext";
+import { isPlatformAdmin } from "../shared/rbac";
 
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
@@ -39,7 +43,7 @@ function NavigationDrawer() {
   const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { dispatch } = useAppContext();
+  const { state, dispatch } = useAppContext();
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -74,26 +78,90 @@ function NavigationDrawer() {
     setSelectedTab(currentPath || "dashboard");
   }, [location]);
 
-  const menuItems = [
+  const role = state.user?.role;
+  const platformAdmin = isPlatformAdmin(state.user);
+  const effectiveRole = role;
+
+  const allMenuItems = [
+    {
+      id: "site-admin",
+      title: "Site Admin",
+      icon: <SettingsIcon />,
+      color: "#455a64",
+      allowedRoles: [],
+      onlyPlatformAdmin: true,
+      to: "/site-admin",
+    },
     {
       id: "management",
       title: "Management",
       icon: <DashboardIcon />,
-      color: "#273469",
+      color: "#2B7FD4",
+      allowedRoles: ["owner", "manager"],
+    },
+    {
+      id: "admin",
+      title: "Organizations",
+      icon: <DomainIcon />,
+      color: "#00695c",
+      allowedRoles: ["manager"],
+      to: "/admin/companies",
+    },
+    {
+      id: "fleet",
+      title: "Fleet",
+      icon: <AirlinesIcon />,
+      color: "#1976d2",
+      allowedRoles: ["owner", "manager", "mechanic", "pilot", "dispatcher"],
+      to: "/fleet",
     },
     {
       id: "parts",
       title: "Parts",
       icon: <InventoryIcon />,
-      color: "#2196F3",
+      color: "#2B7FD4",
+      allowedRoles: ["owner", "manager", "mechanic"],
     },
     {
       id: "maintenance",
       title: "Maintenance",
       icon: <BuildIcon />,
       color: "#FF9800",
+      allowedRoles: ["owner", "manager", "mechanic"],
+    },
+    {
+      id: "work-orders",
+      title: "Work Orders",
+      icon: <WorkOutlineIcon />,
+      color: "#fb8c00",
+      allowedRoles: ["owner", "manager", "mechanic"],
+      to: "/work-orders",
+    },
+    {
+      id: "pilot-dashboard",
+      title: "Pilot Dashboard",
+      icon: <FlightTakeoffIcon />,
+      color: "#7b1fa2",
+      allowedRoles: ["pilot", "owner"],
+      to: "/pilot-dashboard",
+    },
+    {
+      id: "dispatcher-dashboard",
+      title: "Dispatcher Dashboard",
+      icon: <DashboardIcon />,
+      color: "#00897b",
+      allowedRoles: ["dispatcher", "owner"],
+      to: "/dispatcher-dashboard",
     },
   ];
+
+  const menuItems = allMenuItems.filter((item) => {
+    if (item.onlyPlatformAdmin && !platformAdmin) return false;
+    if (platformAdmin) return true;
+    if (!item.allowedRoles || item.allowedRoles.length === 0) return true;
+    if (!effectiveRole) return false;
+    return item.allowedRoles.includes(effectiveRole);
+  });
 
   return (
     <Drawer
@@ -113,7 +181,7 @@ function NavigationDrawer() {
       }}
     >
       {/* ... existing code ... */}
-      
+
       {/* Header Section */}
       <Box
         sx={{
@@ -132,18 +200,20 @@ function NavigationDrawer() {
             onClick={() => navigate("/")}
             sx={{ cursor: "pointer" }}
           >
-            <FlightTakeoffIcon sx={{ fontSize: 28, color: "primary.main" }} />
+            <img src="/logo.png" alt="AIMS" style={{ height: 28, width: 28 }} />
             <Typography
               variant="h6"
               sx={{ fontWeight: 600, color: "primary.main" }}
             >
-              AIMS Next
+              Alpha Aviation
             </Typography>
           </Stack>
         )}
         {!sidebarOpen && (
-          <FlightTakeoffIcon
-            sx={{ fontSize: 28, color: "primary.main", cursor: "pointer" }}
+          <img
+            src="/logo.png"
+            alt="AIMS"
+            style={{ height: 28, width: 28, cursor: "pointer" }}
             onClick={() => navigate("/")}
           />
         )}
@@ -167,7 +237,8 @@ function NavigationDrawer() {
               <ListItemButton
                 selected={selectedTab === item.id}
                 onClick={() => {
-                  navigate(`/${item.id}`);
+                  const target = item.to || `/${item.id}`;
+                  navigate(target);
                   setSelectedTab(item.id);
                 }}
                 sx={{

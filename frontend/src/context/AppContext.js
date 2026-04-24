@@ -15,6 +15,14 @@ const initialState = {
   pageTitle: '',
   siteAlerts: [],
   user: {},
+  viewAsUser: (() => {
+    try {
+      const raw = localStorage.getItem('viewAsUser');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })(),
   monthStats: {
     jobsCompletedMonth: 0,
     revisionCountMonth: 0,
@@ -32,7 +40,9 @@ export const ACTION_TYPES = {
   LOGGED_OUT: 'LOGGED_OUT',
   SET_PAGE_TITLE: 'SET_PAGE_TITLE',
   UPDATE_SITE_ALERTS: 'UPDATE_SITE_ALERTS',
-  UPDATE_USER: 'UPDATE_USER'
+  UPDATE_USER: 'UPDATE_USER',
+  SET_VIEW_AS_USER: 'SET_VIEW_AS_USER',
+  CLEAR_VIEW_AS_USER: 'CLEAR_VIEW_AS_USER',
 };
 
 const reducer = (state, action) => {
@@ -80,6 +90,7 @@ const reducer = (state, action) => {
         pageTitle: '',
         siteAlerts: [],
         user: {},
+        viewAsUser: null,
         monthStats: {
           jobsCompletedMonth: 0,
           revisionCountMonth: 0,
@@ -97,46 +108,46 @@ const reducer = (state, action) => {
         ...state,
         siteAlerts: action.payload
       };
-    case ACTION_TYPES.UPDATE_USER:
+    case ACTION_TYPES.UPDATE_USER: {
+      // Backend /api/users/me/ returns:
+      // { id, username, email, first_name, last_name, company_role, company, company_name }
       const userObject = action.payload.user || action.payload;
       return {
         ...state,
         user: {
-          id: userObject.id || state.user.id,
-          email: userObject.email,
-          username: userObject.username,
-          firstName: userObject.first_name,
-          lastName: userObject.last_name,
-          verifiedEmail: userObject.verified_email || state.user.verifiedEmail,
-          phoneNumber: action.payload.user
-            ? action.payload.phone_number
-            : state.user.phoneNumber,
-          role: action.payload.user ? action.payload.role : state.user.role,
-          needsOnboarding: action.payload.user
-            ? action.payload.needs_onboarding
-            : state.user.needsOnboarding,
-          needsPassword: action.payload.user
-            ? action.payload.needs_password
-            : state.user.needsPassword,
-          companies: action.payload.user
-            ? action.payload.companies
-            : state.user.companies,
+          id: userObject.id ?? state.user.id,
+          email: userObject.email ?? state.user.email,
+          username: userObject.username ?? state.user.username,
+          firstName: userObject.first_name ?? state.user.firstName,
+          lastName: userObject.last_name ?? state.user.lastName,
+          role: userObject.company_role ?? state.user.role,
+          isStaff: userObject.is_staff ?? state.user.isStaff,
+          isSuperuser: userObject.is_superuser ?? state.user.isSuperuser,
+          companyId: userObject.company ?? state.user.companyId,
+          companyName: userObject.company_name ?? state.user.companyName,
         },
-        monthStats: {
-          jobsCompletedMonth:
-            action.payload.month_jobs_count ||
-            state.monthStats.jobsCompletedMonth,
-          revisionCountMonth:
-            action.payload.month_revision_count ||
-            state.monthStats.revisionCountMonth,
-          previousShiftHours:
-            action.payload.prev_shift_hours ||
-            state.monthStats.previousShiftHours,
-          currentShiftStart: action.payload.current_shift_start
-            ? Date.parse(action.payload.current_shift_start)
-            : state.monthStats.currentShiftStart
-        }
+        // monthStats are not used in the current UI; keep them unchanged
+        monthStats: state.monthStats
       };
+    }
+    case ACTION_TYPES.SET_VIEW_AS_USER: {
+      const next = action.payload || null;
+      try {
+        if (next) localStorage.setItem('viewAsUser', JSON.stringify(next));
+        else localStorage.removeItem('viewAsUser');
+      } catch {
+        // ignore storage errors
+      }
+      return { ...state, viewAsUser: next };
+    }
+    case ACTION_TYPES.CLEAR_VIEW_AS_USER: {
+      try {
+        localStorage.removeItem('viewAsUser');
+      } catch {
+        // ignore storage errors
+      }
+      return { ...state, viewAsUser: null };
+    }
     default:
       return state;
   }

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import {
 	AppBar,
 	Toolbar,
@@ -29,7 +29,7 @@ const LandingPage = () => {
 			<AppBar
 				position="static"
 				elevation={1}
-				sx={{ bgcolor: 'white', color: 'primary.main' }}
+				sx={{ bgcolor: 'white', color: '#FF4C05' }}
 			>
 				<Toolbar sx={{ py: 1 }}>
 					<FlightTakeoffIcon sx={{ mr: 1.5, fontSize: 28 }} />
@@ -64,11 +64,11 @@ const LandingPage = () => {
 							sx={{
 								textTransform: 'none',
 								px: 3,
-								borderColor: 'primary.main',
-								color: 'primary.main',
+								borderColor: '#FF4C05',
+								color: '#FF4C05',
 								'&:hover': {
-									borderColor: 'primary.dark',
-									bgcolor: 'rgba(39, 52, 105, 0.04)',
+									borderColor: '#CC3A00',
+									bgcolor: 'rgba(255, 76, 5, 0.04)',
 								},
 							}}
 							onClick={() => navigate('/login')}
@@ -90,7 +90,7 @@ const LandingPage = () => {
 			<Box
 				sx={{
 					background:
-						'linear-gradient(135deg, #273469 0%, #1a2347 50%, #273469 100%)',
+						'linear-gradient(135deg, #FF4C05 0%, #CC3A00 50%, #FF4C05 100%)',
 					color: 'white',
 					py: { xs: 8, md: 15 },
 					position: 'relative',
@@ -148,14 +148,14 @@ const LandingPage = () => {
 									onClick={() => navigate('/management')}
 									sx={{
 										bgcolor: 'white',
-										color: 'primary.main',
+										color: '#FF4C05',
 										px: 4,
 										py: 1.5,
 										fontSize: '1.1rem',
 										textTransform: 'none',
 										fontWeight: 600,
 										'&:hover': {
-											bgcolor: '#FAFAFF',
+											bgcolor: '#FFF0E9',
 											transform: 'translateY(-2px)',
 										},
 										transition: 'all 0.3s',
@@ -262,7 +262,7 @@ const LandingPage = () => {
 					<Typography
 						variant="overline"
 						sx={{
-							color: 'primary.main',
+							color: '#FF4C05',
 							fontWeight: 600,
 							letterSpacing: 2,
 							mb: 1,
@@ -301,7 +301,7 @@ const LandingPage = () => {
 							}}
 						>
 							<Box sx={{ mb: 3 }}>
-								<BuildIcon sx={{ fontSize: 50, color: 'primary.main' }} />
+								<BuildIcon sx={{ fontSize: 50, color: '#FF4C05' }} />
 							</Box>
 							<Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
 								Maintenance Tracking
@@ -333,7 +333,7 @@ const LandingPage = () => {
 							}}
 						>
 							<Box sx={{ mb: 3 }}>
-								<InventoryIcon sx={{ fontSize: 50, color: 'primary.main' }} />
+								<InventoryIcon sx={{ fontSize: 50, color: '#FF4C05' }} />
 							</Box>
 							<Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
 								Inventory Management
@@ -366,7 +366,7 @@ const LandingPage = () => {
 						>
 							<Box sx={{ mb: 3 }}>
 								<FlightTakeoffIcon
-									sx={{ fontSize: 50, color: 'primary.main' }}
+									sx={{ fontSize: 50, color: '#FF4C05' }}
 								/>
 							</Box>
 							<Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
@@ -399,7 +399,7 @@ const LandingPage = () => {
 							}}
 						>
 							<Box sx={{ mb: 3 }}>
-								<AssessmentIcon sx={{ fontSize: 50, color: 'primary.main' }} />
+								<AssessmentIcon sx={{ fontSize: 50, color: '#FF4C05' }} />
 							</Box>
 							<Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
 								Fleet Management
@@ -431,7 +431,7 @@ const LandingPage = () => {
 							}}
 						>
 							<Box sx={{ mb: 3 }}>
-								<CloudDoneIcon sx={{ fontSize: 50, color: 'primary.main' }} />
+								<CloudDoneIcon sx={{ fontSize: 50, color: '#FF4C05' }} />
 							</Box>
 							<Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
 								Cloud-Based Platform
@@ -463,7 +463,7 @@ const LandingPage = () => {
 							}}
 						>
 							<Box sx={{ mb: 3 }}>
-								<SecurityIcon sx={{ fontSize: 50, color: 'primary.main' }} />
+								<SecurityIcon sx={{ fontSize: 50, color: '#FF4C05' }} />
 							</Box>
 							<Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
 								Enterprise Security
@@ -482,7 +482,7 @@ const LandingPage = () => {
 			</Container>
 
 			{/* Benefits Section */}
-			<Box sx={{ bgcolor: 'primary.main', color: 'white', py: 10 }}>
+			<Box sx={{ bgcolor: '#FF4C05', color: 'white', py: 10 }}>
 				<Container maxWidth="lg">
 					<Typography
 						variant="h3"
@@ -546,7 +546,7 @@ const LandingPage = () => {
 						p: 6,
 						borderRadius: 3,
 						border: '2px solid',
-						borderColor: 'primary.main',
+						borderColor: '#FF4C05',
 						bgcolor: 'background.paper',
 					}}
 				>
@@ -595,7 +595,7 @@ const LandingPage = () => {
 			</Container>
 
 			{/* Footer */}
-			<Box sx={{ bgcolor: 'primary.main', color: 'white', py: 6 }}>
+			<Box sx={{ bgcolor: '#FF4C05', color: 'white', py: 6 }}>
 				<Container maxWidth="lg">
 					<Grid container spacing={4} sx={{ mb: 4 }}>
 						<Grid size={{ xs: 12, md: 4 }}>
