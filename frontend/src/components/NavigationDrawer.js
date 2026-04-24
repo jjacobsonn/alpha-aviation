@@ -26,6 +26,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -152,6 +153,14 @@ function NavigationDrawer() {
       color: "#00897b",
       allowedRoles: ["dispatcher", "owner"],
       to: "/dispatcher-dashboard",
+    },
+    {
+      id: "calendar",
+      title: "Calendar",
+      icon: <CalendarMonthIcon />,
+      color: "#2e7d32",
+      allowedRoles: ["dispatcher", "owner"],
+      to: "/calendar",
     },
   ];
 

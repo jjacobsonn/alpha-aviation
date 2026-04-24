@@ -15,6 +15,7 @@ import Maintenance from './pages/Maintenance';
 import WorkOrders from './pages/WorkOrders';
 import PilotDashboard from './pages/PilotDashboard';
 import DispatcherDashboard from './pages/DispatcherDashboard';
+import CalendarPage from './pages/DispatchCalendarPage';
 import SiteAdminPortal from './pages/SiteAdminPortal';
 import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
@@ -188,6 +189,26 @@ function App() {
 								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
 									<Layout>
 										<DispatcherDashboard />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/calendar"
+							element={
+								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
+									<Layout>
+										<CalendarPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/dispatch-calendar"
+							element={
+								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
+									<Layout>
+										<CalendarPage />
 									</Layout>
 								</ProtectedRoute>
 							}

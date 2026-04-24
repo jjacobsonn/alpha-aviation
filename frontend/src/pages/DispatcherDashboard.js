@@ -254,12 +254,16 @@ export default function DispatcherDashboard() {
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Stack spacing={3}>
           <Stack spacing={1}>
-            <Typography variant="h4" sx={{ fontWeight: 800 }}>
-              Dispatch
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Review flight requests, approve or cancel, and monitor scheduled flights.
-            </Typography>
+            <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                  Dispatch
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Review flight requests, approve or cancel, and monitor scheduled flights.
+                </Typography>
+              </Box>
+            </Stack>
             {error ? <Alert severity="error">{error}</Alert> : null}
           </Stack>
           {aircraftFilterFromQuery ? (
@@ -405,6 +409,13 @@ export default function DispatcherDashboard() {
                   All flights
                 </Typography>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
+                  <Button
+                    variant="outlined"
+                    startIcon={<CalendarMonthIcon />}
+                    onClick={() => navigate("/calendar")}
+                  >
+                    Calendar
+                  </Button>
                   <TextField
                     size="small"
                     placeholder="Search flight #, route, status…"
