@@ -418,7 +418,21 @@ class AircraftPart(models.Model):
 
     def clean(self):
         super().clean()
+        if self.expiration_date and self.expiration_date < timezone.now().date():
+            raise ValidationError({
+                "expiration_date": "Expiration date cannot be in the past."
+            })
+        self._old_part = None
+        existing = AircraftPart.objects.filter(aircraft=self.aircraft, part=self.part).exclude(pk=self.pk).order_by('-expiration_hobbs').first()
 
+        if existing:
+            if self.expiration_hobbs is not None and existing.expiration_hobbs is not None:
+                if self.expiration_hobbs <= existing.expiration_hobbs:
+                    raise ValidationError({
+                        "expiration_hobbs": f"New expiration hobbs {self.expiration_hobbs} must be greater than existing hobbs {existing.expiration_hobbs}."
+                    })
+                else:
+                    self._old_part = existing
         if self.expiration_hobbs is not None:
             aircraft = self.aircraft
 
@@ -446,6 +460,9 @@ class AircraftPart(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+        if hasattr(self, "_old_part") and self._old_part:
+            self._old_part.delete()
+
 #Inventory model, is to show the inventory of parts for the company, points to company and part. Has a function(low_stock) to show the if the stock is lower than the stock alert percentage.
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
