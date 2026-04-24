@@ -352,26 +352,22 @@ const FleetDetailPage = () => {
 								</Grid>
 							</Grid>
 
-							<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-								<CardContent>
-									<Stack spacing={2}>
-										<Typography variant="h6" sx={{ fontWeight: 700 }}>
-											Specifications
-										</Typography>
-										{specsEntries.length ? (
-											specsEntries.map(([key, value]) => (
+							{specsEntries.length ? (
+								<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+									<CardContent>
+										<Stack spacing={2}>
+											<Typography variant="h6" sx={{ fontWeight: 700 }}>
+												Specifications
+											</Typography>
+											{specsEntries.map(([key, value]) => (
 												<Typography key={key} variant="body2">
 													{key}: {String(value)}
 												</Typography>
-											))
-										) : (
-											<Typography variant="body2" color="text.secondary">
-												No aircraft specs have been configured yet.
-											</Typography>
-										)}
-									</Stack>
-								</CardContent>
-							</Card>
+											))}
+										</Stack>
+									</CardContent>
+								</Card>
+							) : null}
 
 							<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 								<CardContent>

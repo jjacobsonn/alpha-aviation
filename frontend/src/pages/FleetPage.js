@@ -24,7 +24,13 @@ import {
 	Skeleton,
 } from '@mui/material';
 import { useAppContext } from '../context/AppContext';
-import { createAircraft, deleteAircraft, fetchFleetAircraft, updateAircraft } from '../shared/Api';
+import {
+	createAircraft,
+	deleteAircraft,
+	fetchFleetAircraft,
+	fetchFleetAircraftDetail,
+	updateAircraft,
+} from '../shared/Api';
 import { isPlatformAdmin } from '../shared/rbac';
 
 const STATUS_OPTIONS = [
@@ -178,21 +184,30 @@ const FleetPage = () => {
 		setFormOpen(true);
 	};
 
-	const openEdit = (row) => {
-		setEditingId(row.id);
-		setForm({
-			registration_number: row.registration_number || '',
-			model: row.model || '',
-			manufacturer: row.manufacturer || '',
-			engine_type: row.engine_type || '',
-			year_built: row.year_built ?? '',
-			location: row.location || '',
-			aircraft_type: row.aircraft_type || '',
-			tach_current: row.tach_current ?? '',
-			hobbs_current: row.hobbs_current ?? '',
-			fleet_status: row.fleet_status || 'active',
-		});
-		setFormOpen(true);
+	const openEdit = async (row) => {
+		try {
+			setSaving(true);
+			setError('');
+			const detail = await fetchFleetAircraftDetail(row.id);
+			setEditingId(row.id);
+			setForm({
+				registration_number: detail?.registration_number || row.registration_number || '',
+				model: detail?.model || row.model || '',
+				manufacturer: detail?.manufacturer || '',
+				engine_type: detail?.engine_type || '',
+				year_built: detail?.year_built ?? '',
+				location: detail?.location || row.location || '',
+				aircraft_type: detail?.aircraft_type || row.aircraft_type || '',
+				tach_current: detail?.tach_current ?? row.tach_current ?? '',
+				hobbs_current: detail?.hobbs_current ?? row.hobbs_current ?? '',
+				fleet_status: detail?.fleet_status || row.fleet_status || 'active',
+			});
+			setFormOpen(true);
+		} catch (e) {
+			setError(e?.message || 'Failed to load aircraft for editing.');
+		} finally {
+			setSaving(false);
+		}
 	};
 
 	const handleSave = async () => {
