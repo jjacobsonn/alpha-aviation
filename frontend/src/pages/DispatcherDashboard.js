@@ -6,7 +6,12 @@ import {
   CardContent,
   Chip,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -22,10 +27,12 @@ import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
+  deleteFlight,
   fetchCompanyFlights,
   patchCompanyFlightDispatch,
+  updateFlight,
 } from "../shared/Api";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
@@ -51,6 +58,7 @@ function formatDt(iso) {
 
 export default function DispatcherDashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { state } = useAppContext();
   const platformAdmin = isPlatformAdmin(state.user);
   const hasCompanyContext =
@@ -62,6 +70,15 @@ export default function DispatcherDashboard() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [busyId, setBusyId] = useState(null);
+  const [editingFlight, setEditingFlight] = useState(null);
+  const [editForm, setEditForm] = useState({
+    flight_number: "",
+    origin: "",
+    destination: "",
+    departure_time: "",
+    arrival_time: "",
+    status: "",
+  });
   const aircraftFilterFromQuery = new URLSearchParams(location.search).get("aircraft") || "";
 
   const load = useCallback(async () => {
@@ -165,6 +182,61 @@ export default function DispatcherDashboard() {
     }
   };
 
+  const openEdit = (flight) => {
+    setEditingFlight(flight);
+    const toLocal = (iso) => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+        d.getHours()
+      )}:${pad(d.getMinutes())}`;
+    };
+    setEditForm({
+      flight_number: flight?.flight_number || "",
+      origin: flight?.origin || "",
+      destination: flight?.destination || "",
+      departure_time: toLocal(flight?.departure_time),
+      arrival_time: toLocal(flight?.arrival_time),
+      status: flight?.status || "pending approval",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingFlight?.id) return;
+    setBusyId(editingFlight.id);
+    setError("");
+    try {
+      await updateFlight(editingFlight.id, {
+        flight_number: editForm.flight_number || null,
+        origin: editForm.origin,
+        destination: editForm.destination,
+        departure_time: editForm.departure_time ? new Date(editForm.departure_time).toISOString() : null,
+        arrival_time: editForm.arrival_time ? new Date(editForm.arrival_time).toISOString() : null,
+        status: editForm.status,
+      });
+      setEditingFlight(null);
+      await load();
+    } catch (e) {
+      setError(e?.message || "Could not save flight updates.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeFlight = async (id) => {
+    setBusyId(id);
+    setError("");
+    try {
+      await deleteFlight(id);
+      await load();
+    } catch (e) {
+      setError(e?.message || "Could not delete flight.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (platformAdmin && !hasCompanyContext) {
     return (
       <Box sx={{ bgcolor: "background.default", minHeight: "100vh", py: 4 }}>
@@ -189,12 +261,27 @@ export default function DispatcherDashboard() {
               Review flight requests, approve or cancel, and monitor scheduled flights.
             </Typography>
             {error ? <Alert severity="error">{error}</Alert> : null}
-            {aircraftFilterFromQuery ? (
-              <Alert severity="info">
-                Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
-              </Alert>
-            ) : null}
           </Stack>
+          {aircraftFilterFromQuery ? (
+            <Stack direction="row">
+              <Chip
+                color="primary"
+                variant="outlined"
+                label={`Aircraft filter: ${aircraftFilterFromQuery}`}
+                onDelete={() => {
+                  const params = new URLSearchParams(location.search);
+                  params.delete("aircraft");
+                  navigate(
+                    {
+                      pathname: "/dispatcher-dashboard",
+                      search: params.toString() ? `?${params.toString()}` : "",
+                    },
+                    { replace: true }
+                  );
+                }}
+              />
+            </Stack>
+          ) : null}
 
           <Grid container spacing={2}>
             <Grid item xs={12} sm={4}>
@@ -347,18 +434,19 @@ export default function DispatcherDashboard() {
                     <TableCell>Route</TableCell>
                     <TableCell>Departure</TableCell>
                     <TableCell>Arrival</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6}>
+                      <TableCell colSpan={7}>
                         <Typography color="text.secondary">Loading…</Typography>
                       </TableCell>
                     </TableRow>
                   ) : filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6}>
+                      <TableCell colSpan={7}>
                         <Typography color="text.secondary">No flights match.</Typography>
                       </TableCell>
                     </TableRow>
@@ -373,6 +461,21 @@ export default function DispatcherDashboard() {
                         </TableCell>
                         <TableCell>{formatDt(f.departure_time)}</TableCell>
                         <TableCell>{formatDt(f.arrival_time)}</TableCell>
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button size="small" variant="outlined" onClick={() => openEdit(f)}>
+                              Edit
+                            </Button>
+                            <Button
+                              size="small"
+                              color="error"
+                              onClick={() => removeFlight(f.id)}
+                              disabled={busyId === f.id}
+                            >
+                              Remove
+                            </Button>
+                          </Stack>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -380,6 +483,66 @@ export default function DispatcherDashboard() {
               </Table>
             </CardContent>
           </Card>
+          <Dialog
+            open={Boolean(editingFlight)}
+            onClose={() => setEditingFlight(null)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>Edit Flight</DialogTitle>
+            <DialogContent>
+              <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                  label="Flight #"
+                  value={editForm.flight_number}
+                  onChange={(e) => setEditForm((s) => ({ ...s, flight_number: e.target.value }))}
+                />
+                <TextField
+                  label="Origin"
+                  value={editForm.origin}
+                  onChange={(e) => setEditForm((s) => ({ ...s, origin: e.target.value }))}
+                />
+                <TextField
+                  label="Destination"
+                  value={editForm.destination}
+                  onChange={(e) => setEditForm((s) => ({ ...s, destination: e.target.value }))}
+                />
+                <TextField
+                  label="Departure"
+                  type="datetime-local"
+                  InputLabelProps={{ shrink: true }}
+                  value={editForm.departure_time}
+                  onChange={(e) => setEditForm((s) => ({ ...s, departure_time: e.target.value }))}
+                />
+                <TextField
+                  label="Arrival"
+                  type="datetime-local"
+                  InputLabelProps={{ shrink: true }}
+                  value={editForm.arrival_time}
+                  onChange={(e) => setEditForm((s) => ({ ...s, arrival_time: e.target.value }))}
+                />
+                <TextField
+                  select
+                  label="Status"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((s) => ({ ...s, status: e.target.value }))}
+                >
+                  <MenuItem value="pending approval">Pending approval</MenuItem>
+                  <MenuItem value="approved">Approved</MenuItem>
+                  <MenuItem value="scheduled">Scheduled</MenuItem>
+                  <MenuItem value="delayed">Delayed</MenuItem>
+                  <MenuItem value="cancelled">Cancelled</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                </TextField>
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEditingFlight(null)}>Cancel</Button>
+              <Button variant="contained" onClick={saveEdit} disabled={Boolean(busyId)}>
+                Save
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Stack>
       </Container>
     </Box>

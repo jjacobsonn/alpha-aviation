@@ -314,6 +314,10 @@ export const updateAircraftInterval = async (id, payload) => {
 	return await makeApiRequest('PATCH', `/fleet/intervals/${id}/`, payload);
 };
 
+export const deleteAircraftInterval = async (id) => {
+	return await makeApiRequest('DELETE', `/fleet/intervals/${id}/`);
+};
+
 export const completeAircraftInterval = async (id, payload) => {
 	return await makeApiRequest('POST', `/fleet/intervals/${id}/complete/`, payload);
 };

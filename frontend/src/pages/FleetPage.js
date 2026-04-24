@@ -3,10 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import {
 	Alert,
 	Box,
+	Button,
 	Card,
 	CardContent,
 	Chip,
 	Container,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
 	MenuItem,
 	Stack,
 	Table,
@@ -18,7 +23,9 @@ import {
 	Typography,
 	Skeleton,
 } from '@mui/material';
-import { fetchFleetAircraft } from '../shared/Api';
+import { useAppContext } from '../context/AppContext';
+import { createAircraft, deleteAircraft, fetchFleetAircraft, updateAircraft } from '../shared/Api';
+import { isPlatformAdmin } from '../shared/rbac';
 
 const STATUS_OPTIONS = [
 	{ value: '', label: 'All statuses' },
@@ -40,8 +47,24 @@ function statusChipColor(status) {
 	}
 }
 
+function formatFleetStatusLabel(status) {
+	if (!status) return 'Active';
+	return String(status)
+		.split('_')
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(' ');
+}
+
+function formatIntervalSummary(summary) {
+	if (!summary) return 'No interval data';
+	const overdue = summary.overdue_count || 0;
+	const dueSoon = summary.due_soon_count || 0;
+	return `Overdue: ${overdue} | Due Soon: ${dueSoon}`;
+}
+
 const FleetPage = () => {
 	const navigate = useNavigate();
+	const { state } = useAppContext();
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [aircraft, setAircraft] = useState([]);
@@ -49,6 +72,24 @@ const FleetPage = () => {
 	const [statusFilter, setStatusFilter] = useState('');
 	const [locationFilter, setLocationFilter] = useState('');
 	const [typeFilter, setTypeFilter] = useState('');
+	const [formOpen, setFormOpen] = useState(false);
+	const [editingId, setEditingId] = useState(null);
+	const [saving, setSaving] = useState(false);
+	const [form, setForm] = useState({
+		registration_number: '',
+		model: '',
+		manufacturer: '',
+		engine_type: '',
+		year_built: '',
+		location: '',
+		aircraft_type: '',
+		tach_current: '',
+		hobbs_current: '',
+		fleet_status: 'active',
+	});
+
+	const effectiveRole = state.viewAsUser?.role || state.user?.role;
+	const canManageFleet = isPlatformAdmin(state.user) || ['owner', 'manager'].includes(effectiveRole);
 
 	useEffect(() => {
 		let mounted = true;
@@ -115,6 +156,89 @@ const FleetPage = () => {
 		});
 	}, [aircraft, search, statusFilter, locationFilter, typeFilter]);
 
+	const refreshFleet = async () => {
+		const data = await fetchFleetAircraft();
+		setAircraft(Array.isArray(data) ? data : []);
+	};
+
+	const openCreate = () => {
+		setEditingId(null);
+		setForm({
+			registration_number: '',
+			model: '',
+			manufacturer: '',
+			engine_type: '',
+			year_built: '',
+			location: '',
+			aircraft_type: '',
+			tach_current: '',
+			hobbs_current: '',
+			fleet_status: 'active',
+		});
+		setFormOpen(true);
+	};
+
+	const openEdit = (row) => {
+		setEditingId(row.id);
+		setForm({
+			registration_number: row.registration_number || '',
+			model: row.model || '',
+			manufacturer: row.manufacturer || '',
+			engine_type: row.engine_type || '',
+			year_built: row.year_built ?? '',
+			location: row.location || '',
+			aircraft_type: row.aircraft_type || '',
+			tach_current: row.tach_current ?? '',
+			hobbs_current: row.hobbs_current ?? '',
+			fleet_status: row.fleet_status || 'active',
+		});
+		setFormOpen(true);
+	};
+
+	const handleSave = async () => {
+		if (!form.registration_number.trim() || !form.model.trim() || !form.manufacturer.trim() || !form.year_built) {
+			setError('Tail number, model, manufacturer, and year built are required.');
+			return;
+		}
+		try {
+			setSaving(true);
+			setError('');
+			const payload = {
+				registration_number: form.registration_number.trim(),
+				model: form.model.trim(),
+				manufacturer: form.manufacturer.trim(),
+				engine_type: form.engine_type.trim(),
+				year_built: Number(form.year_built),
+				location: form.location.trim(),
+				aircraft_type: form.aircraft_type.trim(),
+				tach_current: form.tach_current === '' ? null : Number(form.tach_current),
+				hobbs_current: form.hobbs_current === '' ? null : Number(form.hobbs_current),
+				fleet_status: form.fleet_status,
+			};
+			if (editingId) await updateAircraft(editingId, payload);
+			else await createAircraft(payload);
+			setFormOpen(false);
+			await refreshFleet();
+		} catch (e) {
+			setError(e?.message || 'Failed to save aircraft.');
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const handleDelete = async (id) => {
+		try {
+			setSaving(true);
+			setError('');
+			await deleteAircraft(id);
+			setAircraft((prev) => prev.filter((row) => row.id !== id));
+		} catch (e) {
+			setError(e?.message || 'Failed to delete aircraft.');
+		} finally {
+			setSaving(false);
+		}
+	};
+
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
@@ -127,6 +251,13 @@ const FleetPage = () => {
 							Aircraft inventory with status and maintenance readiness.
 						</Typography>
 					</Box>
+					{canManageFleet ? (
+						<Stack direction="row" justifyContent="flex-end">
+							<Button variant="contained" onClick={openCreate}>
+								Add Aircraft Record
+							</Button>
+						</Stack>
+					) : null}
 
 					<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 						<CardContent>
@@ -209,6 +340,7 @@ const FleetPage = () => {
 											<TableCell>Hobbs</TableCell>
 											<TableCell>Status</TableCell>
 											<TableCell>Intervals</TableCell>
+											{canManageFleet ? <TableCell>Actions</TableCell> : null}
 										</TableRow>
 									</TableHead>
 									<TableBody>
@@ -229,21 +361,35 @@ const FleetPage = () => {
 													<TableCell>
 														<Chip
 															size="small"
-															label={row.fleet_status || 'active'}
+															label={formatFleetStatusLabel(row.fleet_status)}
 															color={statusChipColor(row.fleet_status)}
 														/>
 													</TableCell>
 													<TableCell>
-														{row?.interval_summary
-															? `${row.interval_summary.overdue_count || 0} overdue / ${row.interval_summary.due_soon_count || 0} due soon`
-															: '—'}
+														{formatIntervalSummary(row?.interval_summary)}
 													</TableCell>
+													{canManageFleet ? (
+														<TableCell onClick={(e) => e.stopPropagation()} sx={{ whiteSpace: 'nowrap' }}>
+															<Button size="small" variant="outlined" onClick={() => openEdit(row)}>
+																Edit
+															</Button>
+															<Button
+																size="small"
+																color="error"
+																sx={{ ml: 1 }}
+																onClick={() => handleDelete(row.id)}
+																disabled={saving}
+															>
+																Delete
+															</Button>
+														</TableCell>
+													) : null}
 												</TableRow>
 											))}
 										{isLoading
 											? [...Array(6)].map((_, idx) => (
 													<TableRow key={`fleet-skeleton-${idx}`}>
-														<TableCell colSpan={8}>
+														<TableCell colSpan={canManageFleet ? 9 : 8}>
 															<Skeleton variant="text" />
 														</TableCell>
 													</TableRow>
@@ -251,7 +397,7 @@ const FleetPage = () => {
 											: null}
 										{!isLoading && filteredRows.length === 0 ? (
 											<TableRow>
-												<TableCell colSpan={8} sx={{ color: 'text.secondary', py: 3 }}>
+												<TableCell colSpan={canManageFleet ? 9 : 8} sx={{ color: 'text.secondary', py: 3 }}>
 													No aircraft found for current filters. Try clearing search/filter values.
 												</TableCell>
 											</TableRow>
@@ -263,6 +409,95 @@ const FleetPage = () => {
 					</Card>
 				</Stack>
 			</Container>
+			<Dialog open={formOpen} onClose={() => setFormOpen(false)} fullWidth maxWidth="md">
+				<DialogTitle>{editingId ? 'Edit Aircraft Record' : 'Create Aircraft Record'}</DialogTitle>
+				<DialogContent>
+					<Stack spacing={2} sx={{ mt: 1 }}>
+						<Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+							<TextField
+								fullWidth
+								label="Tail #"
+								value={form.registration_number}
+								onChange={(e) => setForm((prev) => ({ ...prev, registration_number: e.target.value }))}
+							/>
+							<TextField
+								fullWidth
+								label="Model"
+								value={form.model}
+								onChange={(e) => setForm((prev) => ({ ...prev, model: e.target.value }))}
+							/>
+							<TextField
+								fullWidth
+								label="Manufacturer"
+								value={form.manufacturer}
+								onChange={(e) => setForm((prev) => ({ ...prev, manufacturer: e.target.value }))}
+							/>
+						</Stack>
+						<Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+							<TextField
+								fullWidth
+								label="Engine Type"
+								value={form.engine_type}
+								onChange={(e) => setForm((prev) => ({ ...prev, engine_type: e.target.value }))}
+							/>
+							<TextField
+								fullWidth
+								type="number"
+								label="Year Built"
+								value={form.year_built}
+								onChange={(e) => setForm((prev) => ({ ...prev, year_built: e.target.value }))}
+							/>
+							<TextField
+								fullWidth
+								label="Type"
+								value={form.aircraft_type}
+								onChange={(e) => setForm((prev) => ({ ...prev, aircraft_type: e.target.value }))}
+							/>
+						</Stack>
+						<Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+							<TextField
+								fullWidth
+								label="Location"
+								value={form.location}
+								onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+							/>
+							<TextField
+								fullWidth
+								type="number"
+								label="Tach"
+								value={form.tach_current}
+								onChange={(e) => setForm((prev) => ({ ...prev, tach_current: e.target.value }))}
+							/>
+							<TextField
+								fullWidth
+								type="number"
+								label="Hobbs"
+								value={form.hobbs_current}
+								onChange={(e) => setForm((prev) => ({ ...prev, hobbs_current: e.target.value }))}
+							/>
+							<TextField
+								fullWidth
+								select
+								label="Status"
+								value={form.fleet_status}
+								onChange={(e) => setForm((prev) => ({ ...prev, fleet_status: e.target.value }))}
+							>
+								{STATUS_OPTIONS.filter((s) => s.value).map((s) => (
+									<MenuItem key={s.value} value={s.value}>
+										{s.label}
+									</MenuItem>
+								))}
+							</TextField>
+						</Stack>
+					</Stack>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={() => setFormOpen(false)}>Cancel</Button>
+					<Button variant="contained" onClick={handleSave} disabled={saving}>
+						{editingId ? 'Save Changes' : 'Create'}
+					</Button>
+				</DialogActions>
+			</Dialog>
 		</Box>
 	);
 };

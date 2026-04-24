@@ -193,6 +193,12 @@ class AircraftSerializer(serializers.ModelSerializer):
             "manufacturer",
             "engine_type",
             "year_built",
+            "location",
+            "tach_current",
+            "hobbs_current",
+            "fleet_status",
+            "aircraft_type",
+            "specs",
             "company",
             "company_name",
         ]

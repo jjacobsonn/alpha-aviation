@@ -83,7 +83,7 @@ function profileDisplayName(u) {
 
 export default function WorkOrders() {
 	const navigate = useNavigate();
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state.user);
@@ -364,13 +364,22 @@ export default function WorkOrders() {
 						Open maintenance
 					</Button>
 				</Stack>
+				{aircraftFilterFromQuery ? (
+					<Stack direction="row" sx={{ mb: 2 }}>
+						<Chip
+							color="primary"
+							variant="outlined"
+							label={`Aircraft filter: ${aircraftFilterFromQuery}`}
+							onDelete={() => {
+								const next = new URLSearchParams(searchParams);
+								next.delete('aircraft');
+								setSearchParams(next, { replace: true });
+							}}
+						/>
+					</Stack>
+				) : null}
 
 				{error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
-				{aircraftFilterFromQuery ? (
-					<Alert severity="info" sx={{ mb: 2 }}>
-						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
-					</Alert>
-				) : null}
 
 				<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', mb: 3 }}>
 					<CardContent>

@@ -763,9 +763,15 @@ class ProfileViewSet(viewsets.ModelViewSet):
 
 
 class AircraftViewSet(viewsets.ModelViewSet):
-    queryset = Aircraft.objects.all()
     serializer_class = AircraftSerializer
     permission_classes = [IsManagerOrOwner]
+
+    def get_queryset(self):
+        return company_scoped_aircraft_queryset(self.request)
+
+    def perform_create(self, serializer):
+        company = get_request_company(self.request)
+        serializer.save(company=company)
 
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
@@ -930,7 +936,7 @@ class FleetAircraftIntervalListCreateView(generics.ListCreateAPIView):
         serializer.save(aircraft=self.get_aircraft())
 
 
-class FleetAircraftIntervalUpdateView(generics.UpdateAPIView):
+class FleetAircraftIntervalUpdateView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AircraftMaintenanceIntervalSerializer
     permission_classes = [IsAuthenticated]
     queryset = AircraftMaintenanceInterval.objects.select_related("aircraft")
@@ -953,6 +959,24 @@ class FleetAircraftIntervalUpdateView(generics.UpdateAPIView):
         if instance.aircraft_id not in allowed_ids:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        role = getattr(request.user, "company_role", None)
+        if not (
+            role in {"mechanic", "manager", "owner"}
+            or _is_platform_admin(request.user)
+        ):
+            return Response(
+                {"detail": "You do not have permission to delete intervals."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance = self.get_object()
+        allowed_ids = set(
+            fleet_aircraft_queryset(request).values_list("id", flat=True)
+        )
+        if instance.aircraft_id not in allowed_ids:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return super().destroy(request, *args, **kwargs)
 
 
 @api_view(["POST"])

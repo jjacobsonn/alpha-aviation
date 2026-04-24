@@ -38,6 +38,7 @@ import {
 	fetchCompanyDiscrepancies,
 	fetchCompanyUsers,
 	fetchManagementDashboard,
+	createProfile,
 	updateProfile,
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
@@ -88,6 +89,7 @@ const Management = () => {
 	const [discrepancies, setDiscrepancies] = useState([]);
 	const [companyUsers, setCompanyUsers] = useState([]);
 	const [editUserOpen, setEditUserOpen] = useState(false);
+	const [createUserOpen, setCreateUserOpen] = useState(false);
 	const [editingUserId, setEditingUserId] = useState(null);
 	const [editingUserForm, setEditingUserForm] = useState({
 		first_name: '',
@@ -97,6 +99,16 @@ const Management = () => {
 		company_role: '',
 	});
 	const [savingUser, setSavingUser] = useState(false);
+	const [creatingUser, setCreatingUser] = useState(false);
+	const [newUserForm, setNewUserForm] = useState({
+		username: '',
+		password: '',
+		first_name: '',
+		last_name: '',
+		email: '',
+		phone_number: '',
+		company_role: 'pilot',
+	});
 
 	useEffect(() => {
 		let mounted = true;
@@ -259,6 +271,23 @@ const Management = () => {
 		setEditingUserId(null);
 	};
 
+	const openCreateUser = () => {
+		setNewUserForm({
+			username: '',
+			password: '',
+			first_name: '',
+			last_name: '',
+			email: '',
+			phone_number: '',
+			company_role: 'pilot',
+		});
+		setCreateUserOpen(true);
+	};
+
+	const closeCreateUser = () => {
+		setCreateUserOpen(false);
+	};
+
 	const saveEditedUser = async () => {
 		if (!editingUserId) return;
 		setSavingUser(true);
@@ -272,6 +301,28 @@ const Management = () => {
 			setError(e?.message || 'Failed to update user.');
 		} finally {
 			setSavingUser(false);
+		}
+	};
+
+	const createUser = async () => {
+		if (!newUserForm.username.trim() || !newUserForm.password) {
+			setError('Username and password are required to create a user.');
+			return;
+		}
+		setCreatingUser(true);
+		setError('');
+		try {
+			await createProfile({
+				...newUserForm,
+				username: newUserForm.username.trim(),
+			});
+			const users = await fetchCompanyUsers();
+			setCompanyUsers(Array.isArray(users) ? users : []);
+			closeCreateUser();
+		} catch (e) {
+			setError(e?.message || 'Failed to create user.');
+		} finally {
+			setCreatingUser(false);
 		}
 	};
 
@@ -461,9 +512,16 @@ const Management = () => {
 
 				{/* Roster */}
 				<Box sx={{ mb: 5 }}>
-					<Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-						Company roster
-					</Typography>
+					<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+						<Typography variant="h6" sx={{ fontWeight: 600 }}>
+							Company roster
+						</Typography>
+						{canEditRoster ? (
+							<Button size="small" variant="contained" onClick={openCreateUser}>
+								Add User
+							</Button>
+						) : null}
+					</Stack>
 					<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 						<CardContent sx={{ p: 0 }}>
 							{loading ? (
@@ -623,6 +681,60 @@ const Management = () => {
 						<Button onClick={closeEditUser}>Cancel</Button>
 						<Button variant="contained" onClick={saveEditedUser} disabled={savingUser}>
 							Save
+						</Button>
+					</DialogActions>
+				</Dialog>
+				<Dialog open={createUserOpen} onClose={closeCreateUser} fullWidth maxWidth="sm">
+					<DialogTitle>Create user</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField
+								label="Username"
+								value={newUserForm.username}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, username: e.target.value }))}
+							/>
+							<TextField
+								label="Temporary password"
+								type="password"
+								value={newUserForm.password}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, password: e.target.value }))}
+							/>
+							<TextField
+								label="First name"
+								value={newUserForm.first_name}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, first_name: e.target.value }))}
+							/>
+							<TextField
+								label="Last name"
+								value={newUserForm.last_name}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, last_name: e.target.value }))}
+							/>
+							<TextField
+								label="Email"
+								value={newUserForm.email}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, email: e.target.value }))}
+							/>
+							<TextField
+								label="Phone number"
+								value={newUserForm.phone_number}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, phone_number: e.target.value }))}
+							/>
+							<TextField
+								select
+								label="Role"
+								value={newUserForm.company_role}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, company_role: e.target.value }))}
+							>
+								{Object.entries(ROLE_LABELS).map(([value, label]) => (
+									<MenuItem key={value} value={value}>{label}</MenuItem>
+								))}
+							</TextField>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={closeCreateUser}>Cancel</Button>
+						<Button variant="contained" onClick={createUser} disabled={creatingUser}>
+							Create
 						</Button>
 					</DialogActions>
 				</Dialog>

@@ -33,6 +33,9 @@ import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import {
   deleteInventory,
+  createInventory,
+  createPart,
+  fetchCompanyAircrafts,
   fetchCompanyInventoriesDetailed,
   fetchCompanyWorkorders,
   updateInventory,
@@ -47,6 +50,18 @@ function PartsPage() {
   const [inventories, setInventories] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [search, setSearch] = useState("");
+  const [aircraftOptions, setAircraftOptions] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [isSavingAdd, setIsSavingAdd] = useState(false);
+  const [addValues, setAddValues] = useState({
+    aircraftId: "",
+    partNumber: "",
+    partName: "",
+    partDescription: "",
+    inStock: "1",
+    stockAlert: "1",
+    shopLocation: "",
+  });
   const [editOpen, setEditOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editValues, setEditValues] = useState({
@@ -79,9 +94,11 @@ function PartsPage() {
           fetchCompanyInventoriesDetailed(),
           fetchCompanyWorkorders(),
         ]);
+        const aircraftData = await fetchCompanyAircrafts();
         if (!mounted) return;
         setInventories(Array.isArray(data) ? data : []);
         setWorkOrders(Array.isArray(wos) ? wos : []);
+        setAircraftOptions(Array.isArray(aircraftData) ? aircraftData : []);
       } catch (e) {
         if (!mounted) return;
         setError(e?.message || "Failed to load inventory.");
@@ -140,6 +157,53 @@ function PartsPage() {
       setError(e?.message || "Failed to save.");
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const handleOpenAdd = () => {
+    setAddValues({
+      aircraftId: "",
+      partNumber: "",
+      partName: "",
+      partDescription: "",
+      inStock: "1",
+      stockAlert: "1",
+      shopLocation: "",
+    });
+    setAddOpen(true);
+  };
+
+  const handleSaveAdd = async () => {
+    if (!addValues.aircraftId || !addValues.partNumber.trim() || !addValues.partName.trim()) {
+      setError("Aircraft, part number, and part name are required.");
+      return;
+    }
+    setIsSavingAdd(true);
+    setError("");
+    try {
+      const createdPart = await createPart({
+        aircraft: Number(addValues.aircraftId),
+        part_number: addValues.partNumber.trim(),
+        name: addValues.partName.trim(),
+        description: addValues.partDescription.trim(),
+      });
+      await createInventory({
+        part_id: createdPart?.id,
+        in_stock: Number(addValues.inStock || 0),
+        stock_alert: Number(addValues.stockAlert || 0),
+        shop_location: addValues.shopLocation,
+      });
+      const [data, wos] = await Promise.all([
+        fetchCompanyInventoriesDetailed(),
+        fetchCompanyWorkorders(),
+      ]);
+      setInventories(Array.isArray(data) ? data : []);
+      setWorkOrders(Array.isArray(wos) ? wos : []);
+      setAddOpen(false);
+    } catch (e) {
+      setError(e?.message || "Failed to add part.");
+    } finally {
+      setIsSavingAdd(false);
     }
   };
 
@@ -281,14 +345,19 @@ function PartsPage() {
           <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
             <CardContent>
               <Stack spacing={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  variant="outlined"
-                  placeholder="Search part number, name, description, location…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    placeholder="Search part number, name, description, location…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  <Button variant="contained" onClick={handleOpenAdd} sx={{ whiteSpace: "nowrap" }}>
+                    Add Part
+                  </Button>
+                </Stack>
 
                 {error && (
                   <Box sx={{ color: 'error.main' }}>
@@ -390,6 +459,94 @@ function PartsPage() {
                     Edit
                   </MenuItem>
                 </Menu>
+
+                <Dialog
+                  open={addOpen}
+                  onClose={() => setAddOpen(false)}
+                  maxWidth="sm"
+                  fullWidth
+                >
+                  <DialogTitle>Add part</DialogTitle>
+                  <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                      <TextField
+                        select
+                        label="Aircraft"
+                        value={addValues.aircraftId}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, aircraftId: e.target.value }))
+                        }
+                        fullWidth
+                      >
+                        {aircraftOptions.map((a) => (
+                          <MenuItem key={a.id} value={String(a.id)}>
+                            {a.registration_number} ({a.model})
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        label="Part number"
+                        value={addValues.partNumber}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, partNumber: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Part name"
+                        value={addValues.partName}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, partName: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Description"
+                        value={addValues.partDescription}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, partDescription: e.target.value }))
+                        }
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                      <TextField
+                        label="In stock"
+                        type="number"
+                        value={addValues.inStock}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, inStock: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Reorder at"
+                        type="number"
+                        value={addValues.stockAlert}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, stockAlert: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Shop location"
+                        value={addValues.shopLocation}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, shopLocation: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                    </Stack>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setAddOpen(false)} disabled={isSavingAdd}>
+                      Cancel
+                    </Button>
+                    <Button variant="contained" onClick={handleSaveAdd} disabled={isSavingAdd}>
+                      {isSavingAdd ? <CircularProgress size={18} /> : "Create"}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
 
                 <Dialog
                   open={editOpen}

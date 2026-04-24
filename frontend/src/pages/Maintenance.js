@@ -6,6 +6,7 @@ import {
 	Button,
 	Card,
 	CardContent,
+	Chip,
 	Container,
 	Dialog,
 	DialogActions,
@@ -742,15 +743,30 @@ const Maintenance = () => {
 						</Button>
 					</Stack>
 				</Stack>
+				{aircraftFilterFromQuery ? (
+					<Stack direction="row" sx={{ mb: 2 }}>
+						<Chip
+							color="primary"
+							variant="outlined"
+							label={`Aircraft filter: ${aircraftFilterFromQuery}`}
+							onDelete={() => {
+								const params = new URLSearchParams(location.search);
+								params.delete('aircraft');
+								navigate(
+									{
+										pathname: '/maintenance',
+										search: params.toString() ? `?${params.toString()}` : '',
+									},
+									{ replace: true }
+								);
+							}}
+						/>
+					</Stack>
+				) : null}
 
 				{error ? (
 					<Alert severity="error" sx={{ mb: 2 }}>
 						{error}
-					</Alert>
-				) : null}
-				{aircraftFilterFromQuery ? (
-					<Alert severity="info" sx={{ mb: 2 }}>
-						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
 					</Alert>
 				) : null}
 
