@@ -39,6 +39,7 @@ import {
   fetchCompanyFlights,
   fetchCompanyUsers,
   fetchCurrentUser,
+  patchCompanyFlightDispatch,
 } from "../shared/Api";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
@@ -77,6 +78,14 @@ const INITIAL_DISC_FORM = {
   description: "",
 };
 
+const PILOT_EDITABLE_REQUEST_FIELDS = new Set([
+  "departure_time",
+  "arrival_time",
+  "route",
+  "secondary_pilot",
+]);
+const PILOT_FLIGHT_EDIT_TRAIL_KEY = "pilotFlightEditTrail";
+
 function statusChip(status) {
   const s = status || "";
   if (s === "approved" || s === "scheduled") return <Chip size="small" color="success" label={s} />;
@@ -101,6 +110,19 @@ function toIsoFromDatetimeLocal(value) {
   return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }
 
+function toDatetimeLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const min = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+
 function toId(v) {
   if (v === null || v === undefined || v === "") return Number.NaN;
   if (typeof v === "number") return v;
@@ -110,6 +132,65 @@ function toId(v) {
     return id === undefined ? Number.NaN : Number(id);
   }
   return Number.NaN;
+}
+
+function formatEditedAt(value) {
+  if (!value) return "";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return String(value);
+  }
+}
+
+function getChangedFlightFields(current, baseline) {
+  if (!current || !baseline) return [];
+  const labels = {
+    departure_time: "Departure",
+    arrival_time: "Arrival",
+    route: "Route notes",
+    secondary_pilot: "Secondary pilot",
+  };
+  return Object.keys(labels)
+    .filter((k) => (current?.[k] ?? "") !== (baseline?.[k] ?? ""))
+    .map((k) => labels[k]);
+}
+
+function getFlightFieldValueSummary(form) {
+  if (!form) return {};
+  return {
+    departure_time: form.departure_time || "",
+    arrival_time: form.arrival_time || "",
+    route: form.route || "",
+    secondary_pilot: form.secondary_pilot || "",
+  };
+}
+
+function normalizeTrailMap(value) {
+  if (!value || typeof value !== "object") return {};
+  const out = {};
+  Object.entries(value).forEach(([flightId, entry]) => {
+    if (Array.isArray(entry)) {
+      out[flightId] = entry;
+      return;
+    }
+    if (entry && typeof entry === "object") {
+      out[flightId] = [entry];
+      return;
+    }
+    out[flightId] = [];
+  });
+  return out;
+}
+
+function formatFieldValue(field, value, pilotsById) {
+  if (!value) return "—";
+  if (field === "secondary_pilot") {
+    const id = Number(value);
+    if (Number.isNaN(id)) return String(value);
+    return pilotsById.get(id) || `User #${id}`;
+  }
+  return String(value);
 }
 
 export default function PilotDashboard() {
@@ -138,8 +219,44 @@ export default function PilotDashboard() {
   const [submittingFlight, setSubmittingFlight] = useState(false);
   const [creatingDisc, setCreatingDisc] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
+  const [editingSelectedFlight, setEditingSelectedFlight] = useState(false);
+  const [savingSelectedFlight, setSavingSelectedFlight] = useState(false);
+  const [selectedFlightBaseline, setSelectedFlightBaseline] = useState(null);
+  const [selectedFlightEditedAt, setSelectedFlightEditedAt] = useState("");
+  const [savedFlightEditTrail, setSavedFlightEditTrail] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PILOT_FLIGHT_EDIT_TRAIL_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return normalizeTrailMap(parsed);
+    } catch {
+      return {};
+    }
+  });
+  const [selectedFlightDirtyFields, setSelectedFlightDirtyFields] = useState([]);
+  const [selectedFlightForm, setSelectedFlightForm] = useState({
+    flight_number: "",
+    aircraft: "",
+    origin: "",
+    destination: "",
+    departure_time: "",
+    arrival_time: "",
+    route: "",
+    flight_type: "training",
+    pilot_requirement: "private",
+    secondary_pilot: "",
+  });
   const [requestFlightOpen, setRequestFlightOpen] = useState(false);
   const [reportDiscrepancyOpen, setReportDiscrepancyOpen] = useState(false);
+  const [flightFormEditedAt, setFlightFormEditedAt] = useState("");
+  const [discFormEditedAt, setDiscFormEditedAt] = useState("");
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PILOT_FLIGHT_EDIT_TRAIL_KEY, JSON.stringify(savedFlightEditTrail));
+    } catch {
+      // Ignore localStorage write issues.
+    }
+  }, [savedFlightEditTrail]);
 
   const [flightForm, setFlightForm] = useState(INITIAL_FLIGHT_FORM);
   const [discForm, setDiscForm] = useState(INITIAL_DISC_FORM);
@@ -290,6 +407,130 @@ export default function PilotDashboard() {
     return "—";
   };
 
+  const canEditSelectedFlight = useMemo(() => {
+    if (!selectedFlight || !currentUser?.id) return false;
+    const isOwnPrimary =
+      toId(selectedFlight?.primary_pilot ?? selectedFlight?.primary_pilot_id) === Number(currentUser.id);
+    return isOwnPrimary && selectedFlight?.status === "pending approval";
+  }, [selectedFlight, currentUser]);
+
+  const openFlightDetails = (flight) => {
+    setEditingSelectedFlight(false);
+    setSelectedFlight(flight);
+    const nextForm = {
+      flight_number: flight?.flight_number || "",
+      aircraft: String(flight?.aircraft?.id ?? flight?.aircraft ?? ""),
+      origin: flight?.origin || "",
+      destination: flight?.destination || "",
+      departure_time: toDatetimeLocal(flight?.departure_time),
+      arrival_time: toDatetimeLocal(flight?.arrival_time),
+      route: flight?.route || "",
+      flight_type: flight?.flight_type || "training",
+      pilot_requirement: flight?.pilot_requirement || "private",
+      secondary_pilot:
+        flight?.secondary_pilot === null || flight?.secondary_pilot === undefined || flight?.secondary_pilot === ""
+          ? ""
+          : String(flight.secondary_pilot),
+    };
+    setSelectedFlightForm(nextForm);
+    setSelectedFlightBaseline(nextForm);
+    setSelectedFlightEditedAt("");
+    setSelectedFlightDirtyFields([]);
+  };
+
+  const closeFlightDetails = () => {
+    setEditingSelectedFlight(false);
+    setSelectedFlight(null);
+    setSelectedFlightBaseline(null);
+    setSelectedFlightEditedAt("");
+    setSelectedFlightDirtyFields([]);
+  };
+
+  const updateSelectedFlightForm = (field, value) => {
+    if (!PILOT_EDITABLE_REQUEST_FIELDS.has(field)) return;
+    setSelectedFlightForm((s) => ({ ...s, [field]: value }));
+    setSelectedFlightEditedAt(new Date().toISOString());
+    setSelectedFlightDirtyFields((prev) =>
+      prev.includes(field) ? prev : [...prev, field]
+    );
+  };
+
+  const updateFlightForm = (field, value) => {
+    setFlightForm((s) => ({ ...s, [field]: value }));
+    setFlightFormEditedAt(new Date().toISOString());
+  };
+
+  const updateDiscForm = (field, value) => {
+    setDiscForm((s) => ({ ...s, [field]: value }));
+    setDiscFormEditedAt(new Date().toISOString());
+  };
+
+  const saveSelectedFlightEdit = async () => {
+    if (!selectedFlight?.id) return;
+    const dep = toIsoFromDatetimeLocal(selectedFlightForm.departure_time);
+    const arr = toIsoFromDatetimeLocal(selectedFlightForm.arrival_time);
+    if (!dep || !arr) {
+      setError("Departure and arrival date and time are required.");
+      return;
+    }
+    setSavingSelectedFlight(true);
+    setError("");
+    try {
+      const changedFieldMap = {
+        departure_time: "Departure",
+        arrival_time: "Arrival",
+        route: "Route notes",
+        secondary_pilot: "Secondary pilot",
+      };
+      const unionRaw = new Set([
+        ...selectedFlightDirtyFields,
+        ...Object.keys(changedFieldMap).filter(
+          (k) =>
+            (selectedFlightForm?.[k] ?? "") !== (selectedFlightBaseline?.[k] ?? "")
+        ),
+      ]);
+      const unionFields = [...unionRaw].filter((k) => changedFieldMap[k]);
+      const changeDetails = unionFields.map((field) => ({
+        field,
+        label: changedFieldMap[field],
+        before: selectedFlightBaseline?.[field] ?? "",
+        after: selectedFlightForm?.[field] ?? "",
+      }));
+      const updated = await patchCompanyFlightDispatch(selectedFlight.id, {
+        departure_time: dep,
+        arrival_time: arr,
+        route: selectedFlightForm.route || "",
+        secondary_pilot: selectedFlightForm.secondary_pilot
+          ? Number(selectedFlightForm.secondary_pilot)
+          : null,
+      });
+      setFlights((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      setSelectedFlight(updated);
+      setEditingSelectedFlight(false);
+      if (unionFields.length > 0) {
+        const values = getFlightFieldValueSummary(selectedFlightForm);
+        setSavedFlightEditTrail((prev) => ({
+          ...prev,
+          [updated.id]: [
+            ...(Array.isArray(prev?.[updated.id]) ? prev[updated.id] : []),
+            {
+              fields: unionFields.map((f) => changedFieldMap[f]),
+              changes: changeDetails,
+              editedAt: new Date().toISOString(),
+              values,
+            },
+          ],
+        }));
+      }
+      setSelectedFlightEditedAt("");
+      setSelectedFlightDirtyFields([]);
+    } catch (e) {
+      setError(e?.message || "Could not update flight request.");
+    } finally {
+      setSavingSelectedFlight(false);
+    }
+  };
+
   const displayValue = (v) => {
     if (v === null || v === undefined || v === "") return "—";
     if (typeof v === "boolean") return v ? "Yes" : "No";
@@ -311,6 +552,56 @@ export default function PilotDashboard() {
     if (Number.isNaN(id)) return displayValue(pilotIdOrName);
     return pilotNameById.get(id) || `User #${id}`;
   };
+
+  const selectedFlightChangedFields = useMemo(() => {
+    if (!editingSelectedFlight || !selectedFlightBaseline) return [];
+    const labels = {
+      departure_time: "Departure",
+      arrival_time: "Arrival",
+      route: "Route notes",
+      secondary_pilot: "Secondary pilot",
+    };
+    return Object.keys(labels)
+      .filter((k) => (selectedFlightForm?.[k] ?? "") !== (selectedFlightBaseline?.[k] ?? ""))
+      .map((k) => labels[k]);
+  }, [editingSelectedFlight, selectedFlightBaseline, selectedFlightForm]);
+
+  const selectedFlightSavedTrail = useMemo(() => {
+    if (!selectedFlight?.id) return null;
+    return Array.isArray(savedFlightEditTrail[selectedFlight.id])
+      ? savedFlightEditTrail[selectedFlight.id]
+      : [];
+  }, [savedFlightEditTrail, selectedFlight]);
+
+  const requestFlightChangedFields = useMemo(() => {
+    const labels = {
+      aircraft: "Aircraft",
+      flight_number: "Flight number",
+      origin: "Origin",
+      destination: "Destination",
+      departure_time: "Departure",
+      arrival_time: "Arrival",
+      route: "Route notes",
+      flight_type: "Flight type",
+      pilot_requirement: "Certificate requirement",
+      secondary_pilot: "Secondary pilot",
+    };
+    return Object.keys(labels)
+      .filter((k) => (flightForm?.[k] ?? "") !== (INITIAL_FLIGHT_FORM?.[k] ?? ""))
+      .map((k) => labels[k]);
+  }, [flightForm]);
+
+  const discrepancyChangedFields = useMemo(() => {
+    const labels = {
+      aircraft: "Aircraft",
+      ata_code: "ATA code",
+      tach_time: "Tach time",
+      description: "Description",
+    };
+    return Object.keys(labels)
+      .filter((k) => (discForm?.[k] ?? "") !== (INITIAL_DISC_FORM?.[k] ?? ""))
+      .map((k) => labels[k]);
+  }, [discForm]);
 
   if (platformAdmin && !hasCompanyContext) {
     return (
@@ -394,7 +685,7 @@ export default function PilotDashboard() {
                 Quick actions
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                Open forms in modals to keep this page clean on mobile.
+                Use these actions to submit a flight request or report a maintenance discrepancy.
               </Typography>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
                 <Button
@@ -403,6 +694,7 @@ export default function PilotDashboard() {
                   sx={{ flex: 1 }}
                   onClick={() => {
                     setError("");
+                    setFlightFormEditedAt("");
                     setRequestFlightOpen(true);
                   }}
                   disabled={loading}
@@ -415,6 +707,7 @@ export default function PilotDashboard() {
                   sx={{ flex: 1 }}
                   onClick={() => {
                     setError("");
+                    setDiscFormEditedAt("");
                     setReportDiscrepancyOpen(true);
                   }}
                   disabled={loading}
@@ -463,11 +756,11 @@ export default function PilotDashboard() {
                       <TableRow
                         key={f.id}
                         hover
-                        onClick={() => setSelectedFlight(f)}
+                        onClick={() => openFlightDetails(f)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            setSelectedFlight(f);
+                            openFlightDetails(f);
                           }
                         }}
                         tabIndex={0}
@@ -493,7 +786,7 @@ export default function PilotDashboard() {
 
           <Dialog
             open={Boolean(selectedFlight)}
-            onClose={() => setSelectedFlight(null)}
+            onClose={closeFlightDetails}
             fullWidth
             maxWidth="sm"
           >
@@ -509,7 +802,7 @@ export default function PilotDashboard() {
               <Typography variant="inherit">Flight submission details</Typography>
               <IconButton
                 aria-label="Close"
-                onClick={() => setSelectedFlight(null)}
+                onClick={closeFlightDetails}
                 edge="end"
                 sx={{ mr: 0.5 }}
               >
@@ -521,7 +814,7 @@ export default function PilotDashboard() {
                 <Stack spacing={2}>
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
                     <Typography variant="body2" color="text.secondary">
-                      Read-only submitted values
+                      {editingSelectedFlight ? "Edit your pending request" : "Submitted values"}
                     </Typography>
                     {statusChip(selectedFlight.status)}
                   </Stack>
@@ -529,8 +822,14 @@ export default function PilotDashboard() {
                     label="Flight number"
                     size="small"
                     fullWidth
-                    value={displayValue(selectedFlight.flight_number)}
+                    value={editingSelectedFlight ? selectedFlightForm.flight_number : displayValue(selectedFlight.flight_number)}
+                    onChange={(e) => updateSelectedFlightForm("flight_number", e.target.value)}
                     InputProps={{ readOnly: true }}
+                    sx={
+                      editingSelectedFlight
+                        ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                        : undefined
+                    }
                   />
                   <TextField
                     label="Aircraft"
@@ -538,37 +837,72 @@ export default function PilotDashboard() {
                     fullWidth
                     value={displayValue(selectedFlight.aircraft_name || selectedFlight.aircraft)}
                     InputProps={{ readOnly: true }}
+                    sx={
+                      editingSelectedFlight
+                        ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                        : undefined
+                    }
                   />
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                     <TextField
                       label="Origin"
                       size="small"
                       fullWidth
-                      value={displayValue(selectedFlight.origin)}
+                      value={editingSelectedFlight ? selectedFlightForm.origin : displayValue(selectedFlight.origin)}
+                      onChange={(e) => updateSelectedFlightForm("origin", e.target.value)}
                       InputProps={{ readOnly: true }}
+                      sx={
+                        editingSelectedFlight
+                          ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                          : undefined
+                      }
                     />
                     <TextField
                       label="Destination"
                       size="small"
                       fullWidth
-                      value={displayValue(selectedFlight.destination)}
+                      value={
+                        editingSelectedFlight
+                          ? selectedFlightForm.destination
+                          : displayValue(selectedFlight.destination)
+                      }
+                      onChange={(e) => updateSelectedFlightForm("destination", e.target.value)}
                       InputProps={{ readOnly: true }}
+                      sx={
+                        editingSelectedFlight
+                          ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                          : undefined
+                      }
                     />
                   </Stack>
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                     <TextField
                       label="Departure"
+                      type={editingSelectedFlight ? "datetime-local" : "text"}
                       size="small"
                       fullWidth
-                      value={formatDt(selectedFlight.departure_time)}
-                      InputProps={{ readOnly: true }}
+                      value={
+                        editingSelectedFlight
+                          ? selectedFlightForm.departure_time
+                          : formatDt(selectedFlight.departure_time)
+                      }
+                      onChange={(e) => updateSelectedFlightForm("departure_time", e.target.value)}
+                      InputLabelProps={editingSelectedFlight ? { shrink: true } : undefined}
+                      InputProps={{ readOnly: !editingSelectedFlight }}
                     />
                     <TextField
                       label="Arrival"
+                      type={editingSelectedFlight ? "datetime-local" : "text"}
                       size="small"
                       fullWidth
-                      value={formatDt(selectedFlight.arrival_time)}
-                      InputProps={{ readOnly: true }}
+                      value={
+                        editingSelectedFlight
+                          ? selectedFlightForm.arrival_time
+                          : formatDt(selectedFlight.arrival_time)
+                      }
+                      onChange={(e) => updateSelectedFlightForm("arrival_time", e.target.value)}
+                      InputLabelProps={editingSelectedFlight ? { shrink: true } : undefined}
+                      InputProps={{ readOnly: !editingSelectedFlight }}
                     />
                   </Stack>
                   <TextField
@@ -577,8 +911,13 @@ export default function PilotDashboard() {
                     fullWidth
                     multiline
                     minRows={2}
-                    value={displayValue(selectedFlight.route || selectedFlight.route_notes)}
-                    InputProps={{ readOnly: true }}
+                    value={
+                      editingSelectedFlight
+                        ? selectedFlightForm.route
+                        : displayValue(selectedFlight.route || selectedFlight.route_notes)
+                    }
+                    onChange={(e) => updateSelectedFlightForm("route", e.target.value)}
+                    InputProps={{ readOnly: !editingSelectedFlight }}
                   />
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                     <TextField
@@ -587,6 +926,11 @@ export default function PilotDashboard() {
                       fullWidth
                       value={displayChoice(selectedFlight.flight_type)}
                       InputProps={{ readOnly: true }}
+                      sx={
+                        editingSelectedFlight
+                          ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                          : undefined
+                      }
                     />
                     <TextField
                       label="Certificate requirement"
@@ -594,18 +938,43 @@ export default function PilotDashboard() {
                       fullWidth
                       value={displayChoice(selectedFlight.pilot_requirement)}
                       InputProps={{ readOnly: true }}
+                      sx={
+                        editingSelectedFlight
+                          ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                          : undefined
+                      }
                     />
                   </Stack>
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <TextField
-                      label="Secondary pilot"
-                      size="small"
-                      fullWidth
-                      value={displayValue(
-                        displayPilot(selectedFlight.secondary_pilot_name || selectedFlight.secondary_pilot)
-                      )}
-                      InputProps={{ readOnly: true }}
-                    />
+                    {editingSelectedFlight ? (
+                      <FormControl fullWidth size="small">
+                        <InputLabel id="pilot-edit-sec-label">Secondary pilot</InputLabel>
+                        <Select
+                          id="pilot-edit-sec"
+                          labelId="pilot-edit-sec-label"
+                          label="Secondary pilot"
+                          value={selectedFlightForm.secondary_pilot}
+                          onChange={(e) => updateSelectedFlightForm("secondary_pilot", e.target.value)}
+                        >
+                          <MenuItem value="">None</MenuItem>
+                          {pilots.map((p) => (
+                            <MenuItem key={p.id} value={String(p.id)}>
+                              {p.first_name} {p.last_name} ({p.username})
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    ) : (
+                      <TextField
+                        label="Secondary pilot"
+                        size="small"
+                        fullWidth
+                        value={displayValue(
+                          displayPilot(selectedFlight.secondary_pilot_name || selectedFlight.secondary_pilot)
+                        )}
+                        InputProps={{ readOnly: true }}
+                      />
+                    )}
                     <TextField
                       label="Your role"
                       size="small"
@@ -614,9 +983,90 @@ export default function PilotDashboard() {
                       InputProps={{ readOnly: true }}
                     />
                   </Stack>
+                  {editingSelectedFlight && selectedFlightChangedFields.length > 0 ? (
+                    <Alert severity="info">
+                      Edited fields: {selectedFlightChangedFields.join(", ")}. Last change:{" "}
+                      {formatEditedAt(selectedFlightEditedAt)}
+                    </Alert>
+                  ) : null}
+                  {!editingSelectedFlight && selectedFlightSavedTrail.length > 0 ? (
+                    <Alert severity="info">
+                      Last saved edit:{" "}
+                      {selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1].fields.join(", ")} on{" "}
+                      {formatEditedAt(selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1].editedAt)}
+                    </Alert>
+                  ) : null}
+                  {!editingSelectedFlight && selectedFlightSavedTrail.length > 0 ? (
+                    <Box
+                      sx={{
+                        border: "1px solid",
+                        borderColor: "divider",
+                        borderRadius: 1.5,
+                        p: 1.5,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                        Edit history
+                      </Typography>
+                      <Stack spacing={1}>
+                        {[...selectedFlightSavedTrail]
+                          .slice(-10)
+                          .reverse()
+                          .map((entry, idx) => (
+                            <Box
+                              key={`${entry.editedAt}-${idx}`}
+                              sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
+                            >
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                {formatEditedAt(entry.editedAt)}
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                Changed: {Array.isArray(entry.fields) ? entry.fields.join(", ") : "—"}
+                              </Typography>
+                              {Array.isArray(entry.changes) && entry.changes.length > 0 ? (
+                                <Stack spacing={0.25} sx={{ mt: 0.5 }}>
+                                  {entry.changes.map((change, i) => (
+                                    <Typography key={`${change.field}-${i}`} variant="caption" color="text.secondary">
+                                      {change.label}:{" "}
+                                      {formatFieldValue(change.field, change.before, pilotNameById)} ->{" "}
+                                      {formatFieldValue(change.field, change.after, pilotNameById)}
+                                    </Typography>
+                                  ))}
+                                </Stack>
+                              ) : null}
+                            </Box>
+                          ))}
+                      </Stack>
+                    </Box>
+                  ) : null}
                 </Stack>
               ) : null}
             </DialogContent>
+            <DialogActions>
+              {editingSelectedFlight ? (
+                <>
+                  <Button onClick={() => setEditingSelectedFlight(false)} disabled={savingSelectedFlight}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={saveSelectedFlightEdit}
+                    disabled={savingSelectedFlight}
+                  >
+                    {savingSelectedFlight ? "Saving…" : "Save changes"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={closeFlightDetails}>Close</Button>
+                  {canEditSelectedFlight ? (
+                    <Button variant="contained" onClick={() => setEditingSelectedFlight(true)}>
+                      Edit request
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </DialogActions>
           </Dialog>
 
           <Dialog
@@ -635,7 +1085,7 @@ export default function PilotDashboard() {
                     labelId="pilot-req-aircraft-label"
                     label="Aircraft"
                     value={flightForm.aircraft}
-                    onChange={(e) => setFlightForm((s) => ({ ...s, aircraft: e.target.value }))}
+                    onChange={(e) => updateFlightForm("aircraft", e.target.value)}
                   >
                     {aircraft.map((a) => (
                       <MenuItem key={a.id} value={String(a.id)}>
@@ -648,7 +1098,7 @@ export default function PilotDashboard() {
                   label="Flight number (optional)"
                   size="small"
                   value={flightForm.flight_number}
-                  onChange={(e) => setFlightForm((s) => ({ ...s, flight_number: e.target.value }))}
+                  onChange={(e) => updateFlightForm("flight_number", e.target.value)}
                   fullWidth
                 />
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -656,7 +1106,7 @@ export default function PilotDashboard() {
                     label="Origin"
                     size="small"
                     value={flightForm.origin}
-                    onChange={(e) => setFlightForm((s) => ({ ...s, origin: e.target.value }))}
+                    onChange={(e) => updateFlightForm("origin", e.target.value)}
                     fullWidth
                     required
                   />
@@ -664,7 +1114,7 @@ export default function PilotDashboard() {
                     label="Destination"
                     size="small"
                     value={flightForm.destination}
-                    onChange={(e) => setFlightForm((s) => ({ ...s, destination: e.target.value }))}
+                    onChange={(e) => updateFlightForm("destination", e.target.value)}
                     fullWidth
                     required
                   />
@@ -676,7 +1126,7 @@ export default function PilotDashboard() {
                     size="small"
                     InputLabelProps={{ shrink: true }}
                     value={flightForm.departure_time}
-                    onChange={(e) => setFlightForm((s) => ({ ...s, departure_time: e.target.value }))}
+                    onChange={(e) => updateFlightForm("departure_time", e.target.value)}
                     fullWidth
                     required
                   />
@@ -686,7 +1136,7 @@ export default function PilotDashboard() {
                     size="small"
                     InputLabelProps={{ shrink: true }}
                     value={flightForm.arrival_time}
-                    onChange={(e) => setFlightForm((s) => ({ ...s, arrival_time: e.target.value }))}
+                    onChange={(e) => updateFlightForm("arrival_time", e.target.value)}
                     fullWidth
                     required
                   />
@@ -695,7 +1145,7 @@ export default function PilotDashboard() {
                   label="Route notes (optional)"
                   size="small"
                   value={flightForm.route}
-                  onChange={(e) => setFlightForm((s) => ({ ...s, route: e.target.value }))}
+                  onChange={(e) => updateFlightForm("route", e.target.value)}
                   fullWidth
                 />
                 <FormControl fullWidth size="small">
@@ -705,7 +1155,7 @@ export default function PilotDashboard() {
                     labelId="pilot-req-ftype-label"
                     label="Flight type"
                     value={flightForm.flight_type}
-                    onChange={(e) => setFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
+                    onChange={(e) => updateFlightForm("flight_type", e.target.value)}
                   >
                     {FLIGHT_TYPES.map((o) => (
                       <MenuItem key={o.value} value={o.value}>
@@ -721,9 +1171,7 @@ export default function PilotDashboard() {
                     labelId="pilot-req-cert-label"
                     label="Certificate requirement"
                     value={flightForm.pilot_requirement}
-                    onChange={(e) =>
-                      setFlightForm((s) => ({ ...s, pilot_requirement: e.target.value }))
-                    }
+                    onChange={(e) => updateFlightForm("pilot_requirement", e.target.value)}
                   >
                     {PILOT_REQ.map((o) => (
                       <MenuItem key={o.value} value={o.value}>
@@ -739,7 +1187,7 @@ export default function PilotDashboard() {
                     labelId="pilot-req-sec-label"
                     label="Secondary pilot (optional)"
                     value={flightForm.secondary_pilot}
-                    onChange={(e) => setFlightForm((s) => ({ ...s, secondary_pilot: e.target.value }))}
+                    onChange={(e) => updateFlightForm("secondary_pilot", e.target.value)}
                   >
                     <MenuItem value="">None</MenuItem>
                     {pilots.map((p) => (
@@ -749,6 +1197,12 @@ export default function PilotDashboard() {
                     ))}
                   </Select>
                 </FormControl>
+                {requestFlightChangedFields.length > 0 ? (
+                  <Alert severity="info">
+                    Edited fields: {requestFlightChangedFields.join(", ")}. Last change:{" "}
+                    {formatEditedAt(flightFormEditedAt)}
+                  </Alert>
+                ) : null}
               </Stack>
             </DialogContent>
             <DialogActions>
@@ -779,7 +1233,7 @@ export default function PilotDashboard() {
                     labelId="pilot-disc-aircraft-label"
                     label="Aircraft"
                     value={discForm.aircraft}
-                    onChange={(e) => setDiscForm((s) => ({ ...s, aircraft: e.target.value }))}
+                    onChange={(e) => updateDiscForm("aircraft", e.target.value)}
                   >
                     {aircraft.map((a) => (
                       <MenuItem key={a.id} value={String(a.id)}>
@@ -793,14 +1247,14 @@ export default function PilotDashboard() {
                     label="ATA code"
                     size="small"
                     value={discForm.ata_code}
-                    onChange={(e) => setDiscForm((s) => ({ ...s, ata_code: e.target.value }))}
+                    onChange={(e) => updateDiscForm("ata_code", e.target.value)}
                     fullWidth
                   />
                   <TextField
                     label="Tach time"
                     size="small"
                     value={discForm.tach_time}
-                    onChange={(e) => setDiscForm((s) => ({ ...s, tach_time: e.target.value }))}
+                    onChange={(e) => updateDiscForm("tach_time", e.target.value)}
                     fullWidth
                   />
                 </Stack>
@@ -810,10 +1264,16 @@ export default function PilotDashboard() {
                   multiline
                   minRows={3}
                   value={discForm.description}
-                  onChange={(e) => setDiscForm((s) => ({ ...s, description: e.target.value }))}
+                  onChange={(e) => updateDiscForm("description", e.target.value)}
                   fullWidth
                   required
                 />
+                {discrepancyChangedFields.length > 0 ? (
+                  <Alert severity="info">
+                    Edited fields: {discrepancyChangedFields.join(", ")}. Last change:{" "}
+                    {formatEditedAt(discFormEditedAt)}
+                  </Alert>
+                ) : null}
               </Stack>
             </DialogContent>
             <DialogActions>

@@ -606,15 +606,9 @@ def company_flight_dispatch_view(request, pk):
     if is_pilot_owner and not is_dispatch_ops:
         # Pilot edits are limited to own request details (not operational status changes).
         allowed_fields = {
-            "flight_number",
-            "aircraft",
-            "origin",
-            "destination",
             "departure_time",
             "arrival_time",
             "route",
-            "flight_type",
-            "pilot_requirement",
             "secondary_pilot",
         }
         payload_fields = set(data.keys())
