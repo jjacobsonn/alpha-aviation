@@ -7,6 +7,7 @@ import {
   Chip,
   Container,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -137,6 +138,8 @@ export default function PilotDashboard() {
   const [submittingFlight, setSubmittingFlight] = useState(false);
   const [creatingDisc, setCreatingDisc] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
+  const [requestFlightOpen, setRequestFlightOpen] = useState(false);
+  const [reportDiscrepancyOpen, setReportDiscrepancyOpen] = useState(false);
 
   const [flightForm, setFlightForm] = useState(INITIAL_FLIGHT_FORM);
   const [discForm, setDiscForm] = useState(INITIAL_DISC_FORM);
@@ -242,6 +245,7 @@ export default function PilotDashboard() {
         secondary_pilot: flightForm.secondary_pilot ? Number(flightForm.secondary_pilot) : null,
       });
       setFlightForm(INITIAL_FLIGHT_FORM);
+      setRequestFlightOpen(false);
       await load();
     } catch (e) {
       setError(e?.message || "Could not submit flight request.");
@@ -269,6 +273,7 @@ export default function PilotDashboard() {
         status: "pending",
       });
       setDiscForm(INITIAL_DISC_FORM);
+      setReportDiscrepancyOpen(false);
       const disc = await fetchCompanyDiscrepancies();
       setDiscrepancies(Array.isArray(disc) ? disc : []);
     } catch (e) {
@@ -382,6 +387,43 @@ export default function PilotDashboard() {
               </Card>
             </Grid>
           </Grid>
+
+          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                Quick actions
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                Open forms in modals to keep this page clean on mobile.
+              </Typography>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  sx={{ flex: 1 }}
+                  onClick={() => {
+                    setError("");
+                    setRequestFlightOpen(true);
+                  }}
+                  disabled={loading}
+                >
+                  Request flight
+                </Button>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  sx={{ flex: 1 }}
+                  onClick={() => {
+                    setError("");
+                    setReportDiscrepancyOpen(true);
+                  }}
+                  disabled={loading}
+                >
+                  Report discrepancy
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
@@ -577,15 +619,15 @@ export default function PilotDashboard() {
             </DialogContent>
           </Dialog>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                Request a flight
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Submit a new flight request.
-              </Typography>
-              <Stack spacing={2}>
+          <Dialog
+            open={requestFlightOpen}
+            onClose={() => setRequestFlightOpen(false)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>Request a flight</DialogTitle>
+            <DialogContent dividers>
+              <Stack spacing={2} sx={{ pt: 0.5 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel id="pilot-req-aircraft-label">Aircraft</InputLabel>
                   <Select
@@ -699,9 +741,7 @@ export default function PilotDashboard() {
                     value={flightForm.secondary_pilot}
                     onChange={(e) => setFlightForm((s) => ({ ...s, secondary_pilot: e.target.value }))}
                   >
-                    <MenuItem value="">
-                      None
-                    </MenuItem>
+                    <MenuItem value="">None</MenuItem>
                     {pilots.map((p) => (
                       <MenuItem key={p.id} value={String(p.id)}>
                         {p.first_name} {p.last_name} ({p.username})
@@ -709,28 +749,29 @@ export default function PilotDashboard() {
                     ))}
                   </Select>
                 </FormControl>
-                <Stack direction="row" justifyContent="flex-end">
-                  <Button
-                    variant="contained"
-                    onClick={handleSubmitFlightRequest}
-                    disabled={submittingFlight || loading}
-                  >
-                    {submittingFlight ? "Submitting…" : "Submit request"}
-                  </Button>
-                </Stack>
               </Stack>
-            </CardContent>
-          </Card>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setRequestFlightOpen(false)}>Cancel</Button>
+              <Button
+                variant="contained"
+                onClick={handleSubmitFlightRequest}
+                disabled={submittingFlight || loading}
+              >
+                {submittingFlight ? "Submitting…" : "Submit request"}
+              </Button>
+            </DialogActions>
+          </Dialog>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                Report a discrepancy
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Report an issue for maintenance follow-up.
-              </Typography>
-              <Stack spacing={2}>
+          <Dialog
+            open={reportDiscrepancyOpen}
+            onClose={() => setReportDiscrepancyOpen(false)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>Report a discrepancy</DialogTitle>
+            <DialogContent dividers>
+              <Stack spacing={2} sx={{ pt: 0.5 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel id="pilot-disc-aircraft-label">Aircraft</InputLabel>
                   <Select
@@ -773,18 +814,19 @@ export default function PilotDashboard() {
                   fullWidth
                   required
                 />
-                <Stack direction="row" justifyContent="flex-end">
-                  <Button
-                    variant="contained"
-                    onClick={handleCreateDiscrepancy}
-                    disabled={creatingDisc || loading}
-                  >
-                    {creatingDisc ? "Submitting…" : "Submit discrepancy"}
-                  </Button>
-                </Stack>
               </Stack>
-            </CardContent>
-          </Card>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setReportDiscrepancyOpen(false)}>Cancel</Button>
+              <Button
+                variant="contained"
+                onClick={handleCreateDiscrepancy}
+                disabled={creatingDisc || loading}
+              >
+                {creatingDisc ? "Submitting…" : "Submit discrepancy"}
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>

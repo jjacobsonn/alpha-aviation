@@ -33,7 +33,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
 import { ACTION_TYPES } from "../context/AppContext";
-import { isPlatformAdmin } from "../shared/rbac";
+import { allowedRolesForModule, isPlatformAdmin } from "../shared/rbac";
 
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
@@ -113,7 +113,7 @@ function NavigationDrawer() {
       title: "Fleet",
       icon: <AirlinesIcon />,
       color: "#1976d2",
-      allowedRoles: ["owner", "manager", "mechanic", "pilot", "dispatcher"],
+      allowedRoles: allowedRolesForModule("fleet"),
       to: "/fleet",
     },
     {
@@ -121,21 +121,21 @@ function NavigationDrawer() {
       title: "Parts",
       icon: <InventoryIcon />,
       color: "#2196F3",
-      allowedRoles: ["owner", "manager", "mechanic"],
+      allowedRoles: allowedRolesForModule("parts"),
     },
     {
       id: "maintenance",
       title: "Maintenance",
       icon: <BuildIcon />,
       color: "#FF9800",
-      allowedRoles: ["owner", "manager", "mechanic", "dispatcher", "pilot"],
+      allowedRoles: allowedRolesForModule("maintenance"),
     },
     {
       id: "work-orders",
       title: "Work Orders",
       icon: <WorkOutlineIcon />,
       color: "#fb8c00",
-      allowedRoles: ["owner", "manager", "mechanic", "dispatcher", "pilot"],
+      allowedRoles: allowedRolesForModule("workOrders"),
       to: "/work-orders",
     },
     {
@@ -143,7 +143,7 @@ function NavigationDrawer() {
       title: "Pilot",
       icon: <FlightTakeoffIcon />,
       color: "#7b1fa2",
-      allowedRoles: ["pilot", "owner"],
+      allowedRoles: allowedRolesForModule("pilotDashboard"),
       to: "/pilot-dashboard",
     },
     {
@@ -151,7 +151,7 @@ function NavigationDrawer() {
       title: "Dispatcher",
       icon: <DashboardIcon />,
       color: "#00897b",
-      allowedRoles: ["dispatcher", "owner"],
+      allowedRoles: allowedRolesForModule("dispatcherDashboard"),
       to: "/dispatcher-dashboard",
     },
     {
@@ -159,7 +159,7 @@ function NavigationDrawer() {
       title: "Calendar",
       icon: <CalendarMonthIcon />,
       color: "#2e7d32",
-      allowedRoles: ["dispatcher", "owner"],
+      allowedRoles: allowedRolesForModule("calendar"),
       to: "/calendar",
     },
   ];

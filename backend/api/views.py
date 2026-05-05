@@ -93,6 +93,10 @@ def _optional_company_id_from_header(request):
         return None
 
 
+def _request_role(user):
+    return getattr(user, "company_role", None)
+
+
 def inventory_parts_queryset_for_request(request):
     """
     Platform admins: all inventory lines system-wide, optionally narrowed by X-Company-Id.
@@ -175,9 +179,6 @@ def fleet_aircraft_queryset(request):
 def company_scoped_workorder_queryset(request):
     """
     Company (or platform-admin) scope via aircraft.
-
-    Mechanics only see work orders assigned to them (`created_by` is used as assignee).
-    Owners/managers see all work orders for the company aircraft set.
     """
     qs = (
         WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
@@ -200,7 +201,7 @@ def company_scoped_workorder_queryset(request):
 
 def company_scoped_discrepancy_queryset(request):
     """
-    Mechanics only see discrepancies they reported or linked to their assigned work orders.
+    Company (or platform-admin) scope via aircraft.
     """
     qs = (
         Discrepancy.objects.select_related("aircraft", "reporter", "work_order")
@@ -590,18 +591,44 @@ def company_flight_dispatch_view(request, pk):
             {"error": "User does not have an associated company"},
             status=status.HTTP_403_FORBIDDEN,
         )
-    role = getattr(request.user, "company_role", None)
-    if role not in ("dispatcher", "manager", "owner") and not _is_platform_admin(request.user):
+    flight = get_object_or_404(Flight.objects.filter(company=company), pk=pk)
+    role = _request_role(request.user)
+    is_admin = _is_platform_admin(request.user)
+    is_dispatch_ops = role in {"dispatcher", "manager", "owner"} or is_admin
+    is_pilot_owner = role == "pilot" and flight.primary_pilot_id == request.user.id
+    if not (is_dispatch_ops or is_pilot_owner):
         return Response(
-            {"error": "Dispatcher or management role required."},
+            {"error": "Dispatcher/management role required, or pilot can edit own request."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    flight = get_object_or_404(Flight.objects.filter(company=company), pk=pk)
-    serializer = FlightSerializer(flight, data=request.data, partial=True)
+    data = request.data.copy()
+    if is_pilot_owner and not is_dispatch_ops:
+        # Pilot edits are limited to own request details (not operational status changes).
+        allowed_fields = {
+            "flight_number",
+            "aircraft",
+            "origin",
+            "destination",
+            "departure_time",
+            "arrival_time",
+            "route",
+            "flight_type",
+            "pilot_requirement",
+            "secondary_pilot",
+        }
+        payload_fields = set(data.keys())
+        disallowed = payload_fields - allowed_fields
+        if disallowed:
+            return Response(
+                {"error": f"Pilot cannot edit fields: {', '.join(sorted(disallowed))}."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    serializer = FlightSerializer(flight, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
     inst = serializer.save()
-    new_status = request.data.get("status")
+    new_status = data.get("status")
     if new_status == "approved" and inst.dispatcher_id is None:
         inst.dispatcher = request.user
         inst.save(update_fields=["dispatcher"])
@@ -783,12 +810,27 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
         return company_scoped_discrepancy_queryset(self.request)
 
     def get_permissions(self):
-        # Pilots/mechanics can create discrepancy reports; only managers/owners delete.
+        # Authenticated company users can create discrepancy reports; only owners delete in MVP.
         if self.action == "create":
+            return [IsAuthenticated()]
+        if self.action in {"update", "partial_update"}:
             return [IsAuthenticated()]
         if self.action == "destroy":
             return [IsOwner()]
-        return [IsMechanicOrManager()]
+        return [IsAuthenticated()]
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        role = _request_role(request.user)
+        is_admin = _is_platform_admin(request.user)
+        can_operate = role in {"mechanic", "dispatcher", "manager", "owner"} or is_admin
+        can_edit_own_report = role == "pilot" and instance.reporter_id == request.user.id
+        if not (can_operate or can_edit_own_report):
+            return Response(
+                {"detail": "You do not have permission to edit this discrepancy."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         reporter = serializer.validated_data.get("reporter")
@@ -804,12 +846,26 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         return company_scoped_workorder_queryset(self.request)
 
     def get_permissions(self):
-        # Supervisors (manager/owner) create and delete work orders; mechanics execute assigned work.
+        # Authenticated company users create; only owners delete in MVP.
         if self.action == "create":
+            return [IsAuthenticated()]
+        if self.action in {"update", "partial_update"}:
             return [IsAuthenticated()]
         if self.action == "destroy":
             return [IsOwner()]
-        return [IsMechanicOrManager()]
+        return [IsAuthenticated()]
+
+    def update(self, request, *args, **kwargs):
+        role = _request_role(request.user)
+        if not (
+            role in {"mechanic", "dispatcher", "manager", "owner"}
+            or _is_platform_admin(request.user)
+        ):
+            return Response(
+                {"detail": "You do not have permission to edit work orders."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         created_by = serializer.validated_data.get("created_by")

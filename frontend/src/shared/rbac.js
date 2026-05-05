@@ -6,6 +6,18 @@ export const ROLE_DEFAULT_ROUTES = {
   dispatcher: "/dispatcher-dashboard",
 };
 
+// RBAC MVP matrix source for frontend route/menu access.
+export const MODULE_ALLOWED_ROLES = {
+  fleet: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  fleetDetail: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  maintenance: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  workOrders: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  parts: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  dispatcherDashboard: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  pilotDashboard: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  calendar: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+};
+
 export function isPlatformAdmin(user) {
   return Boolean(
     user?.is_superuser ||
@@ -15,7 +27,7 @@ export function isPlatformAdmin(user) {
   );
 }
 
-/** Owner / manager — create & assign work orders, delete maintenance records (supervisor per product spec). */
+/** Owner/manager supervise assignment and operational edits (not delete authority). */
 export function canSuperviseMaintenance(user) {
   if (isPlatformAdmin(user)) return true;
   const r = user?.company_role ?? user?.role;
@@ -35,4 +47,8 @@ export function getDefaultRouteForUser(user) {
 
 export function hasFrontendLanding(user) {
   return getDefaultRouteForUser(user) !== "/login";
+}
+
+export function allowedRolesForModule(moduleName) {
+  return MODULE_ALLOWED_ROLES[moduleName] || [];
 }

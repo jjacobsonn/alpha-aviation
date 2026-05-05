@@ -21,6 +21,7 @@ import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import { allowedRolesForModule } from './shared/rbac';
 
 const theme = createTheme({
 	palette: {
@@ -126,7 +127,7 @@ function App() {
 						<Route
 							path="/parts"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('parts')}>
 									<Layout>
 										<PartsPage />
 									</Layout>
@@ -136,7 +137,7 @@ function App() {
 						<Route
 							path="/maintenance"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'dispatcher', 'pilot']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('maintenance')}>
 									<Layout>
 										<Maintenance />
 									</Layout>
@@ -146,7 +147,7 @@ function App() {
 						<Route
 							path="/work-orders"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'dispatcher', 'pilot']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('workOrders')}>
 									<Layout>
 										<WorkOrders />
 									</Layout>
@@ -156,7 +157,7 @@ function App() {
 						<Route
 							path="/fleet"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('fleet')}>
 									<Layout>
 										<FleetPage />
 									</Layout>
@@ -166,7 +167,7 @@ function App() {
 						<Route
 							path="/fleet/:id"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('fleetDetail')}>
 									<Layout>
 										<FleetDetailPage />
 									</Layout>
@@ -176,7 +177,7 @@ function App() {
 						<Route
 							path="/pilot-dashboard"
 							element={
-								<ProtectedRoute allowedRoles={['pilot', 'owner']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('pilotDashboard')}>
 									<Layout>
 										<PilotDashboard />
 									</Layout>
@@ -186,7 +187,7 @@ function App() {
 						<Route
 							path="/dispatcher-dashboard"
 							element={
-								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('dispatcherDashboard')}>
 									<Layout>
 										<DispatcherDashboard />
 									</Layout>
@@ -196,7 +197,7 @@ function App() {
 						<Route
 							path="/calendar"
 							element={
-								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('calendar')}>
 									<Layout>
 										<CalendarPage />
 									</Layout>
@@ -206,7 +207,7 @@ function App() {
 						<Route
 							path="/dispatch-calendar"
 							element={
-								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('calendar')}>
 									<Layout>
 										<CalendarPage />
 									</Layout>

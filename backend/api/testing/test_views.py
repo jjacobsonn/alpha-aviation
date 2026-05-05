@@ -403,3 +403,69 @@ class TestFleetEndpoints:
         response = authenticated_client.post(url, payload, format="json")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["last_done_tach"] == "1500.0"
+
+
+@pytest.mark.django_db
+class TestOwnershipRbacRules:
+    def test_pilot_can_edit_own_discrepancy(
+        self, api_client, sample_company, sample_aircraft, sample_pilot_profile
+    ):
+        from api.models import Discrepancy
+
+        discrepancy = Discrepancy.objects.create(
+            aircraft=sample_aircraft,
+            reporter=sample_pilot_profile,
+            description="Initial pilot report",
+            ata_code="24",
+            tach_time="1200.1",
+            status="pending",
+        )
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("discrepancies-detail", kwargs={"pk": discrepancy.id})
+        response = api_client.patch(
+            url,
+            {"description": "Updated by reporting pilot"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["description"] == "Updated by reporting pilot"
+
+    def test_pilot_cannot_edit_other_users_discrepancy(
+        self, api_client, sample_discrepancy, sample_pilot_profile
+    ):
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("discrepancies-detail", kwargs={"pk": sample_discrepancy.id})
+        response = api_client.patch(
+            url,
+            {"description": "Attempted unauthorized pilot edit"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_pilot_can_edit_own_flight_request_but_not_status(
+        self, api_client, sample_flight, sample_pilot_profile
+    ):
+        sample_flight.primary_pilot = sample_pilot_profile
+        sample_flight.status = "pending approval"
+        sample_flight.save(update_fields=["primary_pilot", "status"])
+
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("company-flight-dispatch", kwargs={"pk": sample_flight.id})
+
+        ok = api_client.patch(url, {"route": "UPDATED-ROUTE"}, format="json")
+        deny = api_client.patch(url, {"status": "approved"}, format="json")
+
+        assert ok.status_code == status.HTTP_200_OK
+        assert ok.data["route"] == "UPDATED-ROUTE"
+        assert deny.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_pilot_cannot_edit_other_users_flight_request(
+        self, api_client, sample_flight, sample_pilot_profile
+    ):
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("company-flight-dispatch", kwargs={"pk": sample_flight.id})
+        response = api_client.patch(url, {"route": "SHOULD-NOT-WORK"}, format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
