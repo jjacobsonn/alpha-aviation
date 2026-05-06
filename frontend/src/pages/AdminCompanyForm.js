@@ -14,7 +14,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { makeApiRequest } from '../shared/Api';
 
 const emptyUser = { first_name: '', middle_name: '', last_name: '', email: '', role: '' };

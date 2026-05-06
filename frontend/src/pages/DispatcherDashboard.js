@@ -22,7 +22,7 @@ import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation } from "react-router";
 import {
   fetchCompanyFlights,
   patchCompanyFlightDispatch,

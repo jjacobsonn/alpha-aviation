@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { makeApiRequest } from '../shared/Api';
 
 const AdminCompanies = () => {
