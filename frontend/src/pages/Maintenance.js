@@ -364,28 +364,35 @@ const Maintenance = () => {
 		return m;
 	}, [companyParts]);
 
+	const aircraftLabelById = useMemo(() => {
+		const m = new Map();
+		aircraft.forEach((a) => {
+			const label = `${a.registration_number || ''} (${a.model || ''})`.trim();
+			m.set(Number(a.id), label || a.registration_number || a.model || `Aircraft #${a.id}`);
+		});
+		return m;
+	}, [aircraft]);
+
 	const mappedWorkOrders = useMemo(
 		() =>
 			workOrders.map((wo) => {
 				const partIds = Array.isArray(wo.parts_needed) ? wo.parts_needed : [];
-				const parts_summary = partIds.length
-					? partIds
-							.map((raw) => {
-								const id = typeof raw === 'object' && raw != null ? raw.id : raw;
-								return partLabelById.get(id) || `#${id}`;
-							})
-							.join(', ')
-					: '';
+				const part_labels = partIds.length
+					? partIds.map((raw) => {
+							const id = typeof raw === 'object' && raw != null ? raw.id : raw;
+							return partLabelById.get(id) || `#${id}`;
+					  })
+					: [];
 				return {
 					id: wo.id,
-					order_number: wo.id,
-					parts_summary,
+					work_order_label: wo.title?.trim() || `Work order #${wo.id}`,
+					part_labels,
 					aircraft:
 						typeof wo.aircraft === 'object' && wo.aircraft
 							? `${wo.aircraft.registration_number || ''} ${wo.aircraft.model || ''}`.trim() ||
 							  wo.aircraft.model ||
 							  wo.aircraft.registration_number
-							: wo.aircraft,
+							: aircraftLabelById.get(Number(wo.aircraft)) || (wo.aircraft ? `Aircraft #${wo.aircraft}` : '—'),
 					assigned_to: resolveProfileName(wo.created_by),
 					status: wo.status,
 					status_label: labelForWorkOrderStatus(wo.status),
@@ -393,26 +400,34 @@ const Maintenance = () => {
 					description: wo.description,
 				};
 			}),
-		[workOrders, profileById, partLabelById]
+		[workOrders, profileById, partLabelById, aircraftLabelById]
 	);
 
 	const mappedDiscrepancies = useMemo(
 		() =>
-			discrepancies.map((d) => ({
-				id: d.id,
-				discrepancy_number: d.id,
-				part_number: d.ata_code || '',
-				aircraft:
-					typeof d.aircraft === 'object' && d.aircraft
-						? `${d.aircraft.registration_number || ''} ${d.aircraft.model || ''}`.trim() ||
-						  d.aircraft.model ||
-						  d.aircraft.registration_number
-						: d.aircraft,
-				status: d.status,
-				status_label: labelForDiscrepancyStatus(d.status),
-				description: d.description,
-			})),
-		[discrepancies]
+			discrepancies.map((d) => {
+				const description = (d.description || '').trim();
+				return {
+					id: d.id,
+					discrepancy_label: description
+						? description.length > 56
+							? `${description.slice(0, 56)}...`
+							: description
+						: `Discrepancy #${d.id}`,
+					part_number: d.ata_code || '',
+					aircraft:
+						typeof d.aircraft === 'object' && d.aircraft
+							? `${d.aircraft.registration_number || ''} ${d.aircraft.model || ''}`.trim() ||
+							  d.aircraft.model ||
+							  d.aircraft.registration_number
+							: aircraftLabelById.get(Number(d.aircraft)) || (d.aircraft ? `Aircraft #${d.aircraft}` : '—'),
+					status: d.status,
+					status_label: labelForDiscrepancyStatus(d.status),
+					description: d.description,
+					reported_date: d.date_reported || '',
+				};
+			}),
+		[discrepancies, aircraftLabelById]
 	);
 
 	const displayedWorkOrders = useMemo(() => {
@@ -885,38 +900,66 @@ const Maintenance = () => {
 									<Table size="small">
 										<TableHead>
 											<TableRow>
-												<TableCell>ID</TableCell>
+												<TableCell>Title</TableCell>
 												<TableCell>Parts</TableCell>
 												<TableCell>Aircraft</TableCell>
 												<TableCell>Assigned</TableCell>
 												<TableCell>Status</TableCell>
 												<TableCell>Due</TableCell>
 												<TableCell>Description</TableCell>
-												<TableCell>Actions</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
 											{displayedWorkOrders.map((order) => (
-												<TableRow key={order.id}>
-													<TableCell>{order.order_number}</TableCell>
-													<TableCell sx={{ maxWidth: 220, whiteSpace: 'normal', wordBreak: 'break-word' }}>
-														{order.parts_summary || '—'}
+												<TableRow
+													key={order.id}
+													hover
+													onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}
+													onKeyDown={(e) => {
+														if (e.key === 'Enter' || e.key === ' ') {
+															e.preventDefault();
+															openWorkOrderDetail(workOrders.find((w) => w.id === order.id));
+														}
+													}}
+													tabIndex={0}
+													role="button"
+													sx={{ cursor: 'pointer' }}
+												>
+													<TableCell>{order.work_order_label}</TableCell>
+													<TableCell sx={{ maxWidth: 280 }}>
+														{order.part_labels?.length ? (
+															<Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+																{order.part_labels.slice(0, 3).map((label, idx) => (
+																	<Chip
+																		key={`${order.id}-part-${idx}`}
+																		size="small"
+																		label={label}
+																		variant="outlined"
+																		sx={{ maxWidth: 260 }}
+																	/>
+																))}
+																{order.part_labels.length > 3 ? (
+																	<Chip
+																		size="small"
+																		label={`+${order.part_labels.length - 3} more`}
+																		sx={{ bgcolor: 'action.hover' }}
+																	/>
+																) : null}
+															</Stack>
+														) : (
+															'—'
+														)}
 													</TableCell>
 													<TableCell>{order.aircraft || '—'}</TableCell>
 													<TableCell>{order.assigned_to || '—'}</TableCell>
 													<TableCell>{order.status_label}</TableCell>
 													<TableCell>{order.due_date || '—'}</TableCell>
 													<TableCell>{order.description || '—'}</TableCell>
-													<TableCell>
-														<Button size="small" onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}>
-															View
-														</Button>
-													</TableCell>
 												</TableRow>
 											))}
 											{displayedWorkOrders.length === 0 ? (
 												<TableRow>
-													<TableCell colSpan={8} sx={{ color: 'text.secondary' }}>
+													<TableCell colSpan={7} sx={{ color: 'text.secondary' }}>
 														No work orders found.
 													</TableCell>
 												</TableRow>
@@ -943,27 +986,36 @@ const Maintenance = () => {
 									<Table size="small">
 										<TableHead>
 											<TableRow>
-												<TableCell>ID</TableCell>
+												<TableCell>Discrepancy</TableCell>
+												<TableCell>Reported</TableCell>
 												<TableCell>ATA</TableCell>
 												<TableCell>Aircraft</TableCell>
 												<TableCell>Status</TableCell>
 												<TableCell>Description</TableCell>
-												<TableCell>Actions</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
 											{displayedDiscrepancies.map((d) => (
-												<TableRow key={d.id}>
-													<TableCell>{d.discrepancy_number}</TableCell>
+												<TableRow
+													key={d.id}
+													hover
+													onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}
+													onKeyDown={(e) => {
+														if (e.key === 'Enter' || e.key === ' ') {
+															e.preventDefault();
+															openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id));
+														}
+													}}
+													tabIndex={0}
+													role="button"
+													sx={{ cursor: 'pointer' }}
+												>
+													<TableCell>{d.discrepancy_label}</TableCell>
+													<TableCell>{d.reported_date || '—'}</TableCell>
 													<TableCell>{d.part_number || '—'}</TableCell>
 													<TableCell>{d.aircraft || '—'}</TableCell>
 													<TableCell>{d.status_label}</TableCell>
 													<TableCell>{d.description || '—'}</TableCell>
-													<TableCell>
-														<Button size="small" onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}>
-															View
-														</Button>
-													</TableCell>
 												</TableRow>
 											))}
 											{displayedDiscrepancies.length === 0 ? (
