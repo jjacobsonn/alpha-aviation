@@ -8,13 +8,15 @@ export const ROLE_DEFAULT_ROUTES = {
 
 // RBAC MVP matrix source for frontend route/menu access.
 export const MODULE_ALLOWED_ROLES = {
-  fleet: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
-  fleetDetail: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
-  maintenance: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
-  workOrders: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
-  parts: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
-  // Mechanics use Maintenance / Work Orders / Fleet / Parts / Calendar only (no role dashboard pages).
-  dispatcherDashboard: ["owner", "manager", "dispatcher", "pilot"],
+  fleet: ["owner", "manager", "dispatcher", "mechanic"],
+  fleetDetail: ["owner", "manager", "dispatcher", "mechanic"],
+  maintenance: ["owner", "manager", "dispatcher", "mechanic"],
+  workOrders: ["owner", "manager", "dispatcher", "mechanic"],
+  parts: ["owner", "manager", "dispatcher", "mechanic"],
+  // Mechanics: ops modules only — no Pilot / Dispatcher dashboards.
+  // Pilots: no full dispatch board (requests/status live on Pilot page).
+  dispatcherDashboard: ["owner", "manager", "dispatcher"],
+  // Pilots: own dashboard + schedule only — no Fleet/Parts/Maintenance/WO sidebar noise (MVP).
   pilotDashboard: ["owner", "manager", "dispatcher", "pilot"],
   calendar: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
 };

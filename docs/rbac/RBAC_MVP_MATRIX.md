@@ -23,19 +23,19 @@ Legend:
 - Owner is the only business role with delete authority across operational records.
 - Manager supervises operations but does not delete in MVP.
 - Dispatcher and mechanic are execution roles (can submit/update where operationally needed).
-- Pilot can submit flight requests/discrepancies and view operational context.
+- Pilot submits flight requests and discrepancy reports from the Pilot page and uses Calendar for schedule context (no Fleet/Parts/Maintenance/Work Orders routes in MVP UX).
 - Platform admin can bypass tenant RBAC for support/admin flows.
 
 ## Module Matrix (MVP Target)
 
 | Module / Action | Owner | Manager | Dispatcher | Mechanic | Pilot |
 |---|---|---|---|---|---|
-| Fleet List (`/fleet`) | V,C,E,D | V,C,E | V | V | V |
-| Fleet Detail (`/fleet/:id`) | V,E,D(interval) | V,E(interval) | V,E(interval) | V,E(interval) | V |
-| Maintenance Intervals | C,E,D | C,E | C,E | C,E | V |
-| Work Orders (`/work-orders`) | V,C,E,D | V,C,E | V,C,E | V,C,E | V,C |
-| Discrepancies (`/maintenance`) | V,C,E,D | V,C,E | V,C,E | V,C,E | V,C,E(own reports/minimal) |
-| Dispatcher (`/dispatcher-dashboard`) | V,C,E,D(flights) | V,C,E | V,C,E | — | V |
+| Fleet List (`/fleet`) | V,C,E,D | V,C,E | V | V | — |
+| Fleet Detail (`/fleet/:id`) | V,E,D(interval) | V,E(interval) | V,E(interval) | V,E(interval) | — |
+| Maintenance Intervals | C,E,D | C,E | C,E | C,E | — |
+| Work Orders (`/work-orders`) | V,C,E,D | V,C,E | V,C,E | V,C,E | — |
+| Discrepancies (`/maintenance`) | V,C,E,D | V,C,E | V,C,E | V,C,E | — (submit via Pilot page) |
+| Dispatcher (`/dispatcher-dashboard`) | V,C,E,D(flights) | V,C,E | V,C,E | — | — |
 | Calendar (`/calendar`) | V,C,E,D(custom events) | V,C,E | V,C,E | V | V |
 | Parts (`/parts`) | V,C,E,D | V,C,E | V | V,C,E | V |
 | Pilot (`/pilot-dashboard`) | V | V | V | — | V,C,E(own requests/reports) |
@@ -43,9 +43,10 @@ Legend:
 ## Current Snapshot (from code)
 
 - Frontend routes currently allow:
-  - Maintenance + Work Orders + Parts + Calendar: owner/manager/mechanic/dispatcher/pilot
-  - Fleet + Fleet Detail: owner/manager/mechanic/dispatcher/pilot
-  - Pilot + Dispatcher dashboards: owner/manager/dispatcher/pilot (mechanic excluded)
+  - Maintenance + Work Orders + Parts + Fleet: owner/manager/mechanic/dispatcher (pilot excluded)
+  - Calendar: owner/manager/mechanic/dispatcher/pilot
+  - Dispatcher dashboard: owner/manager/dispatcher (mechanic and pilot excluded)
+  - Pilot dashboard: owner/manager/dispatcher/pilot (mechanic excluded)
 - Backend currently allows:
   - Company workorders/discrepancies list: authenticated users in tenant context
   - WorkOrder create: authenticated
