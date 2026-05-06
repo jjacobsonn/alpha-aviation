@@ -49,7 +49,8 @@ export default function AccountPage() {
   const [companyName, setCompanyName] = useState("");
   const [username, setUsername] = useState("");
   const [companyRole, setCompanyRole] = useState("");
-  const [isStaff, setIsStaff] = useState(false);
+  /** Staff/superuser: site-wide tooling; omit tenant-only cert/dashboard copy. */
+  const [platformAccount, setPlatformAccount] = useState(false);
 
   const [pilotCertificate, setPilotCertificate] = useState("");
   const [medicallyClearedUntil, setMedicallyClearedUntil] = useState(null);
@@ -64,7 +65,7 @@ export default function AccountPage() {
     setPhoneNumber(data.phone_number || "");
     setCompanyName(data.company_name || "");
     setCompanyRole(data.company_role || "");
-    setIsStaff(Boolean(data.is_staff || data.is_superuser));
+    setPlatformAccount(Boolean(data.is_staff || data.is_superuser));
     setPilotCertificate(
       Object.prototype.hasOwnProperty.call(data, "pilot_certificate")
         ? data.pilot_certificate ?? ""
@@ -101,10 +102,12 @@ export default function AccountPage() {
     };
   }, [hydrate]);
 
-  const roleDisplay = useMemo(() => {
-    if (isStaff) return "Platform admin";
-    return ROLE_LABEL[companyRole] || companyRole || "—";
-  }, [companyRole, isStaff]);
+  const tenantRoleDisplay = useMemo(
+    () => ROLE_LABEL[companyRole] || companyRole || "—",
+    [companyRole]
+  );
+
+  const primaryRoleHeading = platformAccount ? "Platform administrator" : tenantRoleDisplay;
 
   const save = async () => {
     setSaving(true);
@@ -152,14 +155,18 @@ export default function AccountPage() {
     );
   }
 
+  const showPilotCerts = companyRole === "pilot" && !platformAccount;
+  const showMechanicCerts = companyRole === "mechanic" && !platformAccount;
+
   return (
     <Box sx={{ maxWidth: 720, mx: "auto", py: 2, px: { xs: 2, sm: 3 } }}>
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
         Account & profile
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Update your contact details. Organization and permissions are assigned
-        by your company administrators.
+        {platformAccount
+          ? "Update contact details for this platform login. You are not viewing a tenant company profile here."
+          : "Update your personal contact info. Organization membership and aviation certification records stay with your administrator; this page marks what you can safely change yourself."}
       </Typography>
 
       {error ? (
@@ -186,7 +193,11 @@ export default function AccountPage() {
                 fullWidth
                 disabled
                 size="small"
-                helperText="Username is managed by an administrator."
+                helperText={
+                  platformAccount
+                    ? "Platform login identity; renaming is handled in admin tooling."
+                    : "Username is assigned by your company administrator."
+                }
               />
             </Stack>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -247,26 +258,59 @@ export default function AccountPage() {
       <Card variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
         <CardContent>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-            Organization
+            Organization & role
           </Typography>
           <Stack spacing={1}>
             <Typography variant="body2">
-              <strong>Company:</strong> {companyName || "—"}
+              <strong>Company:</strong>{" "}
+              {companyName?.trim()
+                ? companyName
+                : platformAccount
+                  ? "None on this login (not a tenant user session)"
+                  : "—"}
             </Typography>
             <Typography variant="body2">
-              <strong>Role:</strong> {roleDisplay}
+              <strong>Primary role:</strong> {primaryRoleHeading}
             </Typography>
+            {platformAccount &&
+            (companyRole === "pilot" || companyRole === "mechanic") ? (
+              <Typography variant="caption" color="text.secondary" display="block">
+                Your directory entry may still list <strong>{ROLE_LABEL[companyRole]}</strong>; as
+                platform staff those aviation fields do not appear here. Certification and
+                compliance are managed on tenant accounts instead.
+              </Typography>
+            ) : null}
+            {!platformAccount ? (
+              <Typography variant="body2" color="text.secondary">
+                You are signed in as a <strong>{tenantRoleDisplay}</strong>
+                {companyName?.trim()
+                  ? ` for ${companyName}.`
+                  : "; company name will appear when your account is linked."}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Use Site Admin and related tools when you need to inspect or operate
+                on behalf of an operator company (with the appropriate safeguards).
+              </Typography>
+            )}
           </Stack>
         </CardContent>
       </Card>
 
-      {companyRole === "pilot" ? (
+      {showPilotCerts ? (
         <Card variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-              Pilot certificates (reference)
+              Pilot qualifications (view only)
             </Typography>
             <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                These values live on the Pilot record tied to your user. They are
+                not editable on this screen. Today they are usually updated via
+                Django admin (Pilot / Profile) by an owner/manager or platform staff;
+                the SPA does not expose a pilot self-edit flow for certs yet (backlog
+                1.3.1 / 1.3.2).
+              </Typography>
               <Typography variant="body2">
                 <strong>Certificate level:</strong>{" "}
                 {formatCert(pilotCertificate)}
@@ -278,19 +322,23 @@ export default function AccountPage() {
                   : "—"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block">
-                Certification changes and expiry alerts use backlog item 1.3.2
-                / operations workflows.
+                Planned: reminders at 30/14/7 days before expiry (1.3.2); not wired in
+                the web app UI yet.
               </Typography>
             </Stack>
           </CardContent>
         </Card>
       ) : null}
 
-      {companyRole === "mechanic" ? (
+      {showMechanicCerts ? (
         <Card variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-              Mechanic certifications (reference)
+              Mechanic qualifications (view only)
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Stored on the Mechanic record for your login. Editing is administrative
+              (Django admin / internal tools), not here.
             </Typography>
             <Typography variant="body2">
               <strong>A&amp;P certificate #:</strong>{" "}
@@ -308,10 +356,15 @@ export default function AccountPage() {
             Notifications & preferences
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Phase&nbsp;2 backlog includes in-app alerts, email notification
-            settings, certification reminders (1.3.2), and flight-status
-            notifications. Operational status for your assignments still appears
-            on your role dashboards (Pilot, Dispatcher, Maintenance, etc.).
+            {platformAccount
+              ? "Platform operators: backlog items will add audit-friendly alerts here. Routine tenant flight and maintenance workflows continue to surface on each company’s dashboards."
+              : companyRole === "pilot"
+                ? "Pilot: request and assignment status stays on Pilot and Calendar. Later phases add email/app toggles plus certification reminders."
+                : companyRole === "dispatcher" || companyRole === "owner" || companyRole === "manager"
+                  ? "Dispatch and approval activity remains on Dispatcher and Fleet-related views; notification subscriptions are backlog."
+                  : companyRole === "mechanic"
+                    ? "Work orders and maintenance lists stay under Maintenance / Work Orders; optional alerts remain on the roadmap."
+                    : "Phase&nbsp;2 backlog covers in-app alerts, email subscriptions, certification reminders (1.3.2), and richer flight-status notifications alongside your dashboards."}
           </Typography>
         </CardContent>
       </Card>
