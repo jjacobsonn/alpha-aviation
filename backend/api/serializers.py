@@ -42,6 +42,24 @@ class CompanySerializer(serializers.ModelSerializer):
             "locations",
         ]
 
+class SelfProfileUpdateSerializer(serializers.ModelSerializer):
+    """
+    Fields a signed-in user may change on their own account (task 1.3.1 contact info).
+    """
+
+    class Meta:
+        model = Profile
+        fields = ("first_name", "last_name", "email", "phone_number", "middle_name")
+
+    def validate_phone_number(self, value):
+        if value in (None, ""):
+            return ""
+        s = str(value).strip()
+        if len(s) > 10:
+            raise serializers.ValidationError("Phone number must be at most 10 characters.")
+        return s
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     medically_cleared_until = serializers.DateField(

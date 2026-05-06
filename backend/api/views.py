@@ -49,8 +49,35 @@ from .serializers import (
     InventorySerializer,
     PartSerializer,
     ProfileSerializer,
+    SelfProfileUpdateSerializer,
     WorkOrderSerializer,
 )
+
+
+def build_user_me_response(user):
+    """Payload for GET/PATCH /users/me/ (identity + org + read-only role context)."""
+    pilot_info = getattr(user, "pilot_info", None)
+    mechanic_info = getattr(user, "mechanic_info", None)
+    data = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email or "",
+        "first_name": user.first_name or "",
+        "last_name": user.last_name or "",
+        "middle_name": user.middle_name or "",
+        "phone_number": user.phone_number or "",
+        "company_role": getattr(user, "company_role", None),
+        "is_staff": bool(getattr(user, "is_staff", False)),
+        "is_superuser": bool(getattr(user, "is_superuser", False)),
+        "company": getattr(user.company, "id", None) if getattr(user, "company", None) else None,
+        "company_name": getattr(user.company, "name", None) if getattr(user, "company", None) else None,
+    }
+    if pilot_info:
+        data["pilot_certificate"] = pilot_info.pilot_certificate
+        data["medically_cleared_until"] = pilot_info.medically_cleared_until
+    if mechanic_info:
+        data["ap_certificate_number"] = mechanic_info.AP_certificate_number
+    return data
 
 
 def _is_platform_admin(user):
@@ -303,25 +330,22 @@ def logout(request):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
     """
-    Get current authenticated user profile, including role and company info.
+    Current user profile (GET) or self-service contact update (PATCH).
+    Aligns with backlog 1.3.1 — name, email, phone, role display; preferences/notifications later.
     """
     user = request.user
-    return Response({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'first_name': user.first_name,
-        'last_name': user.last_name,
-        'company_role': getattr(user, 'company_role', None),
-        'is_staff': bool(getattr(user, 'is_staff', False)),
-        'is_superuser': bool(getattr(user, 'is_superuser', False)),
-        'company': getattr(user.company, 'id', None) if getattr(user, 'company', None) else None,
-        'company_name': getattr(user.company, 'name', None) if getattr(user, 'company', None) else None,
-    })
+    if request.method == "PATCH":
+        serializer = SelfProfileUpdateSerializer(user, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        user.refresh_from_db()
+
+    return Response(build_user_me_response(user))
 
 #Endpoint to check the availability of aircraft given a start date and end date, and optionally to check a specific aircraft if given aircraft_id. Returns all of the flights that are available. If checking for specifc aircraft, will return just that aircraft or return empty json response if it is not available.
 @api_view(['GET'])

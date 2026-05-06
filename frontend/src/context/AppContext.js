@@ -109,8 +109,7 @@ const reducer = (state, action) => {
         siteAlerts: action.payload
       };
     case ACTION_TYPES.UPDATE_USER: {
-      // Backend /api/users/me/ returns:
-      // { id, username, email, first_name, last_name, company_role, company, company_name }
+      // Backend GET/PATCH /api/users/me/: see build_user_me_response in api/views.py
       const userObject = action.payload.user || action.payload;
       return {
         ...state,
@@ -120,6 +119,8 @@ const reducer = (state, action) => {
           username: userObject.username ?? state.user.username,
           firstName: userObject.first_name ?? state.user.firstName,
           lastName: userObject.last_name ?? state.user.lastName,
+          middleName: userObject.middle_name ?? state.user.middleName,
+          phoneNumber: userObject.phone_number ?? state.user.phoneNumber,
           role: userObject.company_role ?? state.user.role,
           isStaff: userObject.is_staff ?? state.user.isStaff,
           isSuperuser: userObject.is_superuser ?? state.user.isSuperuser,

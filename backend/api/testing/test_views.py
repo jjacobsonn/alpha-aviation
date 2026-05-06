@@ -82,6 +82,19 @@ class TestAuthenticatedUserViews:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["username"] == sample_user.username
         assert response.data["company_role"] == sample_user.company_role
+        assert "phone_number" in response.data
+
+    def test_user_profile_patch_contact(self, authenticated_client, sample_user):
+        url = reverse("user_profile")
+        payload = {"first_name": "Pat", "phone_number": "5551234567", "middle_name": "Jay"}
+        response = authenticated_client.patch(url, payload, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["first_name"] == "Pat"
+        assert response.data["phone_number"] == "5551234567"
+        sample_user.refresh_from_db()
+        assert sample_user.first_name == "Pat"
+        assert sample_user.phone_number == "5551234567"
 
     def test_logout_requires_auth(self, api_client):
         url = reverse("logout")

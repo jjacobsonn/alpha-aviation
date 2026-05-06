@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Box,
   IconButton,
-  Menu,
-  MenuItem,
   Divider,
   Stack,
   Drawer,
@@ -22,13 +20,12 @@ import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
 import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import NotificationsIcon from "@mui/icons-material/Notifications";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import SettingsIcon from "@mui/icons-material/Settings";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
@@ -41,18 +38,9 @@ const drawerWidthCollapsed = 72;
 function NavigationDrawer() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedTab, setSelectedTab] = useState("dashboard");
-  const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { state, dispatch } = useAppContext();
-
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -67,8 +55,6 @@ function NavigationDrawer() {
     } finally {
       // Clear context state
       dispatch({ type: ACTION_TYPES.LOGGED_OUT });
-      // Close menu
-      handleMenuClose();
       // Navigate to login
       navigate("/login");
     }
@@ -87,7 +73,7 @@ function NavigationDrawer() {
     {
       id: "site-admin",
       title: "Site Admin",
-      icon: <SettingsIcon />,
+      icon: <AdminPanelSettingsIcon />,
       color: "#455a64",
       allowedRoles: [],
       onlyPlatformAdmin: true,
@@ -189,8 +175,6 @@ function NavigationDrawer() {
         },
       }}
     >
-      {/* ... existing code ... */}
-      
       {/* Header Section */}
       <Box
         sx={{
@@ -293,68 +277,26 @@ function NavigationDrawer() {
 
       <Divider />
 
-      {/* Bottom Navigation Items */}
+      {/* Footer: account & session (backlog 1.3.1 — profile from Account, not dead nav) */}
       <List sx={{ px: 1, py: 2 }}>
-        <Tooltip
-          title={!sidebarOpen ? "Notifications" : ""}
-          placement="right"
-        >
-          <ListItem disablePadding sx={{ mb: 1 }}>
-            <ListItemButton
-              sx={{
-                borderRadius: 2,
-                minHeight: 48,
-                justifyContent: sidebarOpen ? "initial" : "center",
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: sidebarOpen ? 2 : "auto",
-                  justifyContent: "center",
-                }}
-              >
-                <NotificationsIcon />
-              </ListItemIcon>
-              {sidebarOpen && <ListItemText primary="Notifications" />}
-            </ListItemButton>
-          </ListItem>
-        </Tooltip>
-
-        <Tooltip title={!sidebarOpen ? "Settings" : ""} placement="right">
-          <ListItem disablePadding sx={{ mb: 1 }}>
-            <ListItemButton
-              sx={{
-                borderRadius: 2,
-                minHeight: 48,
-                justifyContent: sidebarOpen ? "initial" : "center",
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: sidebarOpen ? 2 : "auto",
-                  justifyContent: "center",
-                }}
-              >
-                <SettingsIcon />
-              </ListItemIcon>
-              {sidebarOpen && <ListItemText primary="Settings" />}
-            </ListItemButton>
-          </ListItem>
-        </Tooltip>
-
         <Tooltip title={!sidebarOpen ? "Account" : ""} placement="right">
-          <ListItem disablePadding>
+          <ListItem disablePadding sx={{ mb: 1 }}>
             <ListItemButton
-              onClick={handleMenuOpen}
+              selected={location.pathname.startsWith("/account")}
+              onClick={() => {
+                navigate("/account");
+                setSelectedTab("account");
+              }}
               sx={{
                 borderRadius: 2,
                 minHeight: 48,
                 justifyContent: sidebarOpen ? "initial" : "center",
                 px: 2.5,
+                "&.Mui-selected": {
+                  bgcolor: "rgba(92, 107, 192, 0.12)",
+                  color: "#3949ab",
+                  "&:hover": { bgcolor: "rgba(92, 107, 192, 0.18)" },
+                },
               }}
             >
               <ListItemIcon
@@ -362,49 +304,53 @@ function NavigationDrawer() {
                   minWidth: 0,
                   mr: sidebarOpen ? 2 : "auto",
                   justifyContent: "center",
+                  color: location.pathname.startsWith("/account")
+                    ? "#3949ab"
+                    : "text.secondary",
                 }}
               >
                 <AccountCircleIcon />
               </ListItemIcon>
-              {sidebarOpen && <ListItemText primary="Account" />}
+              {sidebarOpen && (
+                <ListItemText
+                  primary="Account"
+                  primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
+                />
+              )}
+            </ListItemButton>
+          </ListItem>
+        </Tooltip>
+
+        <Tooltip title={!sidebarOpen ? "Logout" : ""} placement="right">
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={handleLogout}
+              sx={{
+                borderRadius: 2,
+                minHeight: 48,
+                justifyContent: sidebarOpen ? "initial" : "center",
+                px: 2.5,
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: sidebarOpen ? 2 : "auto",
+                  justifyContent: "center",
+                }}
+              >
+                <LogoutIcon />
+              </ListItemIcon>
+              {sidebarOpen && (
+                <ListItemText
+                  primary="Logout"
+                  primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
+                />
+              )}
             </ListItemButton>
           </ListItem>
         </Tooltip>
       </List>
-
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        anchorOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-      >
-        <MenuItem onClick={handleMenuClose}>
-          <ListItemIcon>
-            <AccountCircleIcon fontSize="small" />
-          </ListItemIcon>
-          Profile
-        </MenuItem>
-        <MenuItem onClick={handleMenuClose}>
-          <ListItemIcon>
-            <SettingsIcon fontSize="small" />
-          </ListItemIcon>
-          Settings
-        </MenuItem>
-        <Divider />
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon>
-            <LogoutIcon fontSize="small" />
-          </ListItemIcon>
-          Logout
-        </MenuItem>
-      </Menu>
     </Drawer>
   );
 }

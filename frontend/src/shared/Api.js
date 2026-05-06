@@ -248,6 +248,11 @@ export const fetchCurrentUser = async () => {
 	return await makeApiRequest('GET', '/users/me/');
 };
 
+/** Self-service profile fields allowed by PATCH /users/me/ */
+export const patchCurrentUser = async (payload) => {
+	return await makeApiRequest('PATCH', '/users/me/', payload);
+};
+
 export const fetchCompanyInventoriesDetailed = async () => {
 	const data = await makeApiRequest('GET', '/company/inventories/detailed/');
 	if (Array.isArray(data)) return data;

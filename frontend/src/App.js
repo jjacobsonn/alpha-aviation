@@ -19,6 +19,7 @@ import CalendarPage from './pages/DispatchCalendarPage';
 import SiteAdminPortal from './pages/SiteAdminPortal';
 import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
+import AccountPage from './pages/AccountPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import { allowedRolesForModule } from './shared/rbac';
@@ -224,7 +225,16 @@ function App() {
 								</ProtectedRoute>
 							}
 						/>
-
+						<Route
+							path="/account"
+							element={
+								<ProtectedRoute>
+									<Layout>
+										<AccountPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
 
 						{/* 404 - Must be last */}
 						<Route path="*" element={<NotFound />} />

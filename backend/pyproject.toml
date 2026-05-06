@@ -39,7 +39,4 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 testpaths = ["api/testing"]
-addopts = [
-    "--nomigrations",
-    "-v",  # Verbose output
-]
+addopts = ["-v"]
