@@ -13,8 +13,9 @@ export const MODULE_ALLOWED_ROLES = {
   maintenance: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
   workOrders: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
   parts: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
-  dispatcherDashboard: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
-  pilotDashboard: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  // Mechanics use Maintenance / Work Orders / Fleet / Parts / Calendar only (no role dashboard pages).
+  dispatcherDashboard: ["owner", "manager", "dispatcher", "pilot"],
+  pilotDashboard: ["owner", "manager", "dispatcher", "pilot"],
   calendar: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
 };
 

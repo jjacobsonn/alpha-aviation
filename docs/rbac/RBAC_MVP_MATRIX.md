@@ -35,18 +35,17 @@ Legend:
 | Maintenance Intervals | C,E,D | C,E | C,E | C,E | V |
 | Work Orders (`/work-orders`) | V,C,E,D | V,C,E | V,C,E | V,C,E | V,C |
 | Discrepancies (`/maintenance`) | V,C,E,D | V,C,E | V,C,E | V,C,E | V,C,E(own reports/minimal) |
-| Dispatcher (`/dispatcher-dashboard`) | V,C,E,D(flights) | V,C,E | V,C,E | V | V |
+| Dispatcher (`/dispatcher-dashboard`) | V,C,E,D(flights) | V,C,E | V,C,E | — | V |
 | Calendar (`/calendar`) | V,C,E,D(custom events) | V,C,E | V,C,E | V | V |
 | Parts (`/parts`) | V,C,E,D | V,C,E | V | V,C,E | V |
-| Pilot (`/pilot-dashboard`) | V | V | V | V | V,C,E(own requests/reports) |
+| Pilot (`/pilot-dashboard`) | V | V | V | — | V,C,E(own requests/reports) |
 
 ## Current Snapshot (from code)
 
 - Frontend routes currently allow:
-  - Maintenance + Work Orders: owner/manager/mechanic/dispatcher/pilot
+  - Maintenance + Work Orders + Parts + Calendar: owner/manager/mechanic/dispatcher/pilot
   - Fleet + Fleet Detail: owner/manager/mechanic/dispatcher/pilot
-  - Calendar: owner/dispatcher
-  - Parts page route: owner/manager/mechanic
+  - Pilot + Dispatcher dashboards: owner/manager/dispatcher/pilot (mechanic excluded)
 - Backend currently allows:
   - Company workorders/discrepancies list: authenticated users in tenant context
   - WorkOrder create: authenticated
