@@ -40,6 +40,7 @@ import {
   fetchCompanyUsers,
   fetchCurrentUser,
   patchCompanyFlightDispatch,
+  updateDiscrepancy,
 } from "../shared/Api";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
@@ -84,7 +85,13 @@ const PILOT_EDITABLE_REQUEST_FIELDS = new Set([
   "route",
   "secondary_pilot",
 ]);
+const PILOT_EDITABLE_DISCREPANCY_FIELDS = new Set([
+  "ata_code",
+  "tach_time",
+  "description",
+]);
 const PILOT_FLIGHT_EDIT_TRAIL_KEY = "pilotFlightEditTrail";
+const PILOT_DISCREPANCY_EDIT_TRAIL_KEY = "pilotDiscrepancyEditTrail";
 
 function statusChip(status) {
   const s = status || "";
@@ -193,6 +200,18 @@ function formatFieldValue(field, value, pilotsById) {
   return String(value);
 }
 
+function getChangedDiscrepancyFields(current, baseline) {
+  if (!current || !baseline) return [];
+  const labels = {
+    ata_code: "ATA code",
+    tach_time: "Tach time",
+    description: "Description",
+  };
+  return Object.keys(labels)
+    .filter((k) => (current?.[k] ?? "") !== (baseline?.[k] ?? ""))
+    .map((k) => labels[k]);
+}
+
 export default function PilotDashboard() {
   const { state } = useAppContext();
   const platformAdmin = isPlatformAdmin(state.user);
@@ -247,6 +266,25 @@ export default function PilotDashboard() {
   });
   const [requestFlightOpen, setRequestFlightOpen] = useState(false);
   const [reportDiscrepancyOpen, setReportDiscrepancyOpen] = useState(false);
+  const [selectedDiscrepancy, setSelectedDiscrepancy] = useState(null);
+  const [editingSelectedDiscrepancy, setEditingSelectedDiscrepancy] = useState(false);
+  const [savingSelectedDiscrepancy, setSavingSelectedDiscrepancy] = useState(false);
+  const [selectedDiscrepancyBaseline, setSelectedDiscrepancyBaseline] = useState(null);
+  const [selectedDiscrepancyEditedAt, setSelectedDiscrepancyEditedAt] = useState("");
+  const [savedDiscrepancyEditTrail, setSavedDiscrepancyEditTrail] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PILOT_DISCREPANCY_EDIT_TRAIL_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return normalizeTrailMap(parsed);
+    } catch {
+      return {};
+    }
+  });
+  const [selectedDiscrepancyForm, setSelectedDiscrepancyForm] = useState({
+    ata_code: "",
+    tach_time: "",
+    description: "",
+  });
   const [flightFormEditedAt, setFlightFormEditedAt] = useState("");
   const [discFormEditedAt, setDiscFormEditedAt] = useState("");
 
@@ -257,6 +295,17 @@ export default function PilotDashboard() {
       // Ignore localStorage write issues.
     }
   }, [savedFlightEditTrail]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        PILOT_DISCREPANCY_EDIT_TRAIL_KEY,
+        JSON.stringify(savedDiscrepancyEditTrail)
+      );
+    } catch {
+      // Ignore localStorage write issues.
+    }
+  }, [savedDiscrepancyEditTrail]);
 
   const [flightForm, setFlightForm] = useState(INITIAL_FLIGHT_FORM);
   const [discForm, setDiscForm] = useState(INITIAL_DISC_FORM);
@@ -273,6 +322,15 @@ export default function PilotDashboard() {
     });
     return map;
   }, [pilots, currentUser]);
+
+  const aircraftNameById = useMemo(() => {
+    const map = new Map();
+    (aircraft || []).forEach((a) => {
+      const name = [a.registration_number, a.model ? `(${a.model})` : ""].filter(Boolean).join(" ");
+      map.set(Number(a.id), name || `Aircraft #${a.id}`);
+    });
+    return map;
+  }, [aircraft]);
 
   const load = useCallback(async () => {
     if (platformAdmin && !hasCompanyContext) {
@@ -463,6 +521,93 @@ export default function PilotDashboard() {
   const updateDiscForm = (field, value) => {
     setDiscForm((s) => ({ ...s, [field]: value }));
     setDiscFormEditedAt(new Date().toISOString());
+  };
+
+  const canEditSelectedDiscrepancy = useMemo(() => {
+    if (!selectedDiscrepancy || !currentUser?.id) return false;
+    return (
+      Number(selectedDiscrepancy.reporter) === Number(currentUser.id) &&
+      String(selectedDiscrepancy.status || "").toLowerCase() !== "closed"
+    );
+  }, [selectedDiscrepancy, currentUser]);
+
+  const openDiscrepancyDetails = (disc) => {
+    setEditingSelectedDiscrepancy(false);
+    setSelectedDiscrepancy(disc);
+    const nextForm = {
+      ata_code: disc?.ata_code || "",
+      tach_time: disc?.tach_time || "",
+      description: disc?.description || "",
+    };
+    setSelectedDiscrepancyForm(nextForm);
+    setSelectedDiscrepancyBaseline(nextForm);
+    setSelectedDiscrepancyEditedAt("");
+  };
+
+  const closeDiscrepancyDetails = () => {
+    setEditingSelectedDiscrepancy(false);
+    setSelectedDiscrepancy(null);
+    setSelectedDiscrepancyBaseline(null);
+    setSelectedDiscrepancyEditedAt("");
+  };
+
+  const updateSelectedDiscrepancyForm = (field, value) => {
+    if (!PILOT_EDITABLE_DISCREPANCY_FIELDS.has(field)) return;
+    setSelectedDiscrepancyForm((s) => ({ ...s, [field]: value }));
+    setSelectedDiscrepancyEditedAt(new Date().toISOString());
+  };
+
+  const selectedDiscrepancyChangedFields = useMemo(() => {
+    if (!editingSelectedDiscrepancy || !selectedDiscrepancyBaseline) return [];
+    return getChangedDiscrepancyFields(selectedDiscrepancyForm, selectedDiscrepancyBaseline);
+  }, [editingSelectedDiscrepancy, selectedDiscrepancyBaseline, selectedDiscrepancyForm]);
+
+  const selectedDiscrepancySavedTrail = useMemo(() => {
+    if (!selectedDiscrepancy?.id) return [];
+    return Array.isArray(savedDiscrepancyEditTrail[selectedDiscrepancy.id])
+      ? savedDiscrepancyEditTrail[selectedDiscrepancy.id]
+      : [];
+  }, [savedDiscrepancyEditTrail, selectedDiscrepancy]);
+
+  const saveSelectedDiscrepancyEdit = async () => {
+    if (!selectedDiscrepancy?.id) return;
+    if (!selectedDiscrepancyForm.description) {
+      setError("Description is required.");
+      return;
+    }
+    setSavingSelectedDiscrepancy(true);
+    setError("");
+    try {
+      const changedBeforeSave = getChangedDiscrepancyFields(
+        selectedDiscrepancyForm,
+        selectedDiscrepancyBaseline
+      );
+      const updated = await updateDiscrepancy(selectedDiscrepancy.id, {
+        ata_code: selectedDiscrepancyForm.ata_code || "",
+        tach_time: selectedDiscrepancyForm.tach_time || "",
+        description: selectedDiscrepancyForm.description || "",
+      });
+      setDiscrepancies((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+      setSelectedDiscrepancy(updated);
+      setEditingSelectedDiscrepancy(false);
+      if (changedBeforeSave.length > 0) {
+        setSavedDiscrepancyEditTrail((prev) => ({
+          ...prev,
+          [updated.id]: [
+            ...(Array.isArray(prev?.[updated.id]) ? prev[updated.id] : []),
+            {
+              fields: changedBeforeSave,
+              editedAt: new Date().toISOString(),
+            },
+          ],
+        }));
+      }
+      setSelectedDiscrepancyEditedAt("");
+    } catch (e) {
+      setError(e?.message || "Could not update discrepancy.");
+    } finally {
+      setSavingSelectedDiscrepancy(false);
+    }
   };
 
   const saveSelectedFlightEdit = async () => {
@@ -1314,7 +1459,20 @@ export default function PilotDashboard() {
                     </TableRow>
                   ) : (
                     myDiscs.map((d) => (
-                      <TableRow key={d.id}>
+                      <TableRow
+                        key={d.id}
+                        hover
+                        onClick={() => openDiscrepancyDetails(d)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openDiscrepancyDetails(d);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        sx={{ cursor: "pointer" }}
+                      >
                         <TableCell>{d.date_reported || "—"}</TableCell>
                         <TableCell>{d.status || "—"}</TableCell>
                         <TableCell>{d.ata_code || "—"}</TableCell>
@@ -1326,6 +1484,188 @@ export default function PilotDashboard() {
               </Table>
             </CardContent>
           </Card>
+
+          <Dialog
+            open={Boolean(selectedDiscrepancy)}
+            onClose={closeDiscrepancyDetails}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 2,
+                pr: 0.5,
+              }}
+            >
+              <Typography variant="inherit">Discrepancy details</Typography>
+              <IconButton aria-label="Close" onClick={closeDiscrepancyDetails} edge="end" sx={{ mr: 0.5 }}>
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent dividers>
+              {selectedDiscrepancy ? (
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">
+                      {editingSelectedDiscrepancy ? "Edit your discrepancy report" : "Submitted values"}
+                    </Typography>
+                    {statusChip(selectedDiscrepancy.status)}
+                  </Stack>
+                  <TextField
+                    label="Reported date"
+                    size="small"
+                    fullWidth
+                    value={selectedDiscrepancy.date_reported || "—"}
+                    InputProps={{ readOnly: true }}
+                    sx={
+                      editingSelectedDiscrepancy
+                        ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                        : undefined
+                    }
+                  />
+                  <TextField
+                    label="Aircraft"
+                    size="small"
+                    fullWidth
+                    value={
+                      selectedDiscrepancy.aircraft_name ||
+                      aircraftNameById.get(Number(selectedDiscrepancy.aircraft)) ||
+                      (selectedDiscrepancy.aircraft ? `Aircraft #${selectedDiscrepancy.aircraft}` : "—")
+                    }
+                    InputProps={{ readOnly: true }}
+                    sx={
+                      editingSelectedDiscrepancy
+                        ? { "& .MuiInputBase-root": { bgcolor: "action.hover", opacity: 0.85 } }
+                        : undefined
+                    }
+                  />
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <TextField
+                      label="ATA code"
+                      size="small"
+                      fullWidth
+                      value={
+                        editingSelectedDiscrepancy
+                          ? selectedDiscrepancyForm.ata_code
+                          : selectedDiscrepancy.ata_code || "—"
+                      }
+                      onChange={(e) => updateSelectedDiscrepancyForm("ata_code", e.target.value)}
+                      InputProps={{ readOnly: !editingSelectedDiscrepancy }}
+                    />
+                    <TextField
+                      label="Tach time"
+                      size="small"
+                      fullWidth
+                      value={
+                        editingSelectedDiscrepancy
+                          ? selectedDiscrepancyForm.tach_time
+                          : selectedDiscrepancy.tach_time || "—"
+                      }
+                      onChange={(e) => updateSelectedDiscrepancyForm("tach_time", e.target.value)}
+                      InputProps={{ readOnly: !editingSelectedDiscrepancy }}
+                    />
+                  </Stack>
+                  <TextField
+                    label="Description"
+                    size="small"
+                    fullWidth
+                    multiline
+                    minRows={3}
+                    value={
+                      editingSelectedDiscrepancy
+                        ? selectedDiscrepancyForm.description
+                        : selectedDiscrepancy.description || "—"
+                    }
+                    onChange={(e) => updateSelectedDiscrepancyForm("description", e.target.value)}
+                    InputProps={{ readOnly: !editingSelectedDiscrepancy }}
+                  />
+                  {editingSelectedDiscrepancy && selectedDiscrepancyChangedFields.length > 0 ? (
+                    <Alert severity="info">
+                      Edited fields: {selectedDiscrepancyChangedFields.join(", ")}. Last change:{" "}
+                      {formatEditedAt(selectedDiscrepancyEditedAt)}
+                    </Alert>
+                  ) : null}
+                  {!editingSelectedDiscrepancy && selectedDiscrepancySavedTrail.length > 0 ? (
+                    <Alert severity="info">
+                      Last saved edit:{" "}
+                      {selectedDiscrepancySavedTrail[
+                        selectedDiscrepancySavedTrail.length - 1
+                      ].fields.join(", ")}{" "}
+                      on{" "}
+                      {formatEditedAt(
+                        selectedDiscrepancySavedTrail[
+                          selectedDiscrepancySavedTrail.length - 1
+                        ].editedAt
+                      )}
+                    </Alert>
+                  ) : null}
+                  {!editingSelectedDiscrepancy && selectedDiscrepancySavedTrail.length > 0 ? (
+                    <Box
+                      sx={{
+                        border: "1px solid",
+                        borderColor: "divider",
+                        borderRadius: 1.5,
+                        p: 1.5,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                        Edit history
+                      </Typography>
+                      <Stack spacing={1}>
+                        {[...selectedDiscrepancySavedTrail]
+                          .slice(-10)
+                          .reverse()
+                          .map((entry, idx) => (
+                            <Box
+                              key={`${entry.editedAt}-${idx}`}
+                              sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
+                            >
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                {formatEditedAt(entry.editedAt)}
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                Changed: {Array.isArray(entry.fields) ? entry.fields.join(", ") : "—"}
+                              </Typography>
+                            </Box>
+                          ))}
+                      </Stack>
+                    </Box>
+                  ) : null}
+                </Stack>
+              ) : null}
+            </DialogContent>
+            <DialogActions>
+              {editingSelectedDiscrepancy ? (
+                <>
+                  <Button
+                    onClick={() => setEditingSelectedDiscrepancy(false)}
+                    disabled={savingSelectedDiscrepancy}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={saveSelectedDiscrepancyEdit}
+                    disabled={savingSelectedDiscrepancy}
+                  >
+                    {savingSelectedDiscrepancy ? "Saving…" : "Save changes"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={closeDiscrepancyDetails}>Close</Button>
+                  {canEditSelectedDiscrepancy ? (
+                    <Button variant="contained" onClick={() => setEditingSelectedDiscrepancy(true)}>
+                      Edit discrepancy
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </DialogActions>
+          </Dialog>
         </Stack>
       </Container>
     </Box>
