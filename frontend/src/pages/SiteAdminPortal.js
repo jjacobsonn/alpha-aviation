@@ -103,10 +103,10 @@ export default function SiteAdminPortal() {
     departure_time: "",
     arrival_time: "",
     route: "",
-    flight_type: "",
+    flight_type: "training",
     primary_pilot: "",
     secondary_pilot: "",
-    pilot_requirement: "none",
+    pilot_requirement: "private",
     approved: false,
   });
   const [editFlightForm, setEditFlightForm] = useState({
@@ -118,10 +118,10 @@ export default function SiteAdminPortal() {
     departure_time: "",
     arrival_time: "",
     route: "",
-    flight_type: "",
+    flight_type: "training",
     primary_pilot: "",
     secondary_pilot: "",
-    pilot_requirement: "none",
+    pilot_requirement: "private",
     approved: false,
   });
   const [editAircraftForm, setEditAircraftForm] = useState({
@@ -452,10 +452,10 @@ export default function SiteAdminPortal() {
       departure_time: f?.departure_time || "",
       arrival_time: f?.arrival_time || "",
       route: f?.route || "",
-      flight_type: f?.flight_type || "",
+      flight_type: f?.flight_type || "training",
       primary_pilot: f?.primary_pilot || "",
       secondary_pilot: f?.secondary_pilot || "",
-      pilot_requirement: f?.pilot_requirement || "none",
+      pilot_requirement: f?.pilot_requirement || "private",
       approved: Boolean(f?.approved),
     });
     setEditFlightOpen(true);
@@ -473,7 +473,7 @@ export default function SiteAdminPortal() {
     flight_type: form.flight_type,
     primary_pilot: form.primary_pilot ? Number(form.primary_pilot) : null,
     secondary_pilot: form.secondary_pilot ? Number(form.secondary_pilot) : null,
-    pilot_requirement: form.pilot_requirement || "none",
+    pilot_requirement: form.pilot_requirement || "private",
     approved: Boolean(form.approved),
   });
 
@@ -496,10 +496,10 @@ export default function SiteAdminPortal() {
         departure_time: "",
         arrival_time: "",
         route: "",
-        flight_type: "",
+        flight_type: "training",
         primary_pilot: "",
         secondary_pilot: "",
-        pilot_requirement: "none",
+        pilot_requirement: "private",
         approved: false,
       });
       await refresh();
@@ -1416,7 +1416,28 @@ export default function SiteAdminPortal() {
             <TextField type="datetime-local" label="Departure Time" InputLabelProps={{ shrink: true }} value={newFlightForm.departure_time} onChange={(e) => setNewFlightForm((s) => ({ ...s, departure_time: e.target.value }))} />
             <TextField type="datetime-local" label="Arrival Time" InputLabelProps={{ shrink: true }} value={newFlightForm.arrival_time} onChange={(e) => setNewFlightForm((s) => ({ ...s, arrival_time: e.target.value }))} />
             <TextField label="Route" value={newFlightForm.route} onChange={(e) => setNewFlightForm((s) => ({ ...s, route: e.target.value }))} />
-            <TextField label="Flight Type" value={newFlightForm.flight_type} onChange={(e) => setNewFlightForm((s) => ({ ...s, flight_type: e.target.value }))} />
+            <TextField
+              select
+              label="Flight Type"
+              value={newFlightForm.flight_type}
+              onChange={(e) => setNewFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
+            >
+              {["training", "charter", "positioning", "maintenance ferry"].map((type) => (
+                <MenuItem key={type} value={type}>{type}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Pilot Requirement"
+              value={newFlightForm.pilot_requirement}
+              onChange={(e) =>
+                setNewFlightForm((s) => ({ ...s, pilot_requirement: e.target.value }))
+              }
+            >
+              {["student", "private", "commercial", "airline"].map((req) => (
+                <MenuItem key={req} value={req}>{req}</MenuItem>
+              ))}
+            </TextField>
             <TextField select label="Primary Pilot" value={newFlightForm.primary_pilot} onChange={(e) => setNewFlightForm((s) => ({ ...s, primary_pilot: e.target.value }))}>
               <MenuItem value="">None</MenuItem>
               {pilotOptionsForCompany(newFlightForm.company).map((p) => (
@@ -1457,7 +1478,28 @@ export default function SiteAdminPortal() {
             <TextField type="datetime-local" label="Departure Time" InputLabelProps={{ shrink: true }} value={editFlightForm.departure_time} onChange={(e) => setEditFlightForm((s) => ({ ...s, departure_time: e.target.value }))} />
             <TextField type="datetime-local" label="Arrival Time" InputLabelProps={{ shrink: true }} value={editFlightForm.arrival_time} onChange={(e) => setEditFlightForm((s) => ({ ...s, arrival_time: e.target.value }))} />
             <TextField label="Route" value={editFlightForm.route} onChange={(e) => setEditFlightForm((s) => ({ ...s, route: e.target.value }))} />
-            <TextField label="Flight Type" value={editFlightForm.flight_type} onChange={(e) => setEditFlightForm((s) => ({ ...s, flight_type: e.target.value }))} />
+            <TextField
+              select
+              label="Flight Type"
+              value={editFlightForm.flight_type}
+              onChange={(e) => setEditFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
+            >
+              {["training", "charter", "positioning", "maintenance ferry"].map((type) => (
+                <MenuItem key={type} value={type}>{type}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Pilot Requirement"
+              value={editFlightForm.pilot_requirement}
+              onChange={(e) =>
+                setEditFlightForm((s) => ({ ...s, pilot_requirement: e.target.value }))
+              }
+            >
+              {["student", "private", "commercial", "airline"].map((req) => (
+                <MenuItem key={req} value={req}>{req}</MenuItem>
+              ))}
+            </TextField>
             <TextField select label="Primary Pilot" value={editFlightForm.primary_pilot} onChange={(e) => setEditFlightForm((s) => ({ ...s, primary_pilot: e.target.value }))}>
               <MenuItem value="">None</MenuItem>
               {pilotOptionsForCompany(editFlightForm.company).map((p) => (
