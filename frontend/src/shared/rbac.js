@@ -10,9 +10,9 @@ export const ROLE_DEFAULT_ROUTES = {
 export const MODULE_ALLOWED_ROLES = {
   fleet: ["owner", "manager", "dispatcher", "mechanic"],
   fleetDetail: ["owner", "manager", "dispatcher", "mechanic"],
-  maintenance: ["owner", "manager", "dispatcher", "mechanic"],
+  maintenance: ["owner", "manager", "mechanic"],
   workOrders: ["owner", "manager", "dispatcher", "mechanic"],
-  parts: ["owner", "manager", "dispatcher", "mechanic"],
+  parts: ["owner", "manager", "mechanic"],
   // Mechanics: ops modules only — no Pilot / Dispatcher dashboards.
   // Pilots: no full dispatch board (requests/status live on Pilot page).
   dispatcherDashboard: ["owner", "manager", "dispatcher"],
