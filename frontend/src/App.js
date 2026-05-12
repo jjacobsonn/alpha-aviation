@@ -20,6 +20,7 @@ import SiteAdminPortal from './pages/SiteAdminPortal';
 import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
 import AccountPage from './pages/AccountPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import { allowedRolesForModule } from './shared/rbac';
@@ -251,6 +252,15 @@ function App() {
 									<Layout>
 										<AccountPage />
 									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+
+						<Route
+							path="/change-password"
+							element={
+								<ProtectedRoute>
+									<ChangePasswordPage />
 								</ProtectedRoute>
 							}
 						/>

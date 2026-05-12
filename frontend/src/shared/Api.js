@@ -455,3 +455,16 @@ export const deleteFlight = async (id) => {
 export const createDiscrepancy = async (payload) => {
 	return await makeApiRequest('POST', '/discrepancies/', payload);
 };
+
+export const adminResetPassword = async (profileId, newPassword) => {
+	return await makeApiRequest('POST', `/profiles/${profileId}/reset-password/`, {
+		new_password: newPassword,
+	});
+};
+
+export const changeOwnPassword = async (newPassword, confirmPassword) => {
+	return await makeApiRequest('POST', '/users/me/change-password/', {
+		new_password: newPassword,
+		confirm_password: confirmPassword,
+	});
+};

@@ -7,6 +7,8 @@ from .views import (
     token_refresh,
     logout,
     user_profile,
+    admin_reset_password,
+    change_own_password,
     available_aircraft_view,
     flight_list_view,
     management_dashboard_view,
@@ -58,6 +60,8 @@ urlpatterns = [
     path("auth/token/refresh/", token_refresh, name="token_refresh"),
     path("auth/logout/", logout, name="logout"),
     path("users/me/", user_profile, name="user_profile"),
+    path("users/me/change-password/", change_own_password, name="change_own_password"),
+    path("profiles/<int:pk>/reset-password/", admin_reset_password, name="admin_reset_password"),
     path(
         "aircraft/availability/",
         available_aircraft_view,

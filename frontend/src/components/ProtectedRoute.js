@@ -28,6 +28,13 @@ const ProtectedRoute = ({ children, allowedRoles, requirePlatformAdmin = false }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (
+    realUser?.mustChangePassword &&
+    location.pathname !== '/change-password'
+  ) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   if (requirePlatformAdmin) {
     if (!isPlatformAdmin) {
       return <Navigate to="/login" state={{ from: location }} replace />;

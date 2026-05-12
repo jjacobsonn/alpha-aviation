@@ -58,19 +58,22 @@ const Login = () => {
 
 		try {
 			await loginUser(formData, dispatch);
-			// Fetch the current user to get role/company and route accordingly
 			const userData = await fetchCurrentUser();
 			dispatch({
 				type: ACTION_TYPES.UPDATE_USER,
 				payload: userData,
 			});
+
+			if (userData.must_change_password) {
+				navigate('/change-password', { replace: true });
+				return;
+			}
+
 			const defaultPath = getDefaultRouteForUser(userData);
 			if (defaultPath === '/login') {
 				throw new Error('Your account does not have a configured frontend role yet.');
 			}
 
-			// Always route to the role-based default after login;
-      // don't reuse a previous user's "from" location.
 			navigate(defaultPath, {
 				replace: true,
 			});

@@ -124,6 +124,7 @@ const reducer = (state, action) => {
           role: userObject.company_role ?? state.user.role,
           isStaff: userObject.is_staff ?? state.user.isStaff,
           isSuperuser: userObject.is_superuser ?? state.user.isSuperuser,
+          mustChangePassword: userObject.must_change_password ?? state.user.mustChangePassword ?? false,
           companyId: userObject.company ?? state.user.companyId,
           companyName: userObject.company_name ?? state.user.companyName,
         },

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
+	Alert,
 	Box,
 	Container,
 	Grid,
@@ -12,11 +13,14 @@ import {
 	Chip,
 	Typography,
 	Button,
+	IconButton,
+	InputAdornment,
 	MenuItem,
 	Dialog,
 	DialogActions,
 	DialogContent,
 	DialogTitle,
+	Snackbar,
 	Table,
 	TableBody,
 	TableCell,
@@ -25,6 +29,9 @@ import {
 	Link,
 	TextField,
 } from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import LockResetIcon from '@mui/icons-material/LockReset';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import BuildIcon from '@mui/icons-material/Build';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -40,6 +47,7 @@ import {
 	fetchManagementDashboard,
 	createProfile,
 	updateProfile,
+	adminResetPassword,
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
@@ -109,6 +117,12 @@ const Management = () => {
 		phone_number: '',
 		company_role: 'pilot',
 	});
+	const [resetPwUser, setResetPwUser] = useState(null);
+	const [resetPwForm, setResetPwForm] = useState({ password: '', confirm: '' });
+	const [resetPwError, setResetPwError] = useState('');
+	const [resetPwLoading, setResetPwLoading] = useState(false);
+	const [resetPwShowPassword, setResetPwShowPassword] = useState(false);
+	const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
 	useEffect(() => {
 		let mounted = true;
@@ -256,6 +270,7 @@ const Management = () => {
 
 	const openEditUser = (u) => {
 		setEditingUserId(u.id);
+		setResetPwUser(u);
 		setEditingUserForm({
 			first_name: u.first_name || '',
 			last_name: u.last_name || '',
@@ -263,6 +278,9 @@ const Management = () => {
 			phone_number: u.phone_number || '',
 			company_role: u.company_role || '',
 		});
+		setResetPwForm({ password: '', confirm: '' });
+		setResetPwError('');
+		setResetPwShowPassword(false);
 		setEditUserOpen(true);
 	};
 
@@ -323,6 +341,53 @@ const Management = () => {
 			setError(e?.message || 'Failed to create user.');
 		} finally {
 			setCreatingUser(false);
+		}
+	};
+
+	const validatePassword = (pw) => {
+		if (pw.length < 8) return 'Password must be at least 8 characters.';
+		if (!/[A-Z]/.test(pw)) return 'Must contain at least one uppercase letter.';
+		if (!/[a-z]/.test(pw)) return 'Must contain at least one lowercase letter.';
+		if (!/\d/.test(pw)) return 'Must contain at least one digit.';
+		if (!/[!@#$%^&*()_+\-=[\]{}|;:',.<>?/`~]/.test(pw))
+			return 'Must contain at least one special character.';
+		return null;
+	};
+
+	const submitResetPw = async () => {
+		setResetPwError('');
+		const pw = resetPwForm.password.trim();
+		const confirm = resetPwForm.confirm.trim();
+		if (!pw || !confirm) {
+			setResetPwError('Both fields are required.');
+			return;
+		}
+		if (pw !== confirm) {
+			setResetPwError('Passwords do not match.');
+			return;
+		}
+		const valError = validatePassword(pw);
+		if (valError) {
+			setResetPwError(valError);
+			return;
+		}
+		setResetPwLoading(true);
+		try {
+			await adminResetPassword(resetPwUser.id, pw);
+			setSnackbar({
+				open: true,
+				message: `Password reset for ${resetPwUser.first_name || resetPwUser.username}. They will be prompted to set a new password on next login.`,
+				severity: 'success',
+			});
+			setResetPwForm({ password: '', confirm: '' });
+			setResetPwError('');
+		} catch (e) {
+			const detail = e?.data?.detail;
+			setResetPwError(
+				Array.isArray(detail) ? detail.join(' ') : detail || e?.message || 'Failed to reset password.',
+			);
+		} finally {
+			setResetPwLoading(false);
 		}
 	};
 
@@ -554,13 +619,13 @@ const Management = () => {
 													<Chip size="small" label={ROLE_LABELS[u.company_role] || u.company_role || '—'} />
 												</TableCell>
 												<TableCell>{u.email || '—'}</TableCell>
-												{canEditRoster ? (
-													<TableCell>
-														<Button size="small" variant="outlined" onClick={() => openEditUser(u)}>
-															Edit
-														</Button>
-													</TableCell>
-												) : null}
+											{canEditRoster ? (
+												<TableCell>
+													<Button size="small" variant="outlined" onClick={() => openEditUser(u)}>
+														Edit
+													</Button>
+												</TableCell>
+											) : null}
 											</TableRow>
 										))}
 									</TableBody>
@@ -641,7 +706,7 @@ const Management = () => {
 						</CardContent>
 					</Card>
 				</Box>
-				<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
+					<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
 					<DialogTitle>Edit user</DialogTitle>
 					<DialogContent>
 						<Stack spacing={2} sx={{ mt: 1 }}>
@@ -675,6 +740,65 @@ const Management = () => {
 									<MenuItem key={value} value={value}>{label}</MenuItem>
 								))}
 							</TextField>
+						</Stack>
+
+						<Divider sx={{ my: 3 }} />
+
+						<Stack spacing={2}>
+							<Stack direction="row" spacing={1} alignItems="center">
+								<LockResetIcon color="warning" fontSize="small" />
+								<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+									Reset Password
+								</Typography>
+							</Stack>
+							<Typography variant="body2" color="text.secondary">
+								Set a temporary password. The user will be required to choose their own on next login.
+							</Typography>
+							{resetPwError && <Alert severity="error">{resetPwError}</Alert>}
+							<TextField
+								label="New password"
+								type={resetPwShowPassword ? 'text' : 'password'}
+								value={resetPwForm.password}
+								onChange={(e) => setResetPwForm((s) => ({ ...s, password: e.target.value }))}
+								autoComplete="new-password"
+								size="small"
+								InputProps={{
+									endAdornment: (
+										<InputAdornment position="end">
+											<IconButton
+												onClick={() => setResetPwShowPassword((v) => !v)}
+												edge="end"
+												size="small"
+											>
+												{resetPwShowPassword ? <VisibilityOff /> : <Visibility />}
+											</IconButton>
+										</InputAdornment>
+									),
+								}}
+							/>
+							<TextField
+								label="Confirm password"
+								type={resetPwShowPassword ? 'text' : 'password'}
+								value={resetPwForm.confirm}
+								onChange={(e) => setResetPwForm((s) => ({ ...s, confirm: e.target.value }))}
+								autoComplete="new-password"
+								size="small"
+							/>
+							<Typography variant="caption" color="text.secondary">
+								Min 8 characters, 1 uppercase, 1 lowercase, 1 digit, 1 special character.
+							</Typography>
+							<Box>
+								<Button
+									variant="outlined"
+									color="warning"
+									startIcon={<LockResetIcon />}
+									onClick={submitResetPw}
+									disabled={resetPwLoading || !resetPwForm.password}
+									size="small"
+								>
+									{resetPwLoading ? 'Resetting…' : 'Reset Password'}
+								</Button>
+							</Box>
 						</Stack>
 					</DialogContent>
 					<DialogActions>
@@ -738,6 +862,21 @@ const Management = () => {
 						</Button>
 					</DialogActions>
 				</Dialog>
+				<Snackbar
+					open={snackbar.open}
+					autoHideDuration={6000}
+					onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+					anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+				>
+					<Alert
+						onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+						severity={snackbar.severity}
+						variant="filled"
+						sx={{ width: '100%' }}
+					>
+						{snackbar.message}
+					</Alert>
+				</Snackbar>
 			</Container>
 		</Box>
 	);

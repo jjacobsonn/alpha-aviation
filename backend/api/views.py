@@ -2,6 +2,7 @@ from django.db.models import Count, F, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
+import re
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
@@ -78,6 +79,7 @@ def build_user_me_response(user):
         "is_superuser": bool(getattr(user, "is_superuser", False)),
         "company": getattr(user.company, "id", None) if getattr(user, "company", None) else None,
         "company_name": getattr(user.company, "name", None) if getattr(user, "company", None) else None,
+        "must_change_password": bool(getattr(user, "must_change_password", False)),
     }
     if pilot_info:
         data["pilot_certificate"] = pilot_info.pilot_certificate
@@ -355,6 +357,102 @@ def user_profile(request):
         user.refresh_from_db()
 
     return Response(build_user_me_response(user))
+
+
+_PASSWORD_MIN_LENGTH = 8
+_PASSWORD_PATTERN = re.compile(
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{}|;:',.<>?/`~])"
+)
+
+def _validate_password_strength(password):
+    errors = []
+    if len(password) < _PASSWORD_MIN_LENGTH:
+        errors.append(f"Password must be at least {_PASSWORD_MIN_LENGTH} characters.")
+    if not _PASSWORD_PATTERN.search(password):
+        errors.append(
+            "Password must contain at least one uppercase letter, one lowercase letter, "
+            "one digit, and one special character."
+        )
+    return errors
+
+
+_ROLE_HIERARCHY = {"owner": 3, "manager": 2, "dispatcher": 1, "mechanic": 1, "pilot": 1}
+
+
+@api_view(["POST"])
+@permission_classes([IsManagerOrOwner])
+def admin_reset_password(request, pk):
+    """
+    Allow an owner/manager (or platform admin) to reset another user's password.
+    Sets must_change_password so the employee is forced to choose their own on next login.
+    """
+    requester = request.user
+    target = get_object_or_404(Profile, pk=pk)
+
+    if not _is_platform_admin(requester):
+        if getattr(requester, "company_id", None) != getattr(target, "company_id", None):
+            return Response(
+                {"detail": "You can only reset passwords for users in your own company."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        req_rank = _ROLE_HIERARCHY.get(getattr(requester, "company_role", ""), 0)
+        tgt_rank = _ROLE_HIERARCHY.get(getattr(target, "company_role", ""), 0)
+        if tgt_rank >= req_rank:
+            return Response(
+                {"detail": "You cannot reset the password of a user with equal or higher privilege."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    new_password = (request.data.get("new_password") or "").strip()
+    if not new_password:
+        return Response(
+            {"detail": "new_password is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    pw_errors = _validate_password_strength(new_password)
+    if pw_errors:
+        return Response({"detail": pw_errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    target.set_password(new_password)
+    target.must_change_password = True
+    target.save(update_fields=["password", "must_change_password"])
+
+    return Response({"detail": "Password has been reset. The user will be prompted to set a new password on next login."})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_own_password(request):
+    """
+    Authenticated user sets a new password (used after admin-triggered reset).
+    Clears the must_change_password flag.
+    """
+    user = request.user
+    new_password = (request.data.get("new_password") or "").strip()
+    confirm_password = (request.data.get("confirm_password") or "").strip()
+
+    if not new_password or not confirm_password:
+        return Response(
+            {"detail": "new_password and confirm_password are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if new_password != confirm_password:
+        return Response(
+            {"detail": "Passwords do not match."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    pw_errors = _validate_password_strength(new_password)
+    if pw_errors:
+        return Response({"detail": pw_errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(new_password)
+    user.must_change_password = False
+    user.save(update_fields=["password", "must_change_password"])
+
+    return Response({"detail": "Password updated successfully."})
+
 
 #Endpoint to check the availability of aircraft given a start date and end date, and optionally to check a specific aircraft if given aircraft_id. Returns all of the flights that are available. If checking for specifc aircraft, will return just that aircraft or return empty json response if it is not available.
 @api_view(['GET'])

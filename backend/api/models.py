@@ -228,6 +228,7 @@ class Profile(AbstractUser):
     employee_id = models.PositiveIntegerField(null=True, blank=True)
     phone_number = models.CharField(max_length=10, blank=True, null=True)
     profile_img = models.ImageField(upload_to= 'profile_pics/', blank= True, null= True)
+    must_change_password = models.BooleanField(default=False)
 
     def clean(self):
         super().clean()
