@@ -13,7 +13,6 @@ import {
 	InputAdornment,
 	IconButton
 } from '@mui/material';
-import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { AppContext } from '../context/AppContext';
@@ -94,7 +93,7 @@ const Login = () => {
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
-				background: 'linear-gradient(135deg, #273469 0%, #1a2545 100%)',
+				background: 'linear-gradient(135deg, #FF4C05 0%, #CC3A00 50%, #FF4C05 100%)',
 			}}
 		>
 			<Container maxWidth="sm">
@@ -109,21 +108,13 @@ const Login = () => {
 					<CardContent sx={{ p: 4 }}>
 						{/* Logo/Header */}
 						<Stack spacing={3} alignItems="center" sx={{ mb: 4 }}>
-							<Box
-								sx={{
-									bgcolor: '#273469',
-									color: 'white',
-									p: 2,
-									borderRadius: 2,
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-								}}
-							>
-								<FlightTakeoffIcon sx={{ fontSize: 40 }} />
-							</Box>
+							<img
+								src="/logo.png"
+								alt="Alpha Aviation"
+								style={{ height: 56, width: 56 }}
+							/>
 							<Typography variant="h4" sx={{ fontWeight: 700 }}>
-								Aviation Management
+								Alpha Aviation
 							</Typography>
 							<Typography variant="body2" color="text.secondary">
 								Sign in to access your account
@@ -182,11 +173,7 @@ const Login = () => {
 									size="large"
 									disabled={isLoading}
 									sx={{
-										bgcolor: '#273469',
 										py: 1.5,
-										'&:hover': {
-											bgcolor: '#1a2545',
-										},
 									}}
 								>
 									{isLoading ? 'Signing in...' : 'Sign In'}
