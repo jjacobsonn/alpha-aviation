@@ -493,6 +493,12 @@ class WorkOrder(models.Model):
         ("critical", "Critical"),
     ]
 
+    assignee = models.ForeignKey(
+        'Profile', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assigned_work_orders'
+    )
+    completion_notes = models.TextField(blank=True, null=True)
+
     aircraft = models.ForeignKey(
         Aircraft, on_delete=models.CASCADE, related_name="work_orders"
     )
@@ -570,6 +576,8 @@ class Discrepancy(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="pending"
     )
+    signature = models.ImageField(upload_to="discrepancies_signatures/", null=True, blank=True)
+    signature_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"Discrepancy on {self.aircraft} ({self.status})"
@@ -640,6 +648,49 @@ class DiscrepancyActivity(models.Model):
     def __str__(self):
         return f"DISC#{self.discrepancy_id} {self.event_type} @ {self.created_at}"
 
+      
+class Tool(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="tools")
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    serial_number = models.CharField(max_length=200)
+    calibration_due_date = models.DateField()
+    location = models.CharField(max_length=200, blank=True, null=True)
+
+    @property
+    def calibration_alert(self):
+        today = timezone.now().date()
+        delta = (self.calibration_due_date - today).days
+        if delta < 0:
+            return "red"
+        if delta <= 10:
+            return "amber"
+        return "green"
+
+    @property
+    def status(self):
+        today = timezone.now().date()
+        delta = (self.calibration_due_date - today).days
+        if delta < 0:
+            return "overdue"
+        if delta <= 10:
+            return "calibration_due"
+        return "available"
+
+    def __str__(self):
+        return f"{self.name} (S/N: {self.serial_number})"
+
+
+class CalibrationRecord(models.Model):
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="calibration_history")
+    calibration_date = models.DateField()
+    performed_by = models.CharField(max_length=200)
+    next_due_date = models.DateField()
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Calibration of {self.tool.name} on {self.calibration_date} by {self.performed_by}"
+        
 
 class AircraftPhoto(models.Model):
     aircraft = models.ForeignKey(

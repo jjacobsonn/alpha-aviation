@@ -97,8 +97,8 @@ const AdminCompanies = () => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box
                       sx={{
-                        bgcolor: '#27346915',
-                        color: '#273469',
+                        bgcolor: 'rgba(255, 76, 5, 0.1)',
+                        color: '#FF4C05',
                         p: 1.5,
                         borderRadius: 2,
                         display: 'flex',

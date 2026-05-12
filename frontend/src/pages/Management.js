@@ -176,7 +176,7 @@ const Management = () => {
 				value: counts?.aircraft ?? '—',
 				trend: 'Live',
 				icon: <FlightTakeoffIcon sx={{ fontSize: 32 }} />,
-				color: '#273469',
+				color: '#2B7FD4',
 			},
 			{
 				label: 'Pending Tasks',
@@ -366,7 +366,7 @@ const Management = () => {
 							mb: 4,
 							border: '1px solid',
 							borderColor: 'divider',
-							background: 'linear-gradient(135deg, #27346908 0%, #ffffff 100%)',
+							background: 'linear-gradient(135deg, #2B7FD408 0%, #ffffff 100%)',
 						}}
 					>
 						<CardContent sx={{ p: 3 }}>
@@ -374,8 +374,8 @@ const Management = () => {
 								<Stack direction="row" spacing={2} alignItems="center">
 									<Box
 										sx={{
-											bgcolor: '#27346915',
-											color: '#273469',
+											bgcolor: '#2B7FD415',
+											color: '#2B7FD4',
 											p: 1.5,
 											borderRadius: 2,
 											display: 'flex',
@@ -406,7 +406,7 @@ const Management = () => {
 										component={RouterLink}
 										to="/parts"
 										startIcon={<Inventory2OutlinedIcon />}
-										sx={{ bgcolor: '#273469', '&:hover': { bgcolor: '#1a2545' } }}
+										sx={{ bgcolor: '#2B7FD4', '&:hover': { bgcolor: '#1f5fa8' } }}
 									>
 										Inventory & parts
 									</Button>

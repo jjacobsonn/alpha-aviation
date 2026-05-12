@@ -8,7 +8,7 @@ from django.utils.dateparse import parse_datetime, parse_date
 from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import generics, permissions, status, viewsets
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes, action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -23,12 +23,15 @@ from .models import (
     DiscrepancyActivity,
     Flight,
     Inventory,
+    Tool,
+    CalibrationRecord,
     InventoryPart,
     Part,
     Profile,
     WorkOrder,
     WorkOrderActivity,
 )
+
 from .permissions import (
     HasCompanyRole,
     IsCompanyMember,
@@ -37,6 +40,8 @@ from .permissions import (
     IsMechanicOrManager,
     IsMechanicOrManagerOrPilot,
     IsOwnProfileOrManager,
+    CanReportDiscrepancy,
+    CanSignWorkOrder,
 )
 from .serializers import (
     AircraftSerializer,
@@ -47,6 +52,8 @@ from .serializers import (
     FleetAircraftListSerializer,
     FlightSerializer,
     InventorySerializer,
+    ToolSerializer,
+    CalibrationRecordSerializer,
     PartSerializer,
     ProfileSerializer,
     SelfProfileUpdateSerializer,
@@ -247,6 +254,8 @@ def company_scoped_discrepancy_queryset(request):
         return qs
     return qs
 
+
+from datetime import date, timedelta
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -526,6 +535,22 @@ def company_flights_view(request):
     serializer = FlightSerializer(flights, many=True)
     return Response(serializer.data)
 
+@api_view(['GET'])
+@permission_classes([IsMechanicOrManager])
+def maintenance_dashboard_view(request):
+    company = request.user.company
+    today = date.today()
+    due_soon_threshold = today + timedelta(days=10)
+
+    open_wos = WorkOrder.objects.filter(aircraft__company=company).exclude(status="closed")
+
+    data = {
+        "pending_discrepancies": Discrepancy.objects.filter(aircraft__company=company, status="pending").count(),
+        "open_work_orders": open_wos.count(),
+        "overdue": open_wos.filter(due_by__isnull=False, due_by__lt=today).count(),
+        "due_soon": open_wos.filter(due_by__isnull=False, due_by__gte=today, due_by__lte=due_soon_threshold).count(),
+    }
+    return Response(data, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -783,6 +808,19 @@ class CompanyLowStockInventoryListView(generics.ListAPIView):
 
 
 
+@api_view(["GET"])
+@permission_classes([IsMechanicOrManager])
+def company_tools_view(request):
+    company = request.user.company
+    if company is None:
+        return Response(
+            {"error": "User does not have an associated company"}, status=403
+        )
+    tools = Tool.objects.filter(company=company).order_by("name")
+    serializer = ToolSerializer(tools, many=True)
+    return Response(serializer.data)
+
+
 ####
 # ViewSets
 ####
@@ -810,6 +848,13 @@ class AircraftViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         company = get_request_company(self.request)
         serializer.save(company=company)
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def work_order_history(self, request, pk=None):
+        aircraft = self.get_object()
+        work_orders = WorkOrder.objects.filter(aircraft=aircraft).order_by("-created_at")
+        serializer = WorkOrderSerializer(work_orders, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
@@ -850,6 +895,21 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
             )
         return super().update(request, *args, **kwargs)
 
+    @action(detail=True, methods=["post"], permission_classes=[IsMechanicOrManager])
+    def open_work_order(self, request, pk=None):
+        discrepancy = self.get_object()
+        work_order = WorkOrder.objects.create(
+            aircraft=discrepancy.aircraft,
+            ATA_code=discrepancy.ata_code,
+            tach_time=discrepancy.tach_time,
+            status="open",
+            created_by=request.user,
+        )
+        discrepancy.work_order = work_order
+        discrepancy.save()
+        serializer = WorkOrderSerializer(work_order)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
     def perform_create(self, serializer):
         reporter = serializer.validated_data.get("reporter")
         if reporter is None:
@@ -892,6 +952,18 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
             return
         serializer.save()
 
+    @action(detail=True, methods=["post"], permission_classes=[CanSignWorkOrder])
+    def close(self, request, pk=None):
+        work_order = self.get_object()
+        work_order.status = "closed"
+        work_order.signed_by = request.user
+        work_order.signature_date = date.today()
+        work_order.completion_notes = request.data.get("completion_notes")
+        work_order.save()
+        work_order.discrepancies.all().update(status="closed")
+        serializer = WorkOrderSerializer(work_order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.all().order_by("-departure_time")
@@ -929,6 +1001,55 @@ class InventoryViewSet(viewsets.ModelViewSet):
         serializer.save(inventory=inv)
 
 
+class ToolViewSet(viewsets.ModelViewSet):
+    serializer_class = ToolSerializer
+    permission_classes = [IsMechanicOrManager]
+
+    def get_queryset(self):
+        user_company = getattr(self.request.user, "company", None)
+        if not user_company:
+            return Tool.objects.none()
+        return Tool.objects.filter(company=user_company).order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
+
+    @action(detail=True, methods=["post"])
+    def record_calibration(self, request, pk=None):
+        tool = self.get_object()
+        serializer = CalibrationRecordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        record = serializer.save(tool=tool)
+        tool.calibration_due_date = record.next_due_date
+        tool.save()
+        return Response(CalibrationRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"])
+    def calibration_history(self, request, pk=None):
+        tool = self.get_object()
+        records = tool.calibration_history.order_by("-calibration_date")
+        serializer = CalibrationRecordSerializer(records, many=True)
+        return Response(serializer.data)
+
+
+class FlightViewSet(viewsets.ModelViewSet):
+    queryset = Flight.objects.all().order_by('-departure_time')
+    serializer_class = FlightSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            self.perform_create(serializer)
+        except ValidationError as e:
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+      
+      
 class FleetAircraftListView(generics.ListAPIView):
     serializer_class = FleetAircraftListSerializer
     permission_classes = [IsAuthenticated]

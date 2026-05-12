@@ -31,6 +31,8 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 
+import KPICard from '../components/KPICard';
+import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
 	createDiscrepancy,
 	createWorkorder,
@@ -157,20 +159,6 @@ function MaintenanceActivityList({ items, emptyHint }) {
 	);
 }
 
-const KPICard = ({ title, color, trend }) => (
-		<div className='KPIcard' style={{
-			backgroundColor: color,
-        borderRadius: '10px',
-			width: '7em',
-			height: '7em',
-			textAlign: 'center',
-			fontWeight: "bold",
-		}}>
-			<p>{title}</p>
-			<p>{trend}</p>
-		</div>
-);
-    
 // --- MAIN COMPONENT ---
 
 const initialWorkorderForm = {
@@ -222,6 +210,9 @@ const Maintenance = () => {
 	const [discrepancyForm, setDiscrepancyForm] = useState(initialDiscrepancyForm);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
+	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+	const [deleteConfirmType, setDeleteConfirmType] = useState(null); // 'workorder' or 'discrepancy'
+	const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 	const [didHandleDeepLink, setDidHandleDeepLink] = useState(false);
 	const aircraftFilterFromQuery = new URLSearchParams(location.search).get('aircraft') || '';
 
@@ -602,19 +593,15 @@ const Maintenance = () => {
 		}
 	};
 
-	const handleDeleteWorkorder = async (id) => {
+	const handleDeleteWorkorder = (id) => {
 		if (!canDeleteMaintenanceRecords) {
 			setError('Only owners can delete work orders.');
 			return;
 		}
-		setError('');
-		try {
-			await deleteWorkorder(id);
-			closeWorkOrderDetail();
-			await refreshMaintenanceData();
-		} catch (e) {
-			setError(e?.message || 'Failed to delete work order.');
-		}
+		setDeleteConfirmOpen(true);
+		setDeleteConfirmType('workorder');
+		setDeleteConfirmId(id);
+		closeWorkOrderDetail();
 	};
 
 	const populateDiscrepancyFormFromRow = (d) => {
@@ -687,21 +674,40 @@ const Maintenance = () => {
 		}
 	};
 
-	const handleDeleteDiscrepancy = async (id) => {
+	const handleDeleteDiscrepancy = (id) => {
 		if (!canDeleteMaintenanceRecords) {
 			setError('Only owners can delete discrepancies.');
 			return;
 		}
+		setDeleteConfirmOpen(true);
+		setDeleteConfirmType('discrepancy');
+		setDeleteConfirmId(id);
+		closeDiscrepancyDetail();
+	};
+
+	const confirmDelete = async () => {
 		setError('');
 		try {
-			await deleteDiscrepancy(id);
-			closeDiscrepancyDetail();
+			if (deleteConfirmType === 'workorder') {
+				await deleteWorkorder(deleteConfirmId);
+			} else if (deleteConfirmType === 'discrepancy') {
+				await deleteDiscrepancy(deleteConfirmId);
+			}
 			await refreshMaintenanceData();
+			setDeleteConfirmOpen(false);
+			setDeleteConfirmType(null);
+			setDeleteConfirmId(null);
 		} catch (e) {
-			setError(e?.message || 'Failed to delete discrepancy.');
+			setError(e?.message || 'Failed to delete item.');
 		}
 	};
 
+	const cancelDelete = () => {
+		setDeleteConfirmOpen(false);
+		setDeleteConfirmType(null);
+		setDeleteConfirmId(null);
+	};
+  
 	useEffect(() => {
 		if (isLoading || didHandleDeepLink) return;
 		const params = new URLSearchParams(location.search);
@@ -735,26 +741,81 @@ const Maintenance = () => {
 
 		setDidHandleDeepLink(true);
 	}, [isLoading, didHandleDeepLink, location.search, workOrders, discrepancies, navigate]);
-	return (
+	
+  return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
-				<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-					<Box>
-						<Typography variant="h4" sx={{ fontWeight: 800 }}>
-							Maintenance
-						</Typography>
-						<Typography variant="body2" color="text.secondary">
-							{mechanicRole
-								? 'Your assigned work orders and related discrepancies; file new discrepancy reports as needed.'
-								: 'Work orders and discrepancy reports (company-scoped).'}
-						</Typography>
-					</Box>
-					<Stack direction="row" spacing={1}>
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="h4" sx={{ fontWeight: 800 }}>
+						Maintenance
+					</Typography>
+					<Typography variant="body2" color="text.secondary">
+						{mechanicRole
+							? 'Your assigned work orders and related discrepancies; file new discrepancy reports as needed.'
+							: 'Work orders and discrepancy reports (company-scoped).'}
+					</Typography>
+				</Box>
+
+				{error ? (
+					<Alert severity="error" sx={{ mb: 2 }}>
+						{error}
+					</Alert>
+				) : null}
+        {aircraftFilterFromQuery ? (
+					<Alert severity="info" sx={{ mb: 2 }}>
+						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
+					</Alert>
+				) : null}
+
+				{/* KPI Cards */}
+				<Grid container spacing={3} sx={{ mb: 3, alignItems: 'center' }}>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<WorkHistoryIcon />}
+							label="Pending"
+							value={discrepancies.length}
+							loading={isLoading}
+							iconBgColor="#2196F315"
+							iconColor="#2196F3"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<BuildIcon />}
+							label="Open"
+							value={workOrders.length}
+							loading={isLoading}
+							iconBgColor="#FF980015"
+							iconColor="#FF9800"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<WarningIcon />}
+							label="Overdue"
+							value={overdueWorkOrders.length}
+							loading={isLoading}
+							iconBgColor="#F4433615"
+							iconColor="#F44336"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3}>
+						<KPICard
+							icon={<CheckCircleIcon />}
+							label="Due Soon"
+							value={dueSoonWorkOrders.length}
+							loading={isLoading}
+							iconBgColor="#4CAF5015"
+							iconColor="#4CAF50"
+						/>
+					</Grid>
+					<Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1 }}>
 						{superviseMaintenance ? (
 							<Button
 								variant="contained"
 								startIcon={<BuildIcon />}
 								onClick={openAddWorkOrder}
+								fullWidth
 							>
 								Add Work Order
 							</Button>
@@ -763,130 +824,17 @@ const Maintenance = () => {
 							variant="outlined"
 							startIcon={<WarningIcon />}
 							onClick={openAddDiscrepancy}
+							fullWidth
 						>
 							Add Discrepancy
 						</Button>
-					</Stack>
-				</Stack>
-				{aircraftFilterFromQuery ? (
-					<Stack direction="row" sx={{ mb: 2 }}>
-						<Chip
-							color="primary"
-							variant="outlined"
-							label={`Aircraft filter: ${aircraftFilterFromQuery}`}
-							onDelete={() => {
-								const params = new URLSearchParams(location.search);
-								params.delete('aircraft');
-								navigate(
-									{
-										pathname: '/maintenance',
-										search: params.toString() ? `?${params.toString()}` : '',
-									},
-									{ replace: true }
-								);
-							}}
-						/>
-					</Stack>
-				) : null}
-
-				{error ? (
-					<Alert severity="error" sx={{ mb: 2 }}>
-						{error}
-					</Alert>
-				) : null}
-
-				{/* KPI Cards */}
-				<Grid container spacing={3} sx={{ mb: 3 }}>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#2196F315', color: '#2196F3', p: 1.25, borderRadius: 2 }}>
-											<WorkHistoryIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Pending
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : discrepancies.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#FF980015', color: '#FF9800', p: 1.25, borderRadius: 2 }}>
-											<BuildIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Open
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : workOrders.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#F4433615', color: '#F44336', p: 1.25, borderRadius: 2 }}>
-											<WarningIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Overdue
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : overdueWorkOrders.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-							<CardContent>
-								<Stack spacing={1}>
-									<Stack direction="row" spacing={2} alignItems="center">
-										<Box sx={{ bgcolor: '#4CAF5015', color: '#4CAF50', p: 1.25, borderRadius: 2 }}>
-											<CheckCircleIcon />
-										</Box>
-										<Box sx={{ flexGrow: 1 }}>
-											<Typography variant="body2" color="text.secondary">
-												Due Soon
-											</Typography>
-											<Typography variant="h4" sx={{ fontWeight: 900 }}>
-												{isLoading ? '—' : dueSoonWorkOrders.length}
-											</Typography>
-										</Box>
-									</Stack>
-								</Stack>
-							</CardContent>
-						</Card>
 					</Grid>
 				</Grid>
 
 				{/* Tables */}
-				<Grid container spacing={3}>
-					<Grid item xs={12} lg={7}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+				<Grid container spacing={3} sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
 									Work Orders
@@ -971,8 +919,8 @@ const Maintenance = () => {
 						</Card>
 					</Grid>
 
-					<Grid item xs={12} lg={5}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
 									Discrepancies
@@ -1482,6 +1430,14 @@ const Maintenance = () => {
 						)}
 					</DialogActions>
 				</Dialog>
+
+				<DeleteConfirmationDialog
+					open={deleteConfirmOpen}
+					itemType={deleteConfirmType === 'workorder' ? 'work order' : 'discrepancy'}
+					onConfirm={confirmDelete}
+					onCancel={cancelDelete}
+					isLoading={isLoading}
+				/>
 			</Container>
 		</Box>
 	);

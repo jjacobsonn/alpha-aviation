@@ -34,6 +34,9 @@ from .views import (
     InventoryViewSet,
     CompanyInventoryListView,
     CompanyLowStockInventoryListView,
+    maintenance_dashboard_view,
+    ToolViewSet,
+    company_tools_view,
 )
 
 
@@ -46,6 +49,7 @@ router.register(r"discrepancies", DiscrepancyViewSet, basename="discrepancies")
 router.register(r"workorders", WorkOrderViewSet, basename="workorders")
 router.register(r"flights", FlightViewSet, basename="flights")
 router.register(r"inventories", InventoryViewSet, basename="inventories")
+router.register(r"tools", ToolViewSet, basename="tools")
 
 
 urlpatterns = [
@@ -90,6 +94,7 @@ urlpatterns = [
         name="company-discrepancies",
     ),
     path("company/role/", company_role_view, name="company-role"),
+    path("company/tools/", company_tools_view, name="company-tools"),
     path("fleet/aircraft/", FleetAircraftListView.as_view(), name="fleet-aircraft-list"),
     path(
         "fleet/aircraft/<int:aircraft_id>/",
@@ -123,5 +128,6 @@ urlpatterns = [
         name="company_low_stock_inventories_detailed",
     ),
     path("", include(router.urls)),
+    path("maintenance/dashboard/", maintenance_dashboard_view, name="maintenance-dashboard"),
 ]
 
