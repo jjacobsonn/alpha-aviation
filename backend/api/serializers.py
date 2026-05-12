@@ -259,6 +259,33 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             "activities",
         ]
 
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        ac = instance.aircraft
+        if ac:
+            rep["aircraft"] = {
+                "id": ac.id,
+                "registration_number": ac.registration_number or "",
+                "model": ac.model or "",
+            }
+        rp = instance.reporter
+        if rp:
+            fn = (rp.first_name or "").strip()
+            ln = (rp.last_name or "").strip()
+            rep["reporter"] = {
+                "id": rp.id,
+                "first_name": fn,
+                "last_name": ln,
+                "username": rp.username or "",
+            }
+        wo = instance.work_order
+        if wo:
+            rep["work_order"] = {
+                "id": wo.id,
+                "title": wo.title or "",
+            }
+        return rep
+
     def create(self, validated_data):
         instance = super().create(validated_data)
         log_discrepancy_created(instance, self.context.get("request"))
@@ -321,6 +348,37 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "completion_notes",
             "activities",
         ]
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        ac = instance.aircraft
+        if ac:
+            rep["aircraft"] = {
+                "id": ac.id,
+                "registration_number": ac.registration_number or "",
+                "model": ac.model or "",
+            }
+        cb = instance.created_by
+        if cb:
+            fn = (cb.first_name or "").strip()
+            ln = (cb.last_name or "").strip()
+            rep["created_by"] = {
+                "id": cb.id,
+                "first_name": fn,
+                "last_name": ln,
+                "username": cb.username or "",
+            }
+        sb = instance.signed_by
+        if sb:
+            fn = (sb.first_name or "").strip()
+            ln = (sb.last_name or "").strip()
+            rep["signed_by"] = {
+                "id": sb.id,
+                "first_name": fn,
+                "last_name": ln,
+                "username": sb.username or "",
+            }
+        return rep
 
     def validate(self, data):
         aircraft = data.get("aircraft") or getattr(self.instance, "aircraft", None)

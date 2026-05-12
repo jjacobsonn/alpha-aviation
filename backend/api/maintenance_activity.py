@@ -1,6 +1,6 @@
 """Append-only work order / discrepancy activity logging."""
 
-from .models import DiscrepancyActivity, WorkOrderActivity
+from .models import Aircraft, DiscrepancyActivity, Part, Profile, WorkOrderActivity
 
 
 def _actor_for_request(request):
@@ -10,8 +10,31 @@ def _actor_for_request(request):
     return None
 
 
+def _display_name(user):
+    if not user:
+        return "Unassigned"
+    fn = (user.first_name or "").strip()
+    ln = (user.last_name or "").strip()
+    full = f"{fn} {ln}".strip()
+    return full or user.username or str(user.id)
+
+
+def _aircraft_label(aircraft):
+    if not aircraft:
+        return "None"
+    return f"{aircraft.registration_number or ''} ({aircraft.model or ''})".strip() or str(aircraft.id)
+
+
 def _work_order_part_ids(wo):
     return sorted(wo.parts_needed.values_list("id", flat=True))
+
+
+def _work_order_part_map(wo):
+    """Return {part_id: 'P-XXXX — Name'} for current parts on the work order."""
+    return {
+        p.id: f"{p.part_number} — {p.name}"
+        for p in wo.parts_needed.all()
+    }
 
 
 def _status_label(value):
@@ -28,8 +51,11 @@ def snapshot_work_order(wo):
         "description": wo.description or "",
         "due_by": wo.due_by.isoformat() if wo.due_by else None,
         "created_by_id": wo.created_by_id,
+        "created_by_name": _display_name(wo.created_by) if wo.created_by_id else "Unassigned",
         "aircraft_id": wo.aircraft_id,
+        "aircraft_name": _aircraft_label(wo.aircraft) if wo.aircraft_id else "None",
         "part_ids": _work_order_part_ids(wo),
+        "part_map": _work_order_part_map(wo),
     }
 
 
@@ -40,7 +66,7 @@ def describe_work_order_changes(before, after):
             f"Status {_status_label(before['status'])} → {_status_label(after['status'])}"
         )
     if before["title"] != after["title"]:
-        bits.append("Title updated")
+        bits.append(f"Title → {after['title']}")
     if before["priority"] != after["priority"]:
         bits.append(
             f"Priority {_status_label(before['priority'])} → {_status_label(after['priority'])}"
@@ -48,13 +74,30 @@ def describe_work_order_changes(before, after):
     if (before["description"] or "").strip() != (after["description"] or "").strip():
         bits.append("Description updated")
     if before["due_by"] != after["due_by"]:
-        bits.append("Due date updated")
+        old_due = before["due_by"] or "None"
+        new_due = after["due_by"] or "None"
+        bits.append(f"Due date {old_due} → {new_due}")
     if before["created_by_id"] != after["created_by_id"]:
-        bits.append("Assignee updated")
+        old_name = before.get("created_by_name") or "Unassigned"
+        new_name = after.get("created_by_name") or "Unassigned"
+        bits.append(f"Assignee {old_name} → {new_name}")
     if before["aircraft_id"] != after["aircraft_id"]:
-        bits.append("Aircraft updated")
+        old_ac = before.get("aircraft_name") or "None"
+        new_ac = after.get("aircraft_name") or "None"
+        bits.append(f"Aircraft {old_ac} → {new_ac}")
     if before["part_ids"] != after["part_ids"]:
-        bits.append("Parts list updated")
+        added_ids = set(after["part_ids"]) - set(before["part_ids"])
+        removed_ids = set(before["part_ids"]) - set(after["part_ids"])
+        after_map = after.get("part_map", {})
+        before_map = before.get("part_map", {})
+        parts_bits = []
+        if added_ids:
+            names = [after_map.get(pid, f"#{pid}") for pid in sorted(added_ids)]
+            parts_bits.append(f"Added {', '.join(names)}")
+        if removed_ids:
+            names = [before_map.get(pid, f"#{pid}") for pid in sorted(removed_ids)]
+            parts_bits.append(f"Removed {', '.join(names)}")
+        bits.append("Parts: " + "; ".join(parts_bits))
     return "; ".join(bits) if bits else None
 
 
@@ -77,7 +120,7 @@ def log_work_order_updated(wo, before, after, request):
         actor=_actor_for_request(request),
         event_type=WorkOrderActivity.EventType.UPDATED,
         summary=msg,
-        metadata={},
+        metadata={"before": before, "after": after},
     )
 
 
@@ -88,8 +131,11 @@ def snapshot_discrepancy(d):
         "ata_code": d.ata_code or "",
         "tach_time": d.tach_time or "",
         "work_order_id": d.work_order_id,
+        "work_order_title": (d.work_order.title if d.work_order else None),
         "aircraft_id": d.aircraft_id,
+        "aircraft_name": _aircraft_label(d.aircraft) if d.aircraft_id else "None",
         "reporter_id": d.reporter_id,
+        "reporter_name": _display_name(d.reporter) if d.reporter_id else "Unknown",
     }
 
 
@@ -102,15 +148,28 @@ def describe_discrepancy_changes(before, after):
     if (before["description"] or "").strip() != (after["description"] or "").strip():
         bits.append("Description updated")
     if (before["ata_code"] or "").strip() != (after["ata_code"] or "").strip():
-        bits.append("ATA updated")
+        old_ata = before["ata_code"] or "None"
+        new_ata = after["ata_code"] or "None"
+        bits.append(f"ATA {old_ata} → {new_ata}")
     if (before["tach_time"] or "").strip() != (after["tach_time"] or "").strip():
-        bits.append("Tach updated")
+        old_tach = before["tach_time"] or "None"
+        new_tach = after["tach_time"] or "None"
+        bits.append(f"Tach {old_tach} → {new_tach}")
     if before["work_order_id"] != after["work_order_id"]:
-        bits.append("Linked work order updated")
+        old_wo = f"#{before['work_order_id']}" if before["work_order_id"] else "None"
+        new_wo = f"#{after['work_order_id']}" if after["work_order_id"] else "None"
+        new_title = after.get("work_order_title")
+        if new_title:
+            new_wo = f"#{after['work_order_id']} ({new_title})"
+        bits.append(f"Linked work order {old_wo} → {new_wo}")
     if before["aircraft_id"] != after["aircraft_id"]:
-        bits.append("Aircraft updated")
+        old_ac = before.get("aircraft_name") or "None"
+        new_ac = after.get("aircraft_name") or "None"
+        bits.append(f"Aircraft {old_ac} → {new_ac}")
     if before["reporter_id"] != after["reporter_id"]:
-        bits.append("Reporter updated")
+        old_rp = before.get("reporter_name") or "Unknown"
+        new_rp = after.get("reporter_name") or "Unknown"
+        bits.append(f"Reporter {old_rp} → {new_rp}")
     return "; ".join(bits) if bits else None
 
 
@@ -133,5 +192,5 @@ def log_discrepancy_updated(d, before, after, request):
         actor=_actor_for_request(request),
         event_type=DiscrepancyActivity.EventType.UPDATED,
         summary=msg,
-        metadata={},
+        metadata={"before": before, "after": after},
     )
