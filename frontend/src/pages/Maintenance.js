@@ -34,6 +34,7 @@ import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 import KPICard from '../components/KPICard';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
+	closeWorkOrder,
 	createDiscrepancy,
 	createWorkorder,
 	deleteDiscrepancy,
@@ -42,7 +43,9 @@ import {
 	fetchCompanyDiscrepancies,
 	fetchCompanyUsers,
 	fetchCompanyWorkorders,
+	fetchMaintenanceDashboard,
 	fetchParts,
+	openWorkOrderFromDiscrepancy,
 	updateDiscrepancy,
 	updateWorkorder,
 } from '../shared/Api';
@@ -63,12 +66,7 @@ const WORK_ORDER_PRIORITY_OPTIONS = [
 	{ value: 'high', label: 'High' },
 	{ value: 'critical', label: 'Critical' },
 ];
-const WORK_ORDER_ALLOWED_TRANSITIONS = {
-	open: ['open', 'in_progress', 'awaiting_parts', 'closed'],
-	in_progress: ['in_progress', 'awaiting_parts', 'closed'],
-	awaiting_parts: ['awaiting_parts', 'in_progress', 'closed'],
-	closed: ['closed'],
-};
+const ALL_WORK_ORDER_STATUSES = ['open', 'in_progress', 'awaiting_parts', 'closed'];
 
 /** Matches backend `Discrepancy.STATUS_CHOICES` */
 const DISCREPANCY_STATUS_OPTIONS = [
@@ -86,10 +84,8 @@ function labelForDiscrepancyStatus(value) {
 	return DISCREPANCY_STATUS_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
 }
 
-function getAllowedWorkOrderStatusOptions(currentStatus) {
-	const allowed =
-		WORK_ORDER_ALLOWED_TRANSITIONS[currentStatus] || WORK_ORDER_ALLOWED_TRANSITIONS.open;
-	return WORK_ORDER_STATUS_OPTIONS.filter((opt) => allowed.includes(opt.value));
+function getAllowedWorkOrderStatusOptions() {
+	return WORK_ORDER_STATUS_OPTIONS.filter((opt) => ALL_WORK_ORDER_STATUSES.includes(opt.value));
 }
 
 function humanizeStatusToken(value) {
@@ -214,6 +210,10 @@ const Maintenance = () => {
 	const [deleteConfirmType, setDeleteConfirmType] = useState(null); // 'workorder' or 'discrepancy'
 	const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 	const [didHandleDeepLink, setDidHandleDeepLink] = useState(false);
+	const [dashboardKPIs, setDashboardKPIs] = useState(null);
+	const [closeWoDialogOpen, setCloseWoDialogOpen] = useState(false);
+	const [closeWoNotes, setCloseWoNotes] = useState('');
+	const [successMessage, setSuccessMessage] = useState('');
 	const aircraftFilterFromQuery = new URLSearchParams(location.search).get('aircraft') || '';
 
 	useEffect(() => {
@@ -274,6 +274,10 @@ const Maintenance = () => {
 				setAircraft(Array.isArray(aircraftData) ? aircraftData : []);
 				setCompanyUsers(Array.isArray(userData) ? userData : []);
 				setAllParts(unwrapApiList(partsData));
+
+				fetchMaintenanceDashboard()
+					.then((kpis) => mounted && setDashboardKPIs(kpis))
+					.catch(() => {});
 			} catch (e) {
 				if (!mounted) return;
 				setError(e?.message || 'Failed to load maintenance data.');
@@ -297,6 +301,9 @@ const Maintenance = () => {
 		]);
 		setWorkOrders(Array.isArray(woData) ? woData : []);
 		setDiscrepancies(Array.isArray(discData) ? discData : []);
+		fetchMaintenanceDashboard()
+			.then((kpis) => setDashboardKPIs(kpis))
+			.catch(() => {});
 	};
 
 	const today = useMemo(() => new Date(), []);
@@ -456,8 +463,8 @@ const Maintenance = () => {
 		return companyParts.filter((p) => Number(partAircraftId(p)) === aid);
 	}, [companyParts, workorderForm.aircraft]);
 	const allowedEditStatusOptions = useMemo(
-		() => getAllowedWorkOrderStatusOptions(selectedWorkOrder?.status || 'open'),
-		[selectedWorkOrder?.status]
+		() => getAllowedWorkOrderStatusOptions(),
+		[]
 	);
 
 	const handleWorkorderAircraftChange = (newAc) => {
@@ -707,6 +714,39 @@ const Maintenance = () => {
 		setDeleteConfirmType(null);
 		setDeleteConfirmId(null);
 	};
+
+	const handleCloseAndSign = async () => {
+		if (!selectedWorkOrder?.id) return;
+		setError('');
+		setSuccessMessage('');
+		try {
+			await closeWorkOrder(selectedWorkOrder.id, closeWoNotes);
+			const woLabel = selectedWorkOrder.title || `Work order #${selectedWorkOrder.id}`;
+			setCloseWoDialogOpen(false);
+			setCloseWoNotes('');
+			closeWorkOrderDetail();
+			await refreshMaintenanceData();
+			setSuccessMessage(`${woLabel} closed and signed off.`);
+		} catch (e) {
+			setError(e?.message || 'Failed to close work order.');
+		}
+	};
+
+	const handleOpenWoFromDiscrepancy = async () => {
+		if (!selectedDiscrepancy?.id) return;
+		setError('');
+		setSuccessMessage('');
+		try {
+			const newWo = await openWorkOrderFromDiscrepancy(selectedDiscrepancy.id);
+			closeDiscrepancyDetail();
+			await refreshMaintenanceData();
+			setSuccessMessage(
+				`Work order #${newWo?.id ?? ''} created from Discrepancy #${selectedDiscrepancy.id}.`
+			);
+		} catch (e) {
+			setError(e?.message || 'Failed to create work order from discrepancy.');
+		}
+	};
   
 	useEffect(() => {
 		if (isLoading || didHandleDeepLink) return;
@@ -756,11 +796,16 @@ const Maintenance = () => {
 					</Typography>
 				</Box>
 
-				{error ? (
-					<Alert severity="error" sx={{ mb: 2 }}>
-						{error}
-					</Alert>
-				) : null}
+			{error ? (
+				<Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+					{error}
+				</Alert>
+			) : null}
+			{successMessage ? (
+				<Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage('')}>
+					{successMessage}
+				</Alert>
+			) : null}
         {aircraftFilterFromQuery ? (
 					<Alert severity="info" sx={{ mb: 2 }}>
 						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
@@ -770,44 +815,44 @@ const Maintenance = () => {
 				{/* KPI Cards */}
 				<Grid container spacing={3} sx={{ mb: 3, alignItems: 'center' }}>
 					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<WorkHistoryIcon />}
-							label="Pending"
-							value={discrepancies.length}
-							loading={isLoading}
-							iconBgColor="#2196F315"
-							iconColor="#2196F3"
-						/>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<BuildIcon />}
-							label="Open"
-							value={workOrders.length}
-							loading={isLoading}
-							iconBgColor="#FF980015"
-							iconColor="#FF9800"
-						/>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<WarningIcon />}
-							label="Overdue"
-							value={overdueWorkOrders.length}
-							loading={isLoading}
-							iconBgColor="#F4433615"
-							iconColor="#F44336"
-						/>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<CheckCircleIcon />}
-							label="Due Soon"
-							value={dueSoonWorkOrders.length}
-							loading={isLoading}
-							iconBgColor="#4CAF5015"
-							iconColor="#4CAF50"
-						/>
+					<KPICard
+						icon={<WorkHistoryIcon />}
+						label="Pending"
+						value={dashboardKPIs?.pending_discrepancies ?? discrepancies.length}
+						loading={isLoading}
+						iconBgColor="#2196F315"
+						iconColor="#2196F3"
+					/>
+				</Grid>
+				<Grid item xs={12} sm={6} md={3}>
+					<KPICard
+						icon={<BuildIcon />}
+						label="Open"
+						value={dashboardKPIs?.open_work_orders ?? workOrders.length}
+						loading={isLoading}
+						iconBgColor="#FF980015"
+						iconColor="#FF9800"
+					/>
+				</Grid>
+				<Grid item xs={12} sm={6} md={3}>
+					<KPICard
+						icon={<WarningIcon />}
+						label="Overdue"
+						value={dashboardKPIs?.overdue ?? overdueWorkOrders.length}
+						loading={isLoading}
+						iconBgColor="#F4433615"
+						iconColor="#F44336"
+					/>
+				</Grid>
+				<Grid item xs={12} sm={6} md={3}>
+					<KPICard
+						icon={<CheckCircleIcon />}
+						label="Due Soon"
+						value={dashboardKPIs?.due_soon ?? dueSoonWorkOrders.length}
+						loading={isLoading}
+						iconBgColor="#4CAF5015"
+						iconColor="#4CAF50"
+					/>
 					</Grid>
 					<Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1 }}>
 						{superviseMaintenance ? (
@@ -1094,6 +1139,21 @@ const Maintenance = () => {
 											<Typography variant="body1">{selectedWorkOrder.due_by || '—'}</Typography>
 											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Description</Typography>
 											<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{selectedWorkOrder.description || '—'}</Typography>
+											{selectedWorkOrder.signed_by ? (
+												<>
+													<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Signed off by</Typography>
+													<Typography variant="body1">
+														{resolveProfileName(selectedWorkOrder.signed_by)}
+														{selectedWorkOrder.signature_date ? ` on ${selectedWorkOrder.signature_date}` : ''}
+													</Typography>
+												</>
+											) : null}
+											{selectedWorkOrder.completion_notes ? (
+												<>
+													<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Completion Notes</Typography>
+													<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{selectedWorkOrder.completion_notes}</Typography>
+												</>
+											) : null}
 										</Stack>
 										<Divider />
 										<Typography variant="subtitle2">Activity log</Typography>
@@ -1253,18 +1313,30 @@ const Maintenance = () => {
 						) : null}
 					</DialogContent>
 					<DialogActions>
-						{!workOrderDetailEditing ? (
-							<>
-								<Button onClick={closeWorkOrderDetail}>Close</Button>
-								{canDeleteMaintenanceRecords ? (
-									<Button color="error" onClick={() => handleDeleteWorkorder(selectedWorkOrder.id)}>
-										Delete
-									</Button>
-								) : null}
-								<Button variant="contained" onClick={() => setWorkOrderDetailEditing(true)}>
-									Edit
+					{!workOrderDetailEditing ? (
+						<>
+							<Button onClick={closeWorkOrderDetail}>Close</Button>
+							{canDeleteMaintenanceRecords ? (
+								<Button color="error" onClick={() => handleDeleteWorkorder(selectedWorkOrder.id)}>
+									Delete
 								</Button>
-							</>
+							) : null}
+							{selectedWorkOrder?.status !== 'closed' && (superviseMaintenance || mechanicRole) ? (
+								<Button
+									color="success"
+									variant="outlined"
+									onClick={() => {
+										setCloseWoNotes('');
+										setCloseWoDialogOpen(true);
+									}}
+								>
+									Close &amp; Sign Off
+								</Button>
+							) : null}
+							<Button variant="contained" onClick={() => setWorkOrderDetailEditing(true)}>
+								Edit
+							</Button>
+						</>
 						) : (
 							<>
 								<Button onClick={cancelWorkOrderEdit}>Cancel</Button>
@@ -1405,18 +1477,27 @@ const Maintenance = () => {
 						) : null}
 					</DialogContent>
 					<DialogActions>
-						{!discrepancyDetailEditing ? (
-							<>
-								<Button onClick={closeDiscrepancyDetail}>Close</Button>
-								{canDeleteMaintenanceRecords ? (
-									<Button color="error" onClick={() => handleDeleteDiscrepancy(selectedDiscrepancy.id)}>
-										Delete
-									</Button>
-								) : null}
-								<Button variant="contained" onClick={() => setDiscrepancyDetailEditing(true)}>
-									Edit
+					{!discrepancyDetailEditing ? (
+						<>
+							<Button onClick={closeDiscrepancyDetail}>Close</Button>
+							{canDeleteMaintenanceRecords ? (
+								<Button color="error" onClick={() => handleDeleteDiscrepancy(selectedDiscrepancy.id)}>
+									Delete
 								</Button>
-							</>
+							) : null}
+							{!selectedDiscrepancy?.work_order && (superviseMaintenance || mechanicRole) ? (
+								<Button
+									color="info"
+									variant="outlined"
+									onClick={handleOpenWoFromDiscrepancy}
+								>
+									Open Work Order
+								</Button>
+							) : null}
+							<Button variant="contained" onClick={() => setDiscrepancyDetailEditing(true)}>
+								Edit
+							</Button>
+						</>
 						) : (
 							<>
 								<Button onClick={cancelDiscrepancyEdit}>Cancel</Button>
@@ -1428,6 +1509,31 @@ const Maintenance = () => {
 								</Button>
 							</>
 						)}
+					</DialogActions>
+				</Dialog>
+
+				<Dialog open={closeWoDialogOpen} onClose={() => setCloseWoDialogOpen(false)} maxWidth="xs" fullWidth>
+					<DialogTitle>Close &amp; Sign Off Work Order</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<Typography variant="body2" color="text.secondary">
+								This will close the work order, record your sign-off, and automatically close all linked discrepancies.
+							</Typography>
+							<TextField
+								label="Completion Notes (optional)"
+								multiline
+								minRows={3}
+								value={closeWoNotes}
+								onChange={(e) => setCloseWoNotes(e.target.value)}
+								fullWidth
+							/>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={() => setCloseWoDialogOpen(false)}>Cancel</Button>
+						<Button variant="contained" color="success" onClick={handleCloseAndSign}>
+							Close &amp; Sign Off
+						</Button>
 					</DialogActions>
 				</Dialog>
 

@@ -468,3 +468,20 @@ export const changeOwnPassword = async (newPassword, confirmPassword) => {
 		confirm_password: confirmPassword,
 	});
 };
+
+export const closeWorkOrder = async (id, completionNotes) => {
+	return await makeApiRequest('POST', `/workorders/${id}/close/`, {
+		completion_notes: completionNotes || '',
+	});
+};
+
+export const openWorkOrderFromDiscrepancy = async (discrepancyId) => {
+	return await makeApiRequest(
+		'POST',
+		`/discrepancies/${discrepancyId}/open_work_order/`
+	);
+};
+
+export const fetchMaintenanceDashboard = async () => {
+	return await makeApiRequest('GET', '/maintenance/dashboard/');
+};

@@ -44,6 +44,11 @@ from .permissions import (
     CanReportDiscrepancy,
     CanSignWorkOrder,
 )
+from .maintenance_activity import (
+    log_work_order_created,
+    snapshot_discrepancy,
+    log_discrepancy_updated,
+)
 from .serializers import (
     AircraftSerializer,
     AircraftMaintenanceIntervalSerializer,
@@ -996,15 +1001,41 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[IsMechanicOrManager])
     def open_work_order(self, request, pk=None):
         discrepancy = self.get_object()
+        before = snapshot_discrepancy(discrepancy)
+        ata_raw = (discrepancy.ata_code or "").strip()
+        try:
+            ata_int = int(ata_raw)
+        except (ValueError, TypeError):
+            ata_int = None
+
+        tach_raw = (str(discrepancy.tach_time) if discrepancy.tach_time else "").strip()
+        try:
+            from decimal import Decimal, InvalidOperation
+            tach_val = Decimal(tach_raw) if tach_raw else None
+        except (InvalidOperation, ValueError, TypeError):
+            tach_val = None
+
+        desc_snippet = (discrepancy.description or "").strip()
+        if len(desc_snippet) > 80:
+            desc_snippet = desc_snippet[:77] + "..."
+        wo_title = f"WO from Discrepancy #{discrepancy.id}" + (f": {desc_snippet}" if desc_snippet else "")
+
         work_order = WorkOrder.objects.create(
             aircraft=discrepancy.aircraft,
-            ATA_code=discrepancy.ata_code,
-            tach_time=discrepancy.tach_time,
+            title=wo_title,
+            ATA_code=ata_int,
+            tach_time=tach_val,
+            description=discrepancy.description or "",
             status="open",
             created_by=request.user,
         )
+        log_work_order_created(work_order, request)
+
         discrepancy.work_order = work_order
         discrepancy.save()
+        after = snapshot_discrepancy(discrepancy)
+        log_discrepancy_updated(discrepancy, before, after, request)
+
         serializer = WorkOrderSerializer(work_order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
             
@@ -1053,12 +1084,33 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[CanSignWorkOrder])
     def close(self, request, pk=None):
         work_order = self.get_object()
+        prev_status = work_order.status
         work_order.status = "closed"
         work_order.signed_by = request.user
         work_order.signature_date = date.today()
         work_order.completion_notes = request.data.get("completion_notes")
         work_order.save()
-        work_order.discrepancies.all().update(status="closed")
+
+        notes = (work_order.completion_notes or "").strip()
+        summary_parts = [f"Status {prev_status.replace('_', ' ').title()} → Closed", "Signed off"]
+        if notes:
+            summary_parts.append(f"Notes: {notes}")
+        WorkOrderActivity.objects.create(
+            work_order=work_order,
+            actor=request.user,
+            event_type=WorkOrderActivity.EventType.UPDATED,
+            summary="; ".join(summary_parts),
+            metadata={"closed_via": "sign_off", "completion_notes": notes},
+        )
+
+        affected_discrepancies = list(work_order.discrepancies.exclude(status="closed"))
+        for disc in affected_discrepancies:
+            before = snapshot_discrepancy(disc)
+            disc.status = "closed"
+            disc.save(update_fields=["status"])
+            after = snapshot_discrepancy(disc)
+            log_discrepancy_updated(disc, before, after, request)
+
         serializer = WorkOrderSerializer(work_order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

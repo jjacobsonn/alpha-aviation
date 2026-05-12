@@ -292,12 +292,7 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         many=True, queryset=Part.objects.all(), required=False, allow_empty=True
     )
     activities = WorkOrderActivitySerializer(many=True, read_only=True)
-    ALLOWED_STATUS_TRANSITIONS = {
-        "open": {"open", "in_progress", "awaiting_parts", "closed"},
-        "in_progress": {"in_progress", "awaiting_parts", "closed"},
-        "awaiting_parts": {"awaiting_parts", "in_progress", "closed"},
-        "closed": {"closed"},
-    }
+    ALL_VALID_STATUSES = {"open", "in_progress", "awaiting_parts", "closed"}
 
     class Meta:
         model = WorkOrder
@@ -341,14 +336,9 @@ class WorkOrderSerializer(serializers.ModelSerializer):
 
         current_status = getattr(self.instance, "status", None) or "open"
         next_status = data.get("status", current_status)
-        allowed = self.ALLOWED_STATUS_TRANSITIONS.get(current_status, {current_status})
-        if next_status not in allowed:
+        if next_status not in self.ALL_VALID_STATUSES:
             raise serializers.ValidationError(
-                {
-                    "status": (
-                        f"Invalid status transition from '{current_status}' to '{next_status}'."
-                    )
-                }
+                {"status": f"'{next_status}' is not a valid work order status."}
             )
 
         request = self.context.get("request")
