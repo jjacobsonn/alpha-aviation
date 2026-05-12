@@ -14,17 +14,21 @@ describe('NotFound page', () => {
 		jest.clearAllMocks();
 	});
 
-	it('renders basic 404 content', () => {
+	it('renders 404 content with heading and description', () => {
 		render(<NotFound />);
 
 		expect(screen.getByText('404')).toBeInTheDocument();
 		expect(screen.getByText('Page Not Found')).toBeInTheDocument();
-		expect(
-			screen.getByRole('button', { name: /go to login/i })
-		).toBeInTheDocument();
+		expect(screen.getByText(/page you're looking for doesn't exist/i)).toBeInTheDocument();
 	});
 
-	it('navigates to login when button is clicked', async () => {
+	it('displays a button to navigate back to login', () => {
+		render(<NotFound />);
+
+		expect(screen.getByRole('button', { name: /go to login/i })).toBeInTheDocument();
+	});
+
+	it('navigates to home when button is clicked', async () => {
 		const user = userEvent.setup();
 		render(<NotFound />);
 
