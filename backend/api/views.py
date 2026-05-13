@@ -422,9 +422,14 @@ def management_dashboard_view(request):
     company = get_request_company(request)
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
-
+    
+    uptime_downtime = company.get_uptime_downtime()
+    monthly_flight_hours = company.get_aircraft_monthly_flight_hours()
+    recuring_discrepancies = company.get_company_recuring_workorders()
+    remaining_hobbs = company.get_company_airplane_remaining_hobbs()
     aircraft_count = Aircraft.objects.filter(company=company).count()
     flights_count = Flight.objects.filter(company=company).count()
+    workorder_analytics = company.get_company_airplane_workorder_analytics()
     open_work_orders = (
         WorkOrder.objects.filter(aircraft__company=company).exclude(status="closed").count()
     )
@@ -461,6 +466,14 @@ def management_dashboard_view(request):
                 "low_stock_items": low_stock_items,
             },
             "team_by_role": team_by_role,
+            "aircraft_analytics": {
+                "workorder_analytics": workorder_analytics,
+                "remaining_hobbs": remaining_hobbs,
+                "recuring_discrepancies": recuring_discrepancies,
+                "monthly_flight_hours": monthly_flight_hours,
+                "uptime_downtime": uptime_downtime,
+            }
+
         }
     )
 ###
@@ -744,6 +757,8 @@ def company_role_view(request):
         )
     )
     return Response(list(profiles))
+
+
 
 
 class CompanyInventoryListView(generics.ListCreateAPIView):
