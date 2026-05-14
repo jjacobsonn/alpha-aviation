@@ -34,7 +34,7 @@ describe('ProtectedRoute', () => {
 		useLocation.mockReturnValue(mockLocation);
 	});
 
-	it('renders loading spinner when not initialized', () => {
+	test('renders loading spinner when not initialized', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: false,
@@ -58,7 +58,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
 	});
 
-	it('redirects to login when not authenticated', () => {
+	test('redirects to login when not authenticated', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: true,
@@ -83,7 +83,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
 	});
 
-	it('renders children when authenticated and initialized', () => {
+	test('renders children when authenticated and initialized', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: true,
@@ -104,7 +104,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByTestId('navigate-mock')).not.toBeInTheDocument();
 	});
 
-	it('prioritizes loading state over authentication check', () => {
+	test('prioritizes loading state over authentication check', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: false,
@@ -126,7 +126,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByTestId('navigate-mock')).not.toBeInTheDocument();
 	});
 
-	it('renders multiple children elements', () => {
+	test('renders multiple children elements', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: true,

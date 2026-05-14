@@ -32,7 +32,7 @@ describe('Login page', () => {
 		localStorage.clear();
 	});
 
-	it('renders login form with username and password fields', () => {
+	test('renders login form with username and password fields', () => {
 		renderLogin();
 
 		expect(screen.getByRole('textbox', { name: /username/i })).toBeInTheDocument();
@@ -41,7 +41,7 @@ describe('Login page', () => {
 		expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
 	});
 
-	it('navigates to mechanic dashboard after successful login', async () => {
+	test('navigates to mechanic dashboard after successful login', async () => {
 		const user = userEvent.setup();
 		loginUser.mockResolvedValue({});
 		fetchCurrentUser.mockResolvedValue({
@@ -64,7 +64,7 @@ describe('Login page', () => {
 		});
 	});
 
-	it('navigates to management dashboard for manager role', async () => {
+	test('navigates to management dashboard for manager role', async () => {
 		const user = userEvent.setup();
 		loginUser.mockResolvedValue({});
 		fetchCurrentUser.mockResolvedValue({
@@ -87,7 +87,7 @@ describe('Login page', () => {
 		});
 	});
 
-	it('displays error message on failed login', async () => {
+	test('displays error message on failed login', async () => {
 		const user = userEvent.setup();
 		loginUser.mockRejectedValue(new Error('Invalid credentials'));
 
@@ -104,7 +104,7 @@ describe('Login page', () => {
 		expect(mockNavigate).not.toHaveBeenCalled();
 	});
 
-	it('redirects to management when already authenticated with valid tokens', () => {
+	test('redirects to management when already authenticated with valid tokens', () => {
 		localStorage.setItem('accessToken', 'token');
 		localStorage.setItem('refreshToken', 'refresh');
 
@@ -113,7 +113,7 @@ describe('Login page', () => {
 		expect(mockNavigate).toHaveBeenCalledWith('/management', { replace: true });
 	});
 
-	it('toggles password visibility when clicking visibility icon', async () => {
+	test('toggles password visibility when clicking visibility icon', async () => {
 		const user = userEvent.setup();
 		renderLogin();
 

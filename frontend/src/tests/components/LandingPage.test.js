@@ -15,19 +15,19 @@ describe.skip("LandingPage", () => {
     mockNavigate.mockClear();
   });
 
-  it("should render the component without crashing", () => {
+  test("should render the component without crashing", () => {
     render(<LandingPage />);
     expect(screen.getAllByText("AIMS Next").length).toBeGreaterThan(0);
   });
 
   describe("Navigation Bar", () => {
-    it("should display the AIMS Next brand name", () => {
+    test("should display the AIMS Next brand name", () => {
       render(<LandingPage />);
       const brandElements = screen.getAllByText("AIMS Next");
       expect(brandElements.length).toBeGreaterThan(0);
     });
 
-    it("should display navigation menu items", () => {
+    test("should display navigation menu items", () => {
       render(<LandingPage />);
       expect(screen.getByRole("button", { name: "Solutions" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Products" })).toBeInTheDocument();
@@ -35,14 +35,14 @@ describe.skip("LandingPage", () => {
       expect(screen.getByRole("button", { name: "About" })).toBeInTheDocument();
     });
 
-    it("should have a Login button that navigates to /login", () => {
+    test("should have a Login button that navigates to /login", () => {
       render(<LandingPage />);
       const loginButton = screen.getByRole("button", { name: /login/i });
       fireEvent.click(loginButton);
       expect(mockNavigate).toHaveBeenCalledWith("/login");
     });
 
-    it("should have a Get a Demo button in the header", () => {
+    test("should have a Get a Demo button in the header", () => {
       render(<LandingPage />);
       const demoButtons = screen.getAllByRole("button", { name: /get a demo/i });
       expect(demoButtons.length).toBeGreaterThan(0);
@@ -50,34 +50,34 @@ describe.skip("LandingPage", () => {
   });
 
   describe("Hero Section", () => {
-    it("should display the main headline", () => {
+    test("should display the main headline", () => {
       render(<LandingPage />);
       expect(screen.getByText("Aviation Software for More Uptime")).toBeInTheDocument();
     });
 
-    it("should display the hero subtitle", () => {
+    test("should display the hero subtitle", () => {
       render(<LandingPage />);
       expect(screen.getByText(/A modern replacement for A.I.M.S./i)).toBeInTheDocument();
     });
 
-    it("should display the overline text", () => {
+    test("should display the overline text", () => {
       render(<LandingPage />);
       expect(screen.getByText("NEXT-GENERATION AVIATION SOFTWARE")).toBeInTheDocument();
     });
 
-    it("should have a Get Started button", () => {
+    test("should have a Get Started button", () => {
       render(<LandingPage />);
       const getStartedButton = screen.getByRole("button", { name: /get started/i });
       expect(getStartedButton).toBeInTheDocument();
     });
 
-    it("should have a Watch Demo button", () => {
+    test("should have a Watch Demo button", () => {
       render(<LandingPage />);
       const watchDemoButton = screen.getByRole("button", { name: /watch demo/i });
       expect(watchDemoButton).toBeInTheDocument();
     });
 
-    it("should display trust statistics", () => {
+    test("should display trust statistics", () => {
       render(<LandingPage />);
       expect(screen.getByText("1000+")).toBeInTheDocument();
       expect(screen.getByText("5000+")).toBeInTheDocument();
@@ -87,12 +87,12 @@ describe.skip("LandingPage", () => {
   });
 
   describe("What We Do Section", () => {
-    it("should display the section title", () => {
+    test("should display the section title", () => {
       render(<LandingPage />);
       expect(screen.getByText("Smarter Aviation Software")).toBeInTheDocument();
     });
 
-    it("should display all feature cards", () => {
+    test("should display all feature cards", () => {
       render(<LandingPage />);
       expect(screen.getByText("Maintenance Tracking")).toBeInTheDocument();
       expect(screen.getByText("Inventory Management")).toBeInTheDocument();
@@ -104,12 +104,12 @@ describe.skip("LandingPage", () => {
   });
 
   describe("Benefits Section", () => {
-    it("should display the Why Choose AIMS Next heading", () => {
+    test("should display the Why Choose AIMS Next heading", () => {
       render(<LandingPage />);
       expect(screen.getByText("Why Choose AIMS Next?")).toBeInTheDocument();
     });
 
-    it("should display benefit headings", () => {
+    test("should display benefit headings", () => {
       render(<LandingPage />);
       expect(screen.getByText("No More Waiting")).toBeInTheDocument();
       expect(screen.getByText("No More Wondering")).toBeInTheDocument();
@@ -118,12 +118,12 @@ describe.skip("LandingPage", () => {
   });
 
   describe("CTA Section", () => {
-    it("should display the Ready to Get Started heading", () => {
+    test("should display the Ready to Get Started heading", () => {
       render(<LandingPage />);
       expect(screen.getByText("Ready to Get Started?")).toBeInTheDocument();
     });
 
-    it("should have a Contact Sales button", () => {
+    test("should have a Contact Sales button", () => {
       render(<LandingPage />);
       const contactSalesButton = screen.getByRole("button", { name: /contact sales/i });
       expect(contactSalesButton).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe.skip("LandingPage", () => {
   });
 
   describe("Footer", () => {
-    it("should display footer sections", () => {
+    test("should display footer sections", () => {
       render(<LandingPage />);
       expect(screen.getByText("Maintenance")).toBeInTheDocument();
       expect(screen.getByText("Inventory")).toBeInTheDocument();
@@ -140,28 +140,28 @@ describe.skip("LandingPage", () => {
       expect(screen.getByText("Privacy Policy")).toBeInTheDocument();
     });
 
-    it("should display the copyright text", () => {
+    test("should display the copyright text", () => {
       render(<LandingPage />);
       expect(screen.getByText(/© 2025 AIMS Next. All rights reserved./i)).toBeInTheDocument();
     });
   });
 
   describe("Navigation functionality", () => {
-    it("should navigate to /management when Get Started is clicked", () => {
+    test("should navigate to /management when Get Started is clicked", () => {
       render(<LandingPage />);
       const getStartedButton = screen.getByRole("button", { name: /get started/i });
       fireEvent.click(getStartedButton);
       expect(mockNavigate).toHaveBeenCalledWith("/management");
     });
 
-    it("should navigate to /management when Get a Demo is clicked", () => {
+    test("should navigate to /management when Get a Demo is clicked", () => {
       render(<LandingPage />);
       const demoButtons = screen.getAllByRole("button", { name: /get a demo/i });
       fireEvent.click(demoButtons[0]);
       expect(mockNavigate).toHaveBeenCalledWith("/management");
     });
 
-    it("should navigate to /management when Contact Sales is clicked", () => {
+    test("should navigate to /management when Contact Sales is clicked", () => {
       render(<LandingPage />);
       const contactSalesButton = screen.getByRole("button", { name: /contact sales/i });
       fireEvent.click(contactSalesButton);

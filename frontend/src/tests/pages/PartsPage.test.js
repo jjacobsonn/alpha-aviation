@@ -43,7 +43,7 @@ describe('PartsPage', () => {
 		Api.fetchCompanyWorkorders.mockResolvedValue([]);
 	});
 
-	it('renders page title and main controls', async () => {
+	test('renders page title and main controls', async () => {
 		render(<PartsPage />);
 
 		await waitFor(() => {
@@ -52,7 +52,7 @@ describe('PartsPage', () => {
 		expect(screen.getByPlaceholderText(/search part number/i)).toBeInTheDocument();
 	});
 
-	it('loads and displays parts inventory', async () => {
+	test('loads and displays parts inventory', async () => {
 		render(<PartsPage />);
 
 		await waitFor(() => {
@@ -63,7 +63,7 @@ describe('PartsPage', () => {
 		expect(screen.getByText('P002')).toBeInTheDocument();
 	});
 
-	it('displays error message when API fails', async () => {
+	test('displays error message when API fails', async () => {
 		Api.fetchCompanyInventoriesDetailed.mockRejectedValue(new Error('Failed to load inventory'));
 
 		render(<PartsPage />);
@@ -73,7 +73,7 @@ describe('PartsPage', () => {
 		});
 	});
 
-	it('opens context menu when clicking actions button', async () => {
+	test('opens context menu when clicking actions button', async () => {
 		const user = userEvent.setup();
 		render(<PartsPage />);
 
@@ -89,7 +89,7 @@ describe('PartsPage', () => {
 		}
 	});
 
-	it('handles search query input', async () => {
+	test('handles search query input', async () => {
 		const user = userEvent.setup();
 		render(<PartsPage />);
 
@@ -99,7 +99,7 @@ describe('PartsPage', () => {
 		expect(searchInput).toHaveValue('P001');
 	});
 
-	it('shows low stock alert indicator for parts below alert threshold', async () => {
+	test('shows low stock alert indicator for parts below alert threshold', async () => {
 		render(<PartsPage />);
 
 		await waitFor(() => {

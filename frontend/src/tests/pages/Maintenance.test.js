@@ -104,7 +104,7 @@ describe('Maintenance page', () => {
 		Api.fetchParts.mockResolvedValue([]);
 	});
 
-	it('renders page with KPI section and headings', async () => {
+	test('renders page with KPI section and headings', async () => {
 		renderMaintenance();
 
 		await waitFor(() => {
@@ -113,7 +113,7 @@ describe('Maintenance page', () => {
 		});
 	});
 
-	it('displays work orders and discrepancies data', async () => {
+	test('displays work orders and discrepancies data', async () => {
 		renderMaintenance();
 
 		await waitFor(() => {
@@ -123,7 +123,7 @@ describe('Maintenance page', () => {
 		});
 	});
 
-	it('shows assignee information for work orders and discrepancies', async () => {
+	test('shows assignee information for work orders and discrepancies', async () => {
 		renderMaintenance();
 
 		await waitFor(() => {
@@ -131,7 +131,7 @@ describe('Maintenance page', () => {
 		});
 	});
 
-	it('opens add work order form when button is clicked', async () => {
+	test('opens add work order form when button is clicked', async () => {
 		const user = userEvent.setup();
 		renderMaintenance();
 
@@ -144,7 +144,7 @@ describe('Maintenance page', () => {
 		expect(within(dialog).getByRole('button', { name: /cancel/i })).toBeInTheDocument();
 	});
 
-	it('closes add work order form when close button is clicked', async () => {
+	test('closes add work order form when close button is clicked', async () => {
 		const user = userEvent.setup();
 		renderMaintenance();
 
@@ -161,7 +161,7 @@ describe('Maintenance page', () => {
 		await waitFor(() => expect(screen.queryByRole('dialog', { name: /create work order/i })).not.toBeInTheDocument());
 	});
 
-	it('opens add discrepancy form when button is clicked', async () => {
+	test('opens add discrepancy form when button is clicked', async () => {
 		const user = userEvent.setup();
 		renderMaintenance();
 
@@ -173,7 +173,7 @@ describe('Maintenance page', () => {
 		await screen.findByRole('dialog', { name: /create discrepancy/i });
 	});
 
-	it('displays loading state while fetching data', () => {
+	test('displays loading state while fetching data', () => {
 		Api.fetchCompanyWorkorders.mockImplementation(() => new Promise(() => {})); // Never resolves
 
 		renderMaintenance();
@@ -182,7 +182,7 @@ describe('Maintenance page', () => {
 		expect(bars.length).toBeGreaterThan(0);
 	});
 
-	it('handles API error gracefully', async () => {
+	test('handles API error gracefully', async () => {
 		Api.fetchCompanyWorkorders.mockRejectedValue(new Error('Failed to fetch'));
 
 		renderMaintenance();
