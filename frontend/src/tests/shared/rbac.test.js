@@ -1,5 +1,8 @@
 import {
+  canEditServiceHistory,
+  canSuperviseMaintenance,
   getDefaultRouteForUser,
+  getEffectiveCompanyRole,
   hasFrontendLanding,
   isPlatformAdmin,
 } from "../../shared/rbac";
@@ -29,5 +32,20 @@ describe("RBAC role routing", () => {
   it("reports whether account has frontend landing", () => {
     expect(hasFrontendLanding({ company_role: "mechanic" })).toBe(true);
     expect(hasFrontendLanding({ company_role: "unknown" })).toBe(false);
+  });
+
+  it("uses view-as role for effective permissions", () => {
+    const state = {
+      user: { company_role: "owner" },
+      viewAsUser: { role: "mechanic" },
+    };
+    expect(getEffectiveCompanyRole(state)).toBe("mechanic");
+    expect(canSuperviseMaintenance(state)).toBe(false);
+    expect(canEditServiceHistory(state)).toBe(false);
+  });
+
+  it("allows only owner/manager to supervise maintenance", () => {
+    expect(canSuperviseMaintenance({ user: { company_role: "manager" } })).toBe(true);
+    expect(canSuperviseMaintenance({ user: { company_role: "mechanic" } })).toBe(false);
   });
 });

@@ -276,6 +276,14 @@ export const fetchCompanyWorkorders = async () => {
 	return await makeApiRequest('GET', '/company/workorders/');
 };
 
+export const fetchServiceHistory = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/history/work-orders/', null, queryParams);
+};
+
+export const fetchServiceHistoryDetail = async (id) => {
+	return await makeApiRequest('GET', `/history/work-orders/${id}/`);
+};
+
 export const fetchCompanyDiscrepancies = async () => {
 	return await makeApiRequest('GET', '/company/discrepancies/');
 };

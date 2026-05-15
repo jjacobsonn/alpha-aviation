@@ -31,6 +31,7 @@ This folder is now modular and organized by topic:
 | Doc | Purpose |
 |---|---|
 | [features/WORK_ORDERS.md](features/WORK_ORDERS.md) | Work Orders page behavior and constraints. |
+| [features/PHASE2_MVP.md](features/PHASE2_MVP.md) | Phase 2 MVP deliverables checklist and build order. |
 | [architecture/models_documentation.md](architecture/models_documentation.md) | Django model/entity reference. |
 | [operations/seed_db.md](operations/seed_db.md) | Local seed command usage and caveats. |
 | [features/fleet-module-implementation-spec.md](features/fleet-module-implementation-spec.md) | Fleet implementation details/spec notes. |

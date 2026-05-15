@@ -19,6 +19,7 @@ export const MODULE_ALLOWED_ROLES = {
   // Pilots: own dashboard + schedule only — no Fleet/Parts/Maintenance/WO sidebar noise (MVP).
   pilotDashboard: ["owner", "manager", "dispatcher", "pilot"],
   calendar: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
+  serviceHistory: ["owner", "manager", "dispatcher", "mechanic"],
 };
 
 export function isPlatformAdmin(user) {
@@ -30,11 +31,26 @@ export function isPlatformAdmin(user) {
   );
 }
 
+/** Effective tenant role (respects “view as” when state is passed). */
+export function getEffectiveCompanyRole(context) {
+  const viewAs = context?.viewAsUser ?? context?.viewAs;
+  const user = context?.user ?? context;
+  if (viewAs?.role) return viewAs.role;
+  return user?.company_role ?? user?.role ?? null;
+}
+
 /** Owner/manager supervise assignment and operational edits (not delete authority). */
-export function canSuperviseMaintenance(user) {
-  if (isPlatformAdmin(user)) return true;
-  const r = user?.company_role ?? user?.role;
+export function canSuperviseMaintenance(userOrContext) {
+  const viewAs = userOrContext?.viewAsUser;
+  const user = userOrContext?.user ?? userOrContext;
+  if (isPlatformAdmin(user) && !viewAs) return true;
+  const r = getEffectiveCompanyRole(userOrContext);
   return r === "owner" || r === "manager";
+}
+
+/** Service history archive: view for ops roles; edit only supervisors. */
+export function canEditServiceHistory(context) {
+  return canSuperviseMaintenance(context);
 }
 
 export function isMechanicRole(user) {

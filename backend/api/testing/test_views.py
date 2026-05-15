@@ -482,3 +482,61 @@ class TestOwnershipRbacRules:
         response = api_client.patch(url, {"route": "SHOULD-NOT-WORK"}, format="json")
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+class TestServiceHistoryViews:
+    def test_mechanic_can_list_service_history(
+        self, authenticated_client, sample_work_order
+    ):
+        url = reverse("service-history-work-orders")
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] >= 1
+        assert any(r["id"] == sample_work_order.id for r in response.data["results"])
+
+    def test_pilot_cannot_access_service_history(self, api_client, sample_pilot_profile):
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("service-history-work-orders")
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_filter_by_ata(self, authenticated_client, sample_work_order):
+        sample_work_order.ATA_code = 32
+        sample_work_order.save(update_fields=["ATA_code"])
+        url = reverse("service-history-work-orders")
+        response = authenticated_client.get(url, {"ata": 32})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["ATA_code"] == 32
+
+    def test_work_order_detail(self, authenticated_client, sample_work_order):
+        url = reverse(
+            "service-history-work-order-detail", kwargs={"pk": sample_work_order.id}
+        )
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["id"] == sample_work_order.id
+        assert response.data["labor_hours_total"] is None
+        assert "activities" in response.data
+
+    def test_pagination(self, authenticated_client, sample_aircraft, sample_user):
+        from api.models import WorkOrder
+
+        for i in range(3):
+            WorkOrder.objects.create(
+                aircraft=sample_aircraft,
+                created_by=sample_user,
+                title=f"WO {i}",
+                status="closed",
+            )
+        url = reverse("service-history-work-orders")
+        response = authenticated_client.get(url, {"page_size": 2, "page": 1})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] >= 3
+        assert len(response.data["results"]) == 2

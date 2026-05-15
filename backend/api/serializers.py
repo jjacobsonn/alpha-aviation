@@ -309,6 +309,22 @@ class DiscrepancySerializer(serializers.ModelSerializer):
         return instance
 
 
+def serialize_work_order_parts(work_order):
+    """Read representation for M2M through WorkOrderPart."""
+    rows = []
+    for link in work_order.workorderpart_set.select_related("part").all():
+        part = link.part
+        rows.append(
+            {
+                "id": part.id,
+                "part_number": part.part_number,
+                "name": part.name,
+                "quantity": link.quantity,
+            }
+        )
+    return rows
+
+
 class WorkOrderSerializer(serializers.ModelSerializer):
     """
     `parts_needed` is a M2M through `WorkOrderPart` (each row requires a quantity).
@@ -378,6 +394,20 @@ class WorkOrderSerializer(serializers.ModelSerializer):
                 "last_name": ln,
                 "username": sb.username or "",
             }
+        rep["parts_needed"] = serialize_work_order_parts(instance)
+        latest = instance.activities.first()
+        if latest:
+            actor = latest.actor
+            if actor:
+                fn = (actor.first_name or "").strip()
+                ln = (actor.last_name or "").strip()
+                rep["last_edited_by"] = f"{fn} {ln}".strip() or (actor.username or "")
+            else:
+                rep["last_edited_by"] = "System"
+            rep["last_edited_at"] = latest.created_at
+        else:
+            rep["last_edited_by"] = None
+            rep["last_edited_at"] = None
         return rep
 
     def validate(self, data):
@@ -424,21 +454,35 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         log_work_order_created(work_order, self.context.get("request"))
         return work_order
 
+    _WO_SUPERVISOR_ONLY_FIELDS = (
+        "created_by",
+        "aircraft",
+        "title",
+        "ATA_code",
+        "components_affected",
+        "components_image",
+        "tach_time",
+        "hobbs_time",
+        "signed_by",
+        "signature",
+        "signature_date",
+    )
+
     def update(self, instance, validated_data):
         before = snapshot_work_order(instance)
         parts = validated_data.pop("parts_needed", None)
         request = self.context.get("request")
         user = getattr(request, "user", None) if request else None
-        if (
+        role = getattr(user, "company_role", None) if user else None
+        is_admin = bool(
             user
             and user.is_authenticated
-            and getattr(user, "company_role", None) == "mechanic"
-            and not (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
-        ):
-            # Mechanics update execution (progress, parts, dates); supervisors own assignment & structure.
-            validated_data.pop("created_by", None)
-            validated_data.pop("aircraft", None)
-            validated_data.pop("title", None)
+            and (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+        )
+        if user and user.is_authenticated and not is_admin and role not in {"owner", "manager"}:
+            # Mechanics/dispatchers: progress, parts, dates, description only.
+            for field in self._WO_SUPERVISOR_ONLY_FIELDS:
+                validated_data.pop(field, None)
         work_order = super().update(instance, validated_data)
         if parts is not None:
             WorkOrderPart.objects.filter(work_order=work_order).delete()
@@ -719,4 +763,86 @@ class FleetAircraftDetailSerializer(serializers.ModelSerializer):
             "open_discrepancies_count": obj.discrepancies.exclude(status="closed").count(),
             "recent_flights_count": obj.flights.count(),
         }
+
+
+class WorkOrderHistoryListSerializer(serializers.ModelSerializer):
+    """Slim row for service history search results."""
+
+    aircraft = serializers.SerializerMethodField()
+    signed_by_name = serializers.SerializerMethodField()
+    assignee_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    parts_summary = serializers.SerializerMethodField()
+    last_edited_by = serializers.SerializerMethodField()
+    last_edited_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkOrder
+        fields = [
+            "id",
+            "title",
+            "description",
+            "status",
+            "priority",
+            "aircraft",
+            "ATA_code",
+            "components_affected",
+            "created_at",
+            "updated_at",
+            "due_by",
+            "signature_date",
+            "signed_by_name",
+            "assignee_name",
+            "created_by_name",
+            "parts_summary",
+            "last_edited_by",
+            "last_edited_at",
+        ]
+
+    def get_aircraft(self, obj):
+        ac = obj.aircraft
+        if not ac:
+            return None
+        return {
+            "id": ac.id,
+            "registration_number": ac.registration_number or "",
+            "model": ac.model or "",
+        }
+
+    def _profile_name(self, profile):
+        if not profile:
+            return ""
+        fn = (profile.first_name or "").strip()
+        ln = (profile.last_name or "").strip()
+        return f"{fn} {ln}".strip() or (profile.username or "")
+
+    def get_signed_by_name(self, obj):
+        return self._profile_name(obj.signed_by)
+
+    def get_assignee_name(self, obj):
+        return self._profile_name(getattr(obj, "created_by", None))
+
+    def get_created_by_name(self, obj):
+        return self._profile_name(getattr(obj, "created_by", None))
+
+    def get_parts_summary(self, obj):
+        parts = serialize_work_order_parts(obj)
+        if not parts:
+            return ""
+        return ", ".join(
+            f"{p['part_number']} — {p['name']} (×{p['quantity']})" for p in parts
+        )
+
+    def get_last_edited_by(self, obj):
+        act = obj.activities.first()
+        if not act:
+            return ""
+        a = act.actor
+        if not a:
+            return "System"
+        return self._profile_name(a)
+
+    def get_last_edited_at(self, obj):
+        act = obj.activities.first()
+        return act.created_at if act else None
 

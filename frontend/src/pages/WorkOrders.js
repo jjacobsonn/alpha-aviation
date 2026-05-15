@@ -86,7 +86,7 @@ export default function WorkOrders() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
-	const superviseMaintenance = canSuperviseMaintenance(state.user);
+	const superviseMaintenance = canSuperviseMaintenance(state);
 	const effectiveRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
 	const canDeleteWorkOrders = effectiveRole === 'owner';
 	const [isLoading, setIsLoading] = useState(true);
@@ -108,31 +108,58 @@ export default function WorkOrders() {
 	const [pageSize, setPageSize] = useState(10);
 	const aircraftFilterFromQuery = searchParams.get('aircraft') || '';
 
+	const unwrapList = (data) => {
+		if (Array.isArray(data)) return data;
+		if (data && Array.isArray(data.results)) return data.results;
+		return [];
+	};
+
 	const load = async () => {
 		setIsLoading(true);
 		setError('');
-		try {
-			const [woData, aircraftData, usersData, discrepanciesData, partsData] = await Promise.all(
-				platformAdmin
-					? [fetchWorkorders(), fetchAircraft(), fetchProfiles(), fetchDiscrepancies(), fetchParts()]
-					: [
-							fetchCompanyWorkorders(),
-							fetchCompanyAircrafts(),
-							fetchCompanyUsers(),
-							fetchCompanyDiscrepancies(),
-							fetchParts(),
-					  ]
-			);
-			setWorkOrders(Array.isArray(woData) ? woData : []);
-			setAircraft(Array.isArray(aircraftData) ? aircraftData : []);
-			setUsers(Array.isArray(usersData) ? usersData : []);
-			setDiscrepancies(Array.isArray(discrepanciesData) ? discrepanciesData : []);
-			setParts(Array.isArray(partsData) ? partsData : partsData?.results || []);
-		} catch (e) {
-			setError(e?.message || 'Failed to load work orders.');
-		} finally {
-			setIsLoading(false);
+		const requests = platformAdmin
+			? [
+					{ key: 'workOrders', fn: fetchWorkorders },
+					{ key: 'aircraft', fn: fetchAircraft },
+					{ key: 'users', fn: fetchProfiles },
+					{ key: 'discrepancies', fn: fetchDiscrepancies },
+					{ key: 'parts', fn: fetchParts },
+			  ]
+			: [
+					{ key: 'workOrders', fn: fetchCompanyWorkorders },
+					{ key: 'aircraft', fn: fetchCompanyAircrafts },
+					{ key: 'users', fn: fetchCompanyUsers },
+					{ key: 'discrepancies', fn: fetchCompanyDiscrepancies },
+					{ key: 'parts', fn: fetchParts },
+			  ];
+
+		const results = await Promise.allSettled(requests.map((r) => r.fn()));
+		const byKey = {};
+		const errors = [];
+		results.forEach((result, idx) => {
+			const { key } = requests[idx];
+			if (result.status === 'fulfilled') {
+				byKey[key] = result.value;
+			} else {
+				errors.push(key);
+				byKey[key] = null;
+			}
+		});
+
+		setWorkOrders(unwrapList(byKey.workOrders));
+		setAircraft(unwrapList(byKey.aircraft));
+		setUsers(unwrapList(byKey.users));
+		setDiscrepancies(unwrapList(byKey.discrepancies));
+		setParts(unwrapList(byKey.parts));
+
+		if (errors.length && !unwrapList(byKey.workOrders).length) {
+			setError('Failed to load work orders. Check that the API is running and you are logged in.');
+		} else if (errors.length) {
+			setError(`Some related data did not load (${errors.join(', ')}). Work orders are shown below.`);
+		} else {
+			setError('');
 		}
+		setIsLoading(false);
 	};
 
 	useEffect(() => {

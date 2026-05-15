@@ -31,6 +31,7 @@ from .models import (
     Profile,
     WorkOrder,
     WorkOrderActivity,
+    WorkOrderPart,
 )
 
 from .permissions import (
@@ -227,7 +228,13 @@ def company_scoped_workorder_queryset(request):
             "parts_needed",
             Prefetch(
                 "activities",
-                queryset=WorkOrderActivity.objects.select_related("actor"),
+                queryset=WorkOrderActivity.objects.select_related("actor").order_by(
+                    "-created_at"
+                ),
+            ),
+            Prefetch(
+                "workorderpart_set",
+                queryset=WorkOrderPart.objects.select_related("part"),
             ),
         )
         .order_by("-created_at")
@@ -1015,10 +1022,11 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
         except (InvalidOperation, ValueError, TypeError):
             tach_val = None
 
-        desc_snippet = (discrepancy.description or "").strip()
-        if len(desc_snippet) > 80:
-            desc_snippet = desc_snippet[:77] + "..."
-        wo_title = f"WO from Discrepancy #{discrepancy.id}" + (f": {desc_snippet}" if desc_snippet else "")
+        desc = (discrepancy.description or "").strip()
+        first_line = desc.splitlines()[0].strip() if desc else ""
+        if len(first_line) > 120:
+            first_line = first_line[:117] + "..."
+        wo_title = first_line or f"Discrepancy #{discrepancy.id}"
 
         work_order = WorkOrder.objects.create(
             aircraft=discrepancy.aircraft,

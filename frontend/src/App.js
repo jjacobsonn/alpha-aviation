@@ -19,6 +19,7 @@ import CalendarPage from './pages/DispatchCalendarPage';
 import SiteAdminPortal from './pages/SiteAdminPortal';
 import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
+import ServiceHistoryPage from './pages/ServiceHistoryPage';
 import AccountPage from './pages/AccountPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -171,6 +172,16 @@ function App() {
 								<ProtectedRoute allowedRoles={allowedRolesForModule('workOrders')}>
 									<Layout>
 										<WorkOrders />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/service-history"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('serviceHistory')}>
+									<Layout>
+										<ServiceHistoryPage />
 									</Layout>
 								</ProtectedRoute>
 							}

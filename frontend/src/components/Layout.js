@@ -9,6 +9,8 @@ const Layout = ({ children }) => {
 				component="main"
 				sx={{
 					flexGrow: 1,
+					minWidth: 0,
+					width: '100%',
 					bgcolor: 'background.default',
 					overflow: 'auto',
 				}}

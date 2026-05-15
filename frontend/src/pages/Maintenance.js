@@ -184,7 +184,7 @@ const Maintenance = () => {
 	const navigate = useNavigate();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const mechanicRole = isMechanicRole(state.user);
-	const superviseMaintenance = canSuperviseMaintenance(state.user);
+	const superviseMaintenance = canSuperviseMaintenance(state);
 	const effectiveRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
 	const canDeleteMaintenanceRecords = effectiveRole === 'owner';
 	const canEditWorkOrderAssignment = superviseMaintenance || platformAdmin;
@@ -261,7 +261,7 @@ const Maintenance = () => {
 			setIsLoading(true);
 			setError('');
 			try {
-				const [woData, discData, aircraftData, userData, partsData] = await Promise.all([
+				const [woRes, discRes, aircraftRes, userRes, partsRes] = await Promise.allSettled([
 					fetchCompanyWorkorders(),
 					fetchCompanyDiscrepancies(),
 					fetchCompanyAircrafts(),
@@ -269,11 +269,19 @@ const Maintenance = () => {
 					fetchParts(),
 				]);
 				if (!mounted) return;
-				setWorkOrders(Array.isArray(woData) ? woData : []);
-				setDiscrepancies(Array.isArray(discData) ? discData : []);
-				setAircraft(Array.isArray(aircraftData) ? aircraftData : []);
-				setCompanyUsers(Array.isArray(userData) ? userData : []);
+				const woData = woRes.status === 'fulfilled' ? woRes.value : [];
+				const discData = discRes.status === 'fulfilled' ? discRes.value : [];
+				const aircraftData = aircraftRes.status === 'fulfilled' ? aircraftRes.value : [];
+				const userData = userRes.status === 'fulfilled' ? userRes.value : [];
+				const partsData = partsRes.status === 'fulfilled' ? partsRes.value : [];
+				setWorkOrders(unwrapApiList(woData));
+				setDiscrepancies(unwrapApiList(discData));
+				setAircraft(unwrapApiList(aircraftData));
+				setCompanyUsers(unwrapApiList(userData));
 				setAllParts(unwrapApiList(partsData));
+				if (woRes.status === 'rejected') {
+					setError(woRes.reason?.message || 'Failed to load work orders.');
+				}
 
 				fetchMaintenanceDashboard()
 					.then((kpis) => mounted && setDashboardKPIs(kpis))

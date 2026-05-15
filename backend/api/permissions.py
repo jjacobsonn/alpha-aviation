@@ -125,6 +125,26 @@ class IsMechanicOrManager(BasePermission):
         )
 
 
+class IsServiceHistoryReader(BasePermission):
+    """
+    Read-only access to service history (work order archive search).
+    """
+
+    def has_permission(self, request, view):
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            return False
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                getattr(user, "company_role", None)
+                in {"owner", "manager", "mechanic", "dispatcher"}
+                or _is_platform_admin(user)
+            )
+        )
+
+
 class IsMechanicOrManagerOrPilot(BasePermission):
     """
     Same as IsMechanicOrManager, plus pilot (e.g. list own discrepancy reports).

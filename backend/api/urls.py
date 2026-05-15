@@ -1,6 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .history_views import (
+    service_history_work_order_detail,
+    service_history_work_orders_list,
+)
 from .views import (
     health,
     login,
@@ -133,5 +137,15 @@ urlpatterns = [
     ),
     path("", include(router.urls)),
     path("maintenance/dashboard/", maintenance_dashboard_view, name="maintenance-dashboard"),
+    path(
+        "history/work-orders/",
+        service_history_work_orders_list,
+        name="service-history-work-orders",
+    ),
+    path(
+        "history/work-orders/<int:pk>/",
+        service_history_work_order_detail,
+        name="service-history-work-order-detail",
+    ),
 ]
 

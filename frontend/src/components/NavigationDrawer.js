@@ -19,6 +19,7 @@ import InventoryIcon from "@mui/icons-material/Inventory";
 import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
 import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
+import HistoryIcon from "@mui/icons-material/History";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -123,6 +124,14 @@ function NavigationDrawer() {
       color: "#fb8c00",
       allowedRoles: allowedRolesForModule("workOrders"),
       to: "/work-orders",
+    },
+    {
+      id: "service-history",
+      title: "Service History",
+      icon: <HistoryIcon />,
+      color: "#5c6bc0",
+      allowedRoles: allowedRolesForModule("serviceHistory"),
+      to: "/service-history",
     },
     {
       id: "pilot-dashboard",
