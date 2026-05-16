@@ -5,6 +5,10 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Q
+from decimal import Decimal
+
+
+
 
 #Company model, points to user, aircraft, inventory, and flights. Has two methods for checking availability of aircraft and for giving all of the flights in a given time period.
 class Company(models.Model):
@@ -24,10 +28,13 @@ class Company(models.Model):
             available_aircraft = []
             for aircraft in self.aircraft.all():
                 clean = True
-                for flight in aircraft.flights.all():
-                    if flight.departure_time < end_date and flight.arrival_time > start_date:
-                        clean = False
-                        break
+                if aircraft.fleet_status == 'active':
+                    for flight in aircraft.flights.all():
+                        if flight.departure_time < end_date and flight.arrival_time > start_date:
+                            clean = False
+                            break
+                else:
+                    clean = False
                 if clean:
                     available_aircraft.append(aircraft)
             return available_aircraft
@@ -37,7 +44,7 @@ class Company(models.Model):
             if not aircraft:
                 return []
 
-            for flight in aircraft.flights.all():
+            for flight in aircraft.flights.exclude(id=self.id):
                 if flight.departure_time < end_date and flight.arrival_time > start_date:
                     return []
             return [aircraft]
@@ -92,6 +99,7 @@ class Company(models.Model):
                 'manufacturer': plane.manufacturer,
                 'engine_type': plane.engine_type,
                 'year_built': plane.year_built,
+                'hobbs_time': plane.hobbs_time,
             })
         return aircraft_data
     
@@ -127,6 +135,7 @@ class Company(models.Model):
         for inventory in self.inventories.all():
             for item in inventory.inventorypart_set.all():
                 inventory_data.append({
+                    "Inventory_name":inventory.inventory_name,
                     "id": item.id,
                     "part_number": item.part.part_number,
                     "name": item.part.name,
@@ -139,6 +148,19 @@ class Company(models.Model):
                 })
 
         return inventory_data
+    
+    #for the endpoint to check the companies inventories for parts that are low stock
+    def get_company_low_stock(self):
+        low_stock_parts = []
+        for inventory in self.inventories.all():
+            for item in inventory.inventorypart_set.all():
+                if item.low_stock():
+                    low_stock_parts.append({"Inventory_id":inventory.id,
+                    "Inventory_name":inventory.inventory_name,
+                    "part_id":item.part.id,
+                    "part_name":item.part.name,
+                    "part_number":item.part.part_number,})
+        return low_stock_parts
 
     #for endpoint for all of the workorders that is under this company
     def get_workorders_data(self):
@@ -173,6 +195,39 @@ class Company(models.Model):
                 })
         return workorder_data
 
+    #endpoint for workorders that are overdue
+    def get_overdue_workorders_data(self):
+        overdue_workorders = []
+        today = timezone.now().date()
+        for aircraft in self.aircraft.all():
+            workorders = aircraft.work_orders.filter(due_by__lt=today, status__in=['open', 'in_progress', 'awaiting_parts'])
+            for workorder in workorders:
+                overdue_workorders.append({
+                    'id': workorder.id,
+                    'title': workorder.title,
+                    'created_by': (workorder.created_by.first_name, workorder.created_by.last_name),
+                    'description': workorder.description,
+                    'parts_needed': [
+                        {
+                        'name':item.part.name,
+                        'quantity':item.quantity
+                        } for item in workorder.workorderpart_set.all()],
+                    'status': workorder.status,
+                    'created_at': workorder.created_at,
+                    'updated_at': workorder.updated_at,
+                    'due_by':workorder.due_by,
+                    'aircraft': {'registration_number':workorder.aircraft.registration_number, 'model':workorder.aircraft.model},
+                    'tach_time':workorder.tach_time,
+                    'hobbs_time':workorder.hobbs_time,
+                    'ATA_code':workorder.ATA_code,
+                    'components_affected': workorder.components_affected,
+                    'components_image':workorder.components_image.url if workorder.components_image else None,
+                    'signed_by': (workorder.signed_by.first_name, workorder.signed_by.last_name) if workorder.signed_by else None,
+                    'signature':workorder.signature.url if workorder.signature else None,
+                    'signature_date': workorder.signature_date,
+                })
+        return overdue_workorders
+    
     #for endpoint for all of the discrepancies that is under this company
     def get_discrepancy_data(self):
         aircrafts = self.aircraft.all()
@@ -211,6 +266,53 @@ class Company(models.Model):
                     'company_role': profile.company_role,
                 })
         return role_out
+    
+    #function to get how many workorders each airplane has had in the past 100 hours, returns a dictionary with the registration number as the key and the analytics as the value, uses the get_workorder_analytics function in the aircraft model.
+    def get_company_airplane_workorder_analytics(self):
+        analytics = {}
+        for aircraft in self.aircraft.all():
+            analytics[aircraft.registration_number] = aircraft.get_workorder_analytics()
+        return analytics
+
+    #function to return how many hours each airplane in the company has until next maintenance, returns a dictionary with the registration number as the key and the hours until next maintenance as the value, uses the remaining_hobbs function in the aircraft model.
+    def get_company_airplane_remaining_hobbs(self):
+        remaining = {}
+        for aircraft in self.aircraft.all():
+            remaining[aircraft.registration_number] = aircraft.remaining_hobbs()
+        return remaining
+    
+    #function to make a dictionary of all the ATA codes that the company workorders have had, with the number of times that ATA code has come up and the airplanes that it has come up on, returns a dictionary with the ATA code as the key and a tuple with the count and list of airplanes as the value.
+    def get_company_recuring_workorders(self):
+        ata_codes = {}
+        discrepancies = Discrepancy.objects.filter(aircraft__company=self)
+        for discrepancy in discrepancies:
+            if discrepancy.ata_code in ata_codes:
+                ata_codes[discrepancy.ata_code][0] += 1
+                if not discrepancy.aircraft.registration_number in ata_codes[discrepancy.ata_code][1]:
+                    ata_codes[discrepancy.ata_code][1].append(discrepancy.aircraft.registration_number)
+            else:
+                ata_codes[discrepancy.ata_code] = [1, [discrepancy.aircraft.registration_number]]
+        return ata_codes
+    
+    #function to get how many long(hours) each airplane has fiown in each month for the past year. returns a dictionary with the registration number as the key and a dictionary of month and hours as the value.
+    def get_aircraft_monthly_flight_hours(self):
+        data = {}
+        for aircraft in self.aircraft.all():
+            data[aircraft.registration_number] = aircraft.get_monthly_flight_hours()
+        return data
+    
+    def get_uptime_downtime(self):
+        data = {}
+        for aircraft in self.aircraft.all():
+            total_seconds = (timezone.now() - aircraft.created_at).total_seconds()
+            total_hours = round(total_seconds / 3600, 2)
+            down_hours = round(float(aircraft.calculate_downtime()), 2)
+            data[aircraft.registration_number] = {
+                'total_time_hours': total_hours,
+                'down_time_hours': down_hours,
+            }
+        return data
+
 
 #Profile models, assigned to a company, with a role in the company, and basic profile information. Has functions for is_(company_role).
 class Profile(AbstractUser):
@@ -241,6 +343,7 @@ class Profile(AbstractUser):
     
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
+        self.full_clean()
         if self.company_role == "pilot":
             Pilot.objects.get_or_create(profile = self)
         elif self.company_role == "mechanic":
@@ -332,9 +435,106 @@ class Aircraft(models.Model):
     aircraft_type = models.CharField(max_length=60, blank=True, default="")
     specs = models.JSONField(default=dict, blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name="aircraft", null=True, blank=True )
+    aircraft_parts = models.ManyToManyField('Part', blank = True, through='aircraftpart', related_name="aircrafts")
+    hobbs_time = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True) #get date when the aircraft was created to use for downtime.
+    
+    #function to get how many workorders an airplance has had in the past 100 hours.
+    def get_workorder_analytics(self):
+        hundred_hours_ago = self.hobbs_time - Decimal('100')
+        recent_workorders = self.work_orders.filter(hobbs_time__gte=hundred_hours_ago, hobbs_time__lte=self.hobbs_time)
+        return {
+            'total_workorders': recent_workorders.count(),
+            'high_priority_workorders': recent_workorders.filter(priority='high').count(),
+            'medium_priority_workorders': recent_workorders.filter(priority='medium').count(),
+            'low_priority_workorders': recent_workorders.filter(priority='low').count(),
+            'critical_priority_workorders': recent_workorders.filter(priority='critical').count(),
+        }
+
+    #function to add all the time of all the flights for aircraft and see if time is over part hobbs
+    def check_part_hobbs(self):
+        flight_time = Decimal('0')
+        for flight in self.flights.all():
+            if flight.departure_time > timezone.now():
+                flight_hours = (flight.arrival_time - flight.departure_time).total_seconds() / 3600
+                flight_time += Decimal(str(flight_hours))
+        for part in self.aircraft_parts.all():
+            aircraft_part = AircraftPart.objects.filter(aircraft=self, part=part).first()
+            if aircraft_part and aircraft_part.expiration_hobbs is not None:
+                if self.hobbs_time + flight_time >= aircraft_part.expiration_hobbs:
+                    raise ValidationError(f"Flight time({flight_time}) plus current hobbs time({self.hobbs_time}) goes over aircraft part {part.name} expiration hobbs time({aircraft_part.expiration_hobbs}).")
+
     
     def __str__(self):
         return f"{self.registration_number} ({self.model})"
+
+    def add_hobbs_time(self, hobbs_time):
+        self.hobbs_time = (self.hobbs_time) + Decimal(str(hobbs_time))
+        self.check_part_hobbs()
+        self.save()
+    
+    def check_fleet_status(self):
+        today = timezone.now().date()
+        if self.fleet_status == 'active':
+            for ap in self.aircraftpart_set.all():
+                if ap.expiration_date and ap.expiration_date < today:
+                    self.fleet_status = 'maintenance_due'
+                    return
+                if ap.expiration_hobbs and self.hobbs_time >= ap.expiration_hobbs:
+                    self.fleet_status = 'maintenance_due'
+                    return
+    #function to return how many more hours the airplane has until it needs a part replaced, returns registration number and hours.
+    def remaining_hobbs(self):
+        remaining = None
+        for part in self.aircraft_parts.all():
+            aircraft_part = AircraftPart.objects.filter(aircraft=self, part=part).first()
+            if aircraft_part and aircraft_part.expiration_hobbs is not None:
+                part_remaining = aircraft_part.expiration_hobbs - self.hobbs_time
+                if remaining is None or part_remaining < remaining:
+                    remaining = part_remaining
+        return remaining
+
+    #function to get how many long(hours) this airplane has fiown in each month for the past year. returns a dictionary with the month and hours as the value.
+    def get_monthly_flight_hours(self):
+        today = timezone.now().date()
+        result = {}
+        for i in range(12):
+            # Step back i months
+            month = today.month - i
+            year = today.year
+            while month <= 0:
+                month += 12
+                year -= 1
+            label = f"{year}-{month:02d}"
+            flights = self.flights.filter(
+                departure_time__year=year,
+                departure_time__month=month,
+            )
+            total_hours = sum(
+                (f.arrival_time - f.departure_time).total_seconds() / 3600
+                for f in flights
+                if f.arrival_time and f.departure_time
+            )
+            result[label] = round(total_hours, 2)
+        return result
+
+    def calculate_downtime(self):
+        total_hours = Decimal('0')
+        for workorder in self.work_orders.all():  # .all() fixes the RelatedManager error
+            if workorder.status == 'closed' and workorder.created_at and workorder.updated_at:
+                hours = (workorder.updated_at - workorder.created_at).total_seconds() / 3600
+                total_hours += Decimal(str(hours))
+        return total_hours
+
+
+    def clean(self):
+        pass
+
+    def save(self, *args, **kwargs):
+        self.check_fleet_status()
+        super().save(*args, **kwargs)
+    
+
 
 #Part model, has basic information about the part and a str function. It is related to aircraft.
 class Part(models.Model):
@@ -346,16 +546,76 @@ class Part(models.Model):
     def __str__(self):
         return f"{self.part_number} - {self.name}"
 
+
+#part that is assigned to an aircraft, holds information about the part, the aircraft it is assigned to, and the expiration date and hobbs time. Has a clean function to make sure that the expiration date is not in the past and that the hobbs time is not too low.
+class AircraftPart(models.Model):
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE)
+    part = models.ForeignKey('Part', on_delete=models.CASCADE, related_name="part_aircrafts")
+    expiration_date = models.DateField(null=True, blank=True)
+    expiration_hobbs = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+
+    def clean(self):
+        super().clean()
+        if self.expiration_date and self.expiration_date < timezone.now().date():
+            raise ValidationError({
+                "expiration_date": "Expiration date cannot be in the past."
+            })
+        self._old_part = None
+        existing = AircraftPart.objects.filter(aircraft=self.aircraft, part=self.part).exclude(pk=self.pk).order_by('-expiration_hobbs').first()
+
+        if existing:
+            if self.expiration_hobbs is not None and existing.expiration_hobbs is not None:
+                if self.expiration_hobbs <= existing.expiration_hobbs:
+                    raise ValidationError({
+                        "expiration_hobbs": f"New expiration hobbs {self.expiration_hobbs} must be greater than existing hobbs {existing.expiration_hobbs}."
+                    })
+                else:
+                    self._old_part = existing
+        if self.expiration_hobbs is not None:
+            aircraft = self.aircraft
+
+            flight_time = Decimal('0')
+            now = timezone.now()
+
+            for flight in aircraft.flights.all():
+                if not flight.departure_time or not flight.arrival_time:
+                    continue
+
+                if flight.arrival_time > now:
+                    start = max(flight.departure_time, now)
+                    end = flight.arrival_time
+                    hours = (end - start).total_seconds() / 3600
+                    flight_time += Decimal(str(hours))
+
+            if aircraft.hobbs_time + flight_time >= self.expiration_hobbs:
+                raise ValidationError({
+                    "expiration_hobbs": (
+                        f"Too low. Current ({aircraft.hobbs_time}) + projected "
+                        f"({flight_time}) exceeds limit."
+                    )
+                })
+    
+    def __str__(self):
+        return f"{self.part.name} on {self.aircraft.registration_number} ({self.aircraft.model})"
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+        if hasattr(self, "_old_part") and self._old_part:
+            self._old_part.delete()
+        self.aircraft.save()
+
 #Inventory model, is to show the inventory of parts for the company, points to company and part. Has a function(low_stock) to show the if the stock is lower than the stock alert percentage.
 class Inventory(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name= "inventories")
     parts = models.ManyToManyField(Part, blank=True, through='InventoryPart', related_name="inventories")
+    inventory_name = models.CharField(max_length=100, default="Main")
 
     def __str__(self):
         items =self.inventorypart_set.all()
         if not items:
-            return f"Inventory for {self.company.name} with no parts"
-        return ",".join([f"{item.part.name} (Qty: {item.quantity})" for item in items])
+            return f"Inventory {self.inventory_name} for {self.company.name} with no parts"
+        return f"Inventory {self.inventory_name} for {self.company.name} with: {len(items)} items"
 
 #sub model for inventory to have a list of parts and their quantities, since inventory can have multiple parts and parts can be in multiple inventories.
 class InventoryPart(models.Model):
@@ -367,18 +627,15 @@ class InventoryPart(models.Model):
     shop_location = models.CharField(max_length=100, blank= True, null= True)
 
     def low_stock(self):
-        """
-        Consider this item low stock when current quantity is less than
-        or equal to the alert threshold.
-        """
-        if self.quantity is None or self.stock_alert is None:
-            return False
-        return self.quantity <= self.stock_alert
+        return (
+            self.stock_alert >= self.quantity * (1 + self.stock_alert_percentage)
+            or self.stock_alert >= self.quantity
+        )
 
     low_stock.boolean = True
     low_stock.short_description = "Low Stock?"
     def __str__(self):
-        return f"{self.part.name} with {self.quantity} in stock"
+        return f"{self.part.name} in {self.inventory.company.name} with {self.quantity} in stock"
 
 
 class Flight(models.Model):
@@ -431,49 +688,104 @@ class Flight(models.Model):
         ("cancelled", "Cancelled"),
         ("completed", "Completed"),
     ]
-    status = models.CharField(max_length=255, choices=status_type_options, default="pending approval")
+    status = models.CharField(max_length= 255, choices=status_type_options, default='pending approval' )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean() 
+        super().save(*args, **kwargs)
 
     def clean(self):
         errors = {}
 
-        if self.primary_pilot and self.secondary_pilot and self.primary_pilot == self.secondary_pilot:
-            errors["secondary_pilot"] = (
-                "Secondary pilot cannot be the same person as Primary pilot!"
-            )
+        # Auto-assign company from aircraft
+        if self.aircraft and not self.company:
+            self.company = self.aircraft.company
 
+        # --- Basic time validation ---
         if not self.departure_time:
             errors["departure_time"] = "Departure time does not exist"
 
         if not self.arrival_time:
             errors["arrival_time"] = "Arrival time does not exist"
         elif self.departure_time and self.arrival_time < self.departure_time:
-            errors["arrival_time"] = "Arrival time can not be before departure time."
+            errors["arrival_time"] = "Arrival time cannot be before departure time"
 
-        def check_pilot(pilot, which_pilot):
+        # --- Pilot validation ---
+        def check_pilot(pilot, field_name):
             if not pilot:
                 return
-            if getattr(pilot, "company_role", None) != "pilot":
-                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a pilot"
+
+            if pilot.company_role != "pilot":
+                errors[field_name] = f"{pilot.first_name} is not a pilot"
                 return
-            if getattr(pilot, "company", None) != self.company:
-                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not of company {self.company}"
+
+            if pilot.company != self.company:
+                errors[field_name] = f"{pilot.first_name} is not in this company"
                 return
-            pilot_info = getattr(pilot, "pilot_info", None)
-            if not pilot_info:
-                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is missing pilot_info"
+
+            if not hasattr(pilot, "pilot_info") or not pilot.pilot_info:
+                errors[field_name] = f"{pilot.first_name} has no pilot profile"
                 return
-            if (
-                not getattr(pilot_info, "medically_cleared_until", None)
-                or (self.arrival_time and pilot_info.medically_cleared_until < self.arrival_time.date())
-            ):
-                errors[which_pilot] = (
-                    f"{getattr(pilot, 'first_name', 'Pilot')} is not cleared to fly until {self.arrival_time.date() if self.arrival_time else 'N/A'}"
-                )
-            if hasattr(pilot_info, "is_certified") and not pilot_info.is_certified(self.pilot_requirement):
-                errors[which_pilot] = f"{getattr(pilot, 'first_name', 'Pilot')} is not a high enough certification"
+
+            if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
+                errors[field_name] = f"{pilot.first_name} is not medically cleared"
+
+            if not pilot.pilot_info.is_certified(self.pilot_requirement):
+                errors[field_name] = f"{pilot.first_name} is not certified for this flight"
+
+        # Prevent same pilot
+        if self.primary_pilot and self.secondary_pilot:
+            if self.primary_pilot == self.secondary_pilot:
+                errors["secondary_pilot"] = "Secondary pilot cannot be the same as primary"
 
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
+
+        # --- Aircraft checks ---
+        if self.aircraft and self.departure_time and self.arrival_time:
+            aircraft = Aircraft.objects.get(pk=self.aircraft_id)
+
+            # Work order check
+            if aircraft.work_orders.filter(status__in=['open', 'in_progress', 'awaiting_parts']).exists():
+                errors["aircraft"] = f"{aircraft} has pending work orders"
+
+            # Conflict check
+            conflict = aircraft.flights.exclude(pk=self.pk).filter(
+                departure_time__lt=self.arrival_time,
+                arrival_time__gt=self.departure_time
+            )
+            if conflict.exists():
+                errors["aircraft"] = f"{aircraft} has a conflicting flight"
+
+            # --- Hobbs projection check ---
+            flight_time = Decimal('0')
+            now = timezone.now()
+
+            # Existing flights
+            for flight in aircraft.flights.exclude(pk=self.pk):
+                if not flight.departure_time or not flight.arrival_time:
+                    continue
+
+                if flight.arrival_time > now:
+                    start = max(flight.departure_time, now)
+                    end = flight.arrival_time
+                    hours = (end - start).total_seconds() / 3600
+                    flight_time += Decimal(str(hours))
+
+            # THIS flight
+            if self.arrival_time > now:
+                start = max(self.departure_time, now)
+                end = self.arrival_time
+                hours = (end - start).total_seconds() / 3600
+                flight_time += Decimal(str(hours))
+
+            # Check against part limits
+            for ap in AircraftPart.objects.filter(aircraft=aircraft, expiration_hobbs__isnull=False):
+                if aircraft.hobbs_time + flight_time >= ap.expiration_hobbs:
+                    errors["aircraft"] = (
+                        f"{aircraft} exceeds hobbs limit for part {ap.part.name}"
+                    )
+                    break
 
         if errors:
             raise ValidationError(errors)
@@ -541,15 +853,41 @@ class WorkOrder(models.Model):
         upload_to="work_order_signatures/", null=True, blank=True
     )
     signature_date = models.DateField(null=True, blank=True)
+    
+    #save function to check if the status has changed to closed, if it has then it will run the _handle_completion function to add an aircraft part to the aircraft.
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old = WorkOrder.objects.filter(pk=self.pk).values("status").first()
+            old_status = old["status"] if old else None
+        else:
+            old_status = None
+        super().save(*args, **kwargs)
+        if self.status == "closed" and old_status != "closed":
+            self._handle_completion()
 
+    #checks date and compares to the workorder created at time to get down time creates a new aircraft part for each part in the work order, with the expiration date and hobbs time based on the work order part information. Also deletes any existing aircraft part for that part, since it is being replaced.
+    def _handle_completion(self):
+        for wop in self.workorderpart_set.all():
+            part = wop.part
+            aircraft = self.aircraft
+            AircraftPart.objects.filter(aircraft=aircraft, part=part).delete()
+            AircraftPart.objects.create(
+                aircraft=aircraft,
+                part=part,
+                expiration_date=wop.part_expiration_date if wop.part_expiration_date else None,
+                expiration_hobbs=wop.part_life + aircraft.hobbs_time if wop.part_life else None
+            )
     def __str__(self):
         return f"Work Order #{self.id} - {self.aircraft.registration_number}"
+    
 
 
 class WorkOrderPart(models.Model):
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
     part = models.ForeignKey(Part, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
+    part_life = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, help_text="Number of hobbs hours the part is good for. Optional, only used if part is tracked by hobbs time.")
+    part_expiration_date = models.DateField(null=True, blank=True, help_text="Date the part expires. Optional, only used if part is tracked by expiration date.")
 
 
 class Discrepancy(models.Model):

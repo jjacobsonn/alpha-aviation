@@ -422,9 +422,14 @@ def management_dashboard_view(request):
     company = get_request_company(request)
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
-
+    
+    uptime_downtime = company.get_uptime_downtime()
+    monthly_flight_hours = company.get_aircraft_monthly_flight_hours()
+    recuring_discrepancies = company.get_company_recuring_workorders()
+    remaining_hobbs = company.get_company_airplane_remaining_hobbs()
     aircraft_count = Aircraft.objects.filter(company=company).count()
     flights_count = Flight.objects.filter(company=company).count()
+    workorder_analytics = company.get_company_airplane_workorder_analytics()
     open_work_orders = (
         WorkOrder.objects.filter(aircraft__company=company).exclude(status="closed").count()
     )
@@ -461,6 +466,14 @@ def management_dashboard_view(request):
                 "low_stock_items": low_stock_items,
             },
             "team_by_role": team_by_role,
+            "aircraft_analytics": {
+                "workorder_analytics": workorder_analytics,
+                "remaining_hobbs": remaining_hobbs,
+                "recuring_discrepancies": recuring_discrepancies,
+                "monthly_flight_hours": monthly_flight_hours,
+                "uptime_downtime": uptime_downtime,
+            }
+
         }
     )
 ###
@@ -501,6 +514,33 @@ def company_aircraft_view(request):
     aircraft = Aircraft.objects.filter(company=company).order_by("registration_number")
     serializer = AircraftSerializer(aircraft, many=True)
     return Response(serializer.data)
+
+#endpoint to add time to aircraft hobbs time
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_hobbs_time_view(request):
+    company = request.user.company
+    aircraft_id = request.data.get('aircraft_id')
+    if aircraft_id is None:
+        return Response({'error': 'aircraft_id is required'}, status=400)
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    try:
+        aircraft = Aircraft.objects.get(id=aircraft_id, company=company)
+    except Aircraft.DoesNotExist:
+        return Response({'error': 'Aircraft not found'}, status=404)
+    
+    hobbs_time_to_add = request.data.get('hobbs_time')
+    if hobbs_time_to_add is None:
+        return Response({'error': 'hobbs_time is required'}, status=400)
+    
+    try:
+        hobbs_time_to_add = float(hobbs_time_to_add)
+    except ValueError:
+        return Response({'error': 'hobbs_time must be a number'}, status=400)
+
+    aircraft.add_hobbs_time(hobbs_time_to_add)
+    return Response({'message': f'Added {hobbs_time_to_add} hours to aircraft {aircraft.registration_number}'}, status=200)
 
 #endpoint for company's flights
 @api_view(['GET'])
@@ -648,6 +688,16 @@ def company_inventory_view(request):
     serializer = InventorySerializer(inventories, many=True)
     return Response(serializer.data)
 
+#endpoint for company's parts for each inventory
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_low_stock_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_company_low_stock()
+    return Response(data)
+
 #endpoint for company's workorders
 @api_view(['GET'])
 @permission_classes([IsMechanicOrManager])
@@ -658,6 +708,16 @@ def company_workorders_view(request):
     workorders = company_scoped_workorder_queryset(request)
     serializer = WorkOrderSerializer(workorders, many=True)
     return Response(serializer.data)
+
+#endpoint for company's overdue workorders
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_overdue_workorders_view(request):
+    company = request.user.company
+    if company is None:
+        return Response({'error': 'User does not have an associated company'}, status=403)
+    data = company.get_overdue_workorders_data()
+    return Response(data)
 
 #endpoint for company's discrepancies
 @api_view(['GET'])
@@ -697,6 +757,8 @@ def company_role_view(request):
         )
     )
     return Response(list(profiles))
+
+
 
 
 class CompanyInventoryListView(generics.ListCreateAPIView):
