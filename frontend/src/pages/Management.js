@@ -45,12 +45,16 @@ import {
 	fetchCompanyDiscrepancies,
 	fetchCompanyUsers,
 	fetchManagementDashboard,
+	fetchFleetAvailabilityDashboard,
+	fetchCompanyAircrafts,
 	createProfile,
 	updateProfile,
 	adminResetPassword,
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
+import FleetAvailabilityPanel from '../components/management/FleetAvailabilityPanel';
+import FleetStatusPanel from '../components/management/FleetStatusPanel';
 
 const ROLE_LABELS = {
 	owner: 'Owner',
@@ -93,6 +97,8 @@ const Management = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [dashboard, setDashboard] = useState(null);
+	const [fleetAvailability, setFleetAvailability] = useState(null);
+	const [companyAircraft, setCompanyAircraft] = useState([]);
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
 	const [companyUsers, setCompanyUsers] = useState([]);
@@ -134,14 +140,31 @@ const Management = () => {
 			setLoading(true);
 			setError('');
 			try {
-				const [dash, wo, disc, users] = await Promise.all([
+				const [dash, wo, disc, users, fleetAvail, acList] = await Promise.all([
 					fetchManagementDashboard(),
 					fetchCompanyWorkorders(),
 					fetchCompanyDiscrepancies(),
 					fetchCompanyUsers(),
+					(async () => {
+						try {
+							return await fetchFleetAvailabilityDashboard();
+						} catch {
+							return null;
+						}
+					})(),
+					(async () => {
+						try {
+							const raw = await fetchCompanyAircrafts();
+							return Array.isArray(raw) ? raw : [];
+						} catch {
+							return [];
+						}
+					})(),
 				]);
 				if (!mounted) return;
 				setDashboard(dash && typeof dash === 'object' ? dash : null);
+				setFleetAvailability(fleetAvail && typeof fleetAvail === 'object' ? fleetAvail : null);
+				setCompanyAircraft(acList);
 				setWorkOrders(Array.isArray(wo) ? wo : []);
 				setDiscrepancies(Array.isArray(disc) ? disc : []);
 				setCompanyUsers(Array.isArray(users) ? users : []);
@@ -162,6 +185,23 @@ const Management = () => {
 	const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
 	const counts = dashboard?.counts;
+
+	const openWoByAircraft = useMemo(() => {
+		const m = {};
+		for (const wo of workOrders || []) {
+			if (wo?.status === 'closed') continue;
+			const ac = wo?.aircraft;
+			const id =
+				typeof ac === 'object' && ac != null && ac.id != null
+					? Number(ac.id)
+					: ac != null && ac !== ''
+						? Number(ac)
+						: null;
+			if (id == null || Number.isNaN(id)) continue;
+			m[id] = (m[id] || 0) + 1;
+		}
+		return m;
+	}, [workOrders]);
 
 	const pendingTasksCount = useMemo(() => {
 		if (counts) {
@@ -483,6 +523,22 @@ const Management = () => {
 						</CardContent>
 					</Card>
 				)}
+
+				{hasCompanyContext && !loading ? (
+					<FleetAvailabilityPanel data={fleetAvailability} loading={false} />
+				) : hasCompanyContext && loading ? (
+					<FleetAvailabilityPanel data={null} loading />
+				) : null}
+
+				{hasCompanyContext && !loading ? (
+					<FleetStatusPanel
+						aircraft={companyAircraft}
+						openWoByAircraft={openWoByAircraft}
+						loading={false}
+					/>
+				) : hasCompanyContext && loading ? (
+					<FleetStatusPanel aircraft={[]} openWoByAircraft={{}} loading />
+				) : null}
 
 				{/* Error */}
 				{error && (

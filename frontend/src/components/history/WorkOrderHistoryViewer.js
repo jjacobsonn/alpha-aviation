@@ -30,6 +30,7 @@ import {
 } from '../../shared/Api';
 import DeleteConfirmationDialog from '../DeleteConfirmationDialog';
 import { workOrderHeadline, workOrderSourceLabel } from '../../shared/workOrderDisplay';
+import { profileDisplayName, resolvePersonDisplay } from '../../shared/profileDisplay';
 
 const WORK_ORDER_STATUS_OPTIONS = [
 	{ value: 'open', label: 'Open' },
@@ -57,16 +58,6 @@ const emptyForm = {
 	ata_code: '',
 	components_affected: '',
 };
-
-function profileName(p) {
-	if (!p) return '—';
-	if (typeof p === 'object') {
-		const fn = (p.first_name || '').trim();
-		const ln = (p.last_name || '').trim();
-		return `${fn} ${ln}`.trim() || p.username || '—';
-	}
-	return String(p);
-}
 
 function aircraftLabel(ac) {
 	if (!ac) return '—';
@@ -355,7 +346,14 @@ export default function WorkOrderHistoryViewer({
 			<Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
 				<Stack spacing={2} sx={{ flex: 1 }}>
 					<Field label="Aircraft" value={aircraftLabel(wo.aircraft)} />
-					<Field label="Assigned mechanic" value={profileName(wo.created_by)} />
+					<Field
+						label="Created by"
+						value={resolvePersonDisplay(wo.created_by, wo.created_by_name)}
+					/>
+					<Field
+						label="Assigned to"
+						value={resolvePersonDisplay(wo.assignee, wo.assignee_name)}
+					/>
 					<Field label="Due" value={wo.due_by || '—'} />
 					<Field label="Created" value={wo.created_at ? new Date(wo.created_at).toLocaleString() : '—'} />
 					<Field label="Last updated" value={wo.updated_at ? new Date(wo.updated_at).toLocaleString() : '—'} />
@@ -385,7 +383,7 @@ export default function WorkOrderHistoryViewer({
 					{wo.signed_by ? (
 						<Field
 							label="Signed off by"
-							value={`${profileName(wo.signed_by)}${wo.signature_date ? ` on ${wo.signature_date}` : ''}`}
+							value={`${profileDisplayName(wo.signed_by)}${wo.signature_date ? ` on ${wo.signature_date}` : ''}`}
 						/>
 					) : null}
 					<Field
@@ -469,7 +467,7 @@ export default function WorkOrderHistoryViewer({
 						<MenuItem value="">Unassigned</MenuItem>
 						{mechanicUsers.map((u) => (
 							<MenuItem key={u.id} value={String(u.id)}>
-								{profileName(u)}
+								{profileDisplayName(u)}
 							</MenuItem>
 						))}
 					</TextField>

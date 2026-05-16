@@ -32,6 +32,29 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 
 import KPICard from '../components/KPICard';
+import {
+	MaintenanceActivityTimeline,
+	MaintenanceDescriptionBlock,
+	MaintenanceLinkButton,
+	MaintenanceMetaGrid,
+	MaintenanceOpenRecordButton,
+	MaintenancePanelSection,
+	MaintenancePeopleStrip,
+	MaintenanceRecordHeader,
+	MaintenanceStatusChip,
+	discrepancySummaryLine,
+	parseAircraftFromEntity,
+} from '../components/maintenance/MaintenanceDetailPanel';
+import {
+	profileDisplayName,
+	resolvePersonDisplay,
+	workOrderPeopleLabels,
+} from '../shared/profileDisplay';
+import {
+	discrepancyLinkLabel,
+	workOrderHeadline,
+	workOrderRefId,
+} from '../shared/workOrderDisplay';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
 	closeWorkOrder,
@@ -102,15 +125,6 @@ function formatActivitySummary(summary) {
 	);
 }
 
-/** Profile / company user row: prefer real name, fall back to username (no role suffix). */
-function profileDisplayName(u) {
-	if (!u) return '';
-	const fn = (u.first_name || '').trim();
-	const ln = (u.last_name || '').trim();
-	const full = `${fn} ${ln}`.trim();
-	return full || (u.username || '').trim() || '';
-}
-
 function partAircraftId(p) {
 	if (!p) return null;
 	const a = p.aircraft;
@@ -135,23 +149,14 @@ function unwrapApiList(data) {
 }
 
 function MaintenanceActivityList({ items, emptyHint }) {
-	if (!items?.length) {
-		return (
-			<Typography variant="body2" color="text.secondary">{emptyHint}</Typography>
-		);
-	}
 	return (
-		<Stack spacing={1.25} sx={{ maxHeight: 260, overflow: 'auto', pr: 0.5 }}>
-			{items.map((a) => (
-				<Box key={a.id} sx={{ borderLeft: '3px solid', borderColor: 'divider', pl: 1.5, py: 0.25 }}>
-					<Typography variant="caption" color="text.secondary" display="block">
-						{a.created_at ? new Date(a.created_at).toLocaleString() : ''} · {a.actor_display || '—'}
-						{a.event_type ? ` · ${a.event_type}` : ''}
-					</Typography>
-					<Typography variant="body2">{formatActivitySummary(a.summary)}</Typography>
-				</Box>
-			))}
-		</Stack>
+		<MaintenancePanelSection title="Activity log">
+			<MaintenanceActivityTimeline
+				items={items}
+				emptyHint={emptyHint}
+				formatSummary={formatActivitySummary}
+			/>
+		</MaintenancePanelSection>
 	);
 }
 
@@ -176,6 +181,13 @@ const initialDiscrepancyForm = {
 	tach_time: '',
 	status: 'pending',
 	work_order: '',
+};
+
+const detailDialogActionsSx = {
+	flexWrap: 'wrap',
+	gap: 1,
+	px: { xs: 2, sm: 3 },
+	py: { xs: 1.5, sm: 2 },
 };
 
 const Maintenance = () => {
@@ -334,12 +346,8 @@ const Maintenance = () => {
 		return m;
 	}, [companyUsers]);
 
-	const resolveProfileName = (profileRef) => {
-		if (profileRef == null) return '';
-		if (typeof profileRef === 'object') return profileDisplayName(profileRef);
-		const u = profileById.get(profileRef);
-		return profileDisplayName(u) || String(profileRef);
-	};
+	const resolveProfileName = (profileRef, displayName) =>
+		resolvePersonDisplay(profileRef, displayName, profileById);
 
 	const dueSoonWorkOrders = useMemo(
 		() =>
@@ -399,7 +407,7 @@ const Maintenance = () => {
 							  wo.aircraft.model ||
 							  wo.aircraft.registration_number
 							: aircraftLabelById.get(Number(wo.aircraft)) || (wo.aircraft ? `Aircraft #${wo.aircraft}` : '—'),
-					assigned_to: resolveProfileName(wo.created_by),
+					assigned_to: resolveProfileName(wo.assignee, wo.assignee_name),
 					status: wo.status,
 					status_label: labelForWorkOrderStatus(wo.status),
 					due_date: wo.due_by,
@@ -635,6 +643,30 @@ const Maintenance = () => {
 			status: d?.status || 'pending',
 			work_order: woId === '' ? '' : String(woId),
 		});
+	};
+
+	const linkedDiscrepanciesForSelectedWo = useMemo(() => {
+		if (!selectedWorkOrder?.id) return [];
+		const woId = Number(selectedWorkOrder.id);
+		return discrepancies.filter((d) => workOrderRefId(d.work_order) === woId);
+	}, [discrepancies, selectedWorkOrder?.id]);
+
+	const viewLinkedWorkOrder = (disc) => {
+		const woId = workOrderRefId(disc?.work_order);
+		if (woId == null) return;
+		const wo = workOrders.find((w) => Number(w.id) === woId);
+		if (!wo) {
+			setError('Work order not found. Refresh the page and try again.');
+			return;
+		}
+		closeDiscrepancyDetail();
+		openWorkOrderDetail(wo);
+	};
+
+	const viewSourceDiscrepancy = (disc) => {
+		if (!disc?.id) return;
+		closeWorkOrderDetail();
+		openDiscrepancyDetail(disc);
 	};
 
 	const openDiscrepancyDetail = (d) => {
@@ -1106,65 +1138,148 @@ const Maintenance = () => {
 					</DialogActions>
 				</Dialog>
 
-				<Dialog open={workOrderDetailOpen} onClose={closeWorkOrderDetail} maxWidth="sm" fullWidth>
-					<DialogTitle>
-						{workOrderDetailEditing
-							? superviseMaintenance
-								? 'Edit work order'
-								: 'Update progress'
-							: 'Work order'}
-					</DialogTitle>
-					<DialogContent>
+				<Dialog
+					open={workOrderDetailOpen}
+					onClose={closeWorkOrderDetail}
+					maxWidth="sm"
+					fullWidth
+				>
+					{selectedWorkOrder && !workOrderDetailEditing ? (
+						<MaintenanceRecordHeader
+							eyebrow={`Work order #${selectedWorkOrder.id}`}
+							primary={workOrderHeadline(selectedWorkOrder, 96)}
+							secondary={parseAircraftFromEntity(selectedWorkOrder).full}
+							status={selectedWorkOrder.status}
+							statusKind="workorder"
+							metaLine={
+								[
+									selectedWorkOrder.due_by ? `Due ${selectedWorkOrder.due_by}` : null,
+									WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)
+										?.label
+										? `${WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)?.label} priority`
+										: null,
+								]
+									.filter(Boolean)
+									.join(' · ') || undefined
+							}
+							actions={
+								<Chip
+									size="small"
+									variant="outlined"
+									color={
+										selectedWorkOrder.priority === 'critical'
+											? 'error'
+											: selectedWorkOrder.priority === 'high'
+												? 'warning'
+												: 'default'
+									}
+									label={
+										WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)
+											?.label || 'Medium'
+									}
+									sx={{ height: 26, fontWeight: 600, fontSize: '0.8125rem' }}
+								/>
+							}
+						/>
+					) : (
+						<DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
+							{workOrderDetailEditing
+								? superviseMaintenance
+									? 'Edit work order'
+									: 'Update progress'
+								: 'Work order'}
+						</DialogTitle>
+					)}
+					<DialogContent dividers sx={{ px: 2, py: 1.5 }}>
 						{selectedWorkOrder ? (
-							<Stack spacing={2} sx={{ mt: 1 }}>
+							<Stack spacing={1.75}>
 								{!workOrderDetailEditing ? (
 									<>
-										<Stack spacing={0.75}>
-											<Typography variant="caption" color="text.secondary">Title</Typography>
-											<Typography variant="body1">{selectedWorkOrder.title || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Aircraft</Typography>
-											<Typography variant="body1">{formatEntityAircraft(selectedWorkOrder)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Assigned to</Typography>
-											<Typography variant="body1">{resolveProfileName(selectedWorkOrder.created_by) || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Parts on order</Typography>
-											<Typography variant="body1">
-												{Array.isArray(selectedWorkOrder.parts_needed) && selectedWorkOrder.parts_needed.length
-													? selectedWorkOrder.parts_needed
-															.map((raw) => {
-																const id = typeof raw === 'object' && raw != null ? raw.id : raw;
-																return partLabelById.get(id) || `#${id}`;
-															})
-															.join(', ')
-													: '—'}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Status</Typography>
-											<Typography variant="body1">{labelForWorkOrderStatus(selectedWorkOrder.status)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Priority</Typography>
-											<Typography variant="body1">
-												{WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)?.label || 'Medium'}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Due</Typography>
-											<Typography variant="body1">{selectedWorkOrder.due_by || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Description</Typography>
-											<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{selectedWorkOrder.description || '—'}</Typography>
-											{selectedWorkOrder.signed_by ? (
-												<>
-													<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Signed off by</Typography>
-													<Typography variant="body1">
-														{resolveProfileName(selectedWorkOrder.signed_by)}
-														{selectedWorkOrder.signature_date ? ` on ${selectedWorkOrder.signature_date}` : ''}
-													</Typography>
-												</>
-											) : null}
-											{selectedWorkOrder.completion_notes ? (
-												<>
-													<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Completion Notes</Typography>
-													<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{selectedWorkOrder.completion_notes}</Typography>
-												</>
-											) : null}
-										</Stack>
-										<Divider />
-										<Typography variant="subtitle2">Activity log</Typography>
+										<MaintenancePeopleStrip
+											people={[
+												{
+													role: 'Created by',
+													name: resolveProfileName(
+														selectedWorkOrder.created_by,
+														selectedWorkOrder.created_by_name
+													),
+												},
+												{
+													role: 'Assigned to',
+													name: resolveProfileName(
+														selectedWorkOrder.assignee,
+														selectedWorkOrder.assignee_name
+													),
+												},
+											]}
+										/>
+										<MaintenanceMetaGrid
+											items={[
+												{
+													label: 'Aircraft',
+													value: parseAircraftFromEntity(selectedWorkOrder).full,
+												},
+												{
+													label: 'Parts',
+													value:
+														Array.isArray(selectedWorkOrder.parts_needed) &&
+														selectedWorkOrder.parts_needed.length
+															? selectedWorkOrder.parts_needed
+																	.map((raw) => {
+																		const id =
+																			typeof raw === 'object' && raw != null ? raw.id : raw;
+																		return partLabelById.get(id) || `#${id}`;
+																	})
+																	.join(', ')
+															: 'None',
+												},
+												selectedWorkOrder.ATA_code != null && selectedWorkOrder.ATA_code !== ''
+													? { label: 'ATA', value: selectedWorkOrder.ATA_code }
+													: null,
+												selectedWorkOrder.due_by
+													? { label: 'Due', value: selectedWorkOrder.due_by }
+													: null,
+											].filter(Boolean)}
+										/>
+										{linkedDiscrepanciesForSelectedWo.length > 0 ? (
+											<MaintenancePanelSection
+												title={`Pilot report${linkedDiscrepanciesForSelectedWo.length > 1 ? 's' : ''}`}
+											>
+												<Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+													{linkedDiscrepanciesForSelectedWo.map((d) => (
+														<MaintenanceLinkButton
+															key={d.id}
+															label={discrepancyLinkLabel(d, 40)}
+															onClick={() => viewSourceDiscrepancy(d)}
+														/>
+													))}
+												</Stack>
+											</MaintenancePanelSection>
+										) : null}
+										<MaintenanceDescriptionBlock
+											title="Work scope"
+											text={selectedWorkOrder.description}
+										/>
+										{selectedWorkOrder.signed_by ? (
+											<MaintenanceMetaGrid
+												items={[
+													{
+														label: 'Signed off',
+														value: `${resolveProfileName(selectedWorkOrder.signed_by)}${
+															selectedWorkOrder.signature_date
+																? ` · ${selectedWorkOrder.signature_date}`
+																: ''
+														}`,
+													},
+												]}
+											/>
+										) : null}
+										{selectedWorkOrder.completion_notes ? (
+											<MaintenanceDescriptionBlock
+												title="Completion notes"
+												text={selectedWorkOrder.completion_notes}
+											/>
+										) : null}
 										<MaintenanceActivityList
 											items={selectedWorkOrder?.activities}
 											emptyHint="No history yet."
@@ -1320,7 +1435,7 @@ const Maintenance = () => {
 							</Stack>
 						) : null}
 					</DialogContent>
-					<DialogActions>
+					<DialogActions sx={detailDialogActionsSx}>
 					{!workOrderDetailEditing ? (
 						<>
 							<Button onClick={closeWorkOrderDetail}>Close</Button>
@@ -1398,49 +1513,98 @@ const Maintenance = () => {
 					</DialogActions>
 				</Dialog>
 
-				<Dialog open={discrepancyDetailOpen} onClose={closeDiscrepancyDetail} maxWidth="sm" fullWidth>
-					<DialogTitle>
-						{discrepancyDetailEditing
-							? superviseMaintenance
-								? 'Edit discrepancy'
-								: 'Update discrepancy'
-							: 'Discrepancy'}
-					</DialogTitle>
-					<DialogContent>
+				<Dialog
+					open={discrepancyDetailOpen}
+					onClose={closeDiscrepancyDetail}
+					maxWidth="sm"
+					fullWidth
+				>
+					{selectedDiscrepancy && !discrepancyDetailEditing ? (
+						<MaintenanceRecordHeader
+							eyebrow={`Discrepancy #${selectedDiscrepancy.id}`}
+							primary={parseAircraftFromEntity(selectedDiscrepancy).tail}
+							secondary={parseAircraftFromEntity(selectedDiscrepancy).model || undefined}
+							summary={discrepancySummaryLine(selectedDiscrepancy)}
+							status={selectedDiscrepancy.status}
+							statusKind="discrepancy"
+							statusLabel={labelForDiscrepancyStatus(selectedDiscrepancy.status)}
+							metaLine={
+								selectedDiscrepancy.date_reported
+									? `Reported ${selectedDiscrepancy.date_reported}`
+									: undefined
+							}
+							actions={
+								workOrderRefId(selectedDiscrepancy.work_order) != null ? (
+									<MaintenanceOpenRecordButton
+										label="Open work order"
+										onClick={() => viewLinkedWorkOrder(selectedDiscrepancy)}
+									/>
+								) : (
+									<Chip
+										size="small"
+										label="No work order"
+										variant="outlined"
+										sx={{ height: 26, fontSize: '0.75rem' }}
+									/>
+								)
+							}
+						/>
+					) : (
+						<DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
+							{discrepancyDetailEditing
+								? superviseMaintenance
+									? 'Edit discrepancy'
+									: 'Update discrepancy'
+								: 'Discrepancy'}
+						</DialogTitle>
+					)}
+					<DialogContent dividers sx={{ px: 2, py: 1.5 }}>
 						{selectedDiscrepancy ? (
-							<Stack spacing={2} sx={{ mt: 1 }}>
+							<Stack spacing={1.75}>
 								{!discrepancyDetailEditing ? (
 									<>
-										<Stack spacing={0.75}>
-											<Typography variant="caption" color="text.secondary">Aircraft</Typography>
-											<Typography variant="body1">{formatEntityAircraft(selectedDiscrepancy)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Reporter</Typography>
-											<Typography variant="body1">
-												{selectedDiscrepancy.reporter_name || resolveProfileName(selectedDiscrepancy.reporter) || '—'}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Linked work order</Typography>
-											<Typography variant="body1">
-												{(() => {
-													const woRef = selectedDiscrepancy.work_order;
-													if (typeof woRef === 'object' && woRef != null) {
-														return `#${woRef.id} — ${woRef.title || ''}`.trim();
-													}
-													return woRef != null && woRef !== '' ? `#${woRef}` : '—';
-												})()}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Date reported</Typography>
-											<Typography variant="body1">{selectedDiscrepancy.date_reported || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Status</Typography>
-											<Typography variant="body1">{labelForDiscrepancyStatus(selectedDiscrepancy.status)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>ATA</Typography>
-											<Typography variant="body1">{selectedDiscrepancy.ata_code || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Tach time</Typography>
-											<Typography variant="body1">{selectedDiscrepancy.tach_time || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Description</Typography>
-											<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{selectedDiscrepancy.description || '—'}</Typography>
-										</Stack>
-										<Divider />
-										<Typography variant="subtitle2">Activity log</Typography>
+										{(() => {
+											const woRef = selectedDiscrepancy.work_order;
+											const wo =
+												typeof woRef === 'object' && woRef != null ? woRef : null;
+											const people = wo ? workOrderPeopleLabels(wo, profileById) : null;
+											const personnel = [
+												{
+													role: 'Reported by',
+													name: resolveProfileName(
+														selectedDiscrepancy.reporter,
+														selectedDiscrepancy.reporter_name
+													),
+												},
+											];
+											if (people?.openedBy && people.openedBy !== '—') {
+												personnel.push({ role: 'WO opened by', name: people.openedBy });
+											}
+											if (people?.assignedTo && people.assignedTo !== '—') {
+												personnel.push({ role: 'Assigned to', name: people.assignedTo });
+											}
+											return <MaintenancePeopleStrip people={personnel} />;
+										})()}
+										<MaintenanceMetaGrid
+											items={[
+												selectedDiscrepancy.ata_code
+													? { label: 'ATA', value: selectedDiscrepancy.ata_code }
+													: null,
+												selectedDiscrepancy.tach_time
+													? { label: 'Tach', value: selectedDiscrepancy.tach_time }
+													: null,
+												workOrderRefId(selectedDiscrepancy.work_order)
+													? {
+															label: 'Work order',
+															value: `#${workOrderRefId(selectedDiscrepancy.work_order)}`,
+														}
+													: null,
+											].filter(Boolean)}
+										/>
+										<MaintenanceDescriptionBlock
+											title="Full squawk"
+											text={selectedDiscrepancy.description}
+										/>
 										<MaintenanceActivityList
 											items={selectedDiscrepancy?.activities}
 											emptyHint="No history yet."
@@ -1484,7 +1648,7 @@ const Maintenance = () => {
 							</Stack>
 						) : null}
 					</DialogContent>
-					<DialogActions>
+					<DialogActions sx={detailDialogActionsSx}>
 					{!discrepancyDetailEditing ? (
 						<>
 							<Button onClick={closeDiscrepancyDetail}>Close</Button>

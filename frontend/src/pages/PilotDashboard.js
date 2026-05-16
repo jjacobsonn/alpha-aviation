@@ -42,6 +42,7 @@ import {
   patchCompanyFlightDispatch,
   updateDiscrepancy,
 } from "../shared/Api";
+import { formatAircraftRef } from "../shared/aircraftDisplay";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
 
@@ -390,7 +391,10 @@ export default function PilotDashboard() {
 
   const myDiscs = useMemo(() => {
     const uid = Number(currentUser?.id);
-    return discrepancies.filter((d) => Number(d?.reporter) === uid);
+    return discrepancies.filter((d) => {
+      const rid = toId(d?.reporter);
+      return !Number.isNaN(rid) && rid === uid;
+    });
   }, [discrepancies, currentUser]);
 
   const handleSubmitFlightRequest = async () => {
@@ -525,8 +529,10 @@ export default function PilotDashboard() {
 
   const canEditSelectedDiscrepancy = useMemo(() => {
     if (!selectedDiscrepancy || !currentUser?.id) return false;
+    const rid = toId(selectedDiscrepancy.reporter);
     return (
-      Number(selectedDiscrepancy.reporter) === Number(currentUser.id) &&
+      !Number.isNaN(rid) &&
+      rid === Number(currentUser.id) &&
       String(selectedDiscrepancy.status || "").toLowerCase() !== "closed"
     );
   }, [selectedDiscrepancy, currentUser]);
@@ -679,8 +685,13 @@ export default function PilotDashboard() {
   const displayValue = (v) => {
     if (v === null || v === undefined || v === "") return "—";
     if (typeof v === "boolean") return v ? "Yes" : "No";
+    if (typeof v === "object") return formatAircraftRef(v, aircraftNameById);
     return String(v);
   };
+
+  const displayAircraft = (row) =>
+    row?.aircraft_name ||
+    formatAircraftRef(row?.aircraft, aircraftNameById);
 
   const displayChoice = (v) => {
     if (!v) return "—";
@@ -915,7 +926,7 @@ export default function PilotDashboard() {
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
                         <TableCell>{roleOnFlight(f)}</TableCell>
-                        <TableCell>{f.aircraft_name || f.aircraft || "—"}</TableCell>
+                        <TableCell>{displayAircraft(f)}</TableCell>
                         <TableCell>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
@@ -980,7 +991,7 @@ export default function PilotDashboard() {
                     label="Aircraft"
                     size="small"
                     fullWidth
-                    value={displayValue(selectedFlight.aircraft_name || selectedFlight.aircraft)}
+                    value={displayAircraft(selectedFlight)}
                     InputProps={{ readOnly: true }}
                     sx={
                       editingSelectedFlight
@@ -1530,11 +1541,7 @@ export default function PilotDashboard() {
                     label="Aircraft"
                     size="small"
                     fullWidth
-                    value={
-                      selectedDiscrepancy.aircraft_name ||
-                      aircraftNameById.get(Number(selectedDiscrepancy.aircraft)) ||
-                      (selectedDiscrepancy.aircraft ? `Aircraft #${selectedDiscrepancy.aircraft}` : "—")
-                    }
+                    value={displayAircraft(selectedDiscrepancy)}
                     InputProps={{ readOnly: true }}
                     sx={
                       editingSelectedDiscrepancy

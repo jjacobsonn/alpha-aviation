@@ -57,3 +57,29 @@ export function workOrderSourceLabel(row) {
 	}
 	return null;
 }
+
+/** Id from API work_order field (nested object or numeric id). */
+export function workOrderRefId(woRef) {
+	if (woRef == null || woRef === '') return null;
+	if (typeof woRef === 'object') return woRef.id != null ? Number(woRef.id) : null;
+	const n = Number(woRef);
+	return Number.isFinite(n) ? n : null;
+}
+
+/** Human-readable label for a work order link. */
+export function workOrderLinkLabel(woRef) {
+	const id = workOrderRefId(woRef);
+	if (id == null) return null;
+	if (typeof woRef === 'object' && woRef != null) {
+		const title = (woRef.title || '').trim();
+		return title ? `#${id} — ${title}` : `#${id}`;
+	}
+	return `#${id}`;
+}
+
+/** Short label for a discrepancy link. */
+export function discrepancyLinkLabel(d, maxLen = 56) {
+	if (!d?.id) return null;
+	const desc = firstLine(d.description, maxLen);
+	return desc ? `#${d.id} — ${desc}` : `#${d.id}`;
+}

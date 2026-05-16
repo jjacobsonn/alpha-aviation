@@ -223,7 +223,9 @@ def company_scoped_workorder_queryset(request):
     Company (or platform-admin) scope via aircraft.
     """
     qs = (
-        WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
+        WorkOrder.objects.select_related(
+            "aircraft", "created_by", "assignee", "signed_by"
+        )
         .prefetch_related(
             "parts_needed",
             Prefetch(
@@ -252,7 +254,13 @@ def company_scoped_discrepancy_queryset(request):
     Company (or platform-admin) scope via aircraft.
     """
     qs = (
-        Discrepancy.objects.select_related("aircraft", "reporter", "work_order")
+        Discrepancy.objects.select_related(
+            "aircraft",
+            "reporter",
+            "work_order",
+            "work_order__created_by",
+            "work_order__assignee",
+        )
         .prefetch_related(
             Prefetch(
                 "activities",
@@ -591,6 +599,103 @@ def management_dashboard_view(request):
             "team_by_role": team_by_role,
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsManagerOrOwner])
+def fleet_availability_dashboard_view(request):
+    """
+    Phase 2 — Fleet availability snapshot for management dashboard.
+    Maps aircraft.fleet_status into Available / In maintenance / Grounded,
+    open work orders by priority, and lightweight 7-day closure trends.
+    """
+    company = get_request_company(request)
+    if company is None:
+        return Response(
+            {"error": "User does not have an associated company"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    now = timezone.now()
+    boundary_7 = now - timedelta(days=7)
+    boundary_14 = now - timedelta(days=14)
+
+    aircraft_qs = Aircraft.objects.filter(company=company)
+    total_aircraft = aircraft_qs.count()
+
+    status_counts = {
+        row["fleet_status"]: row["c"]
+        for row in aircraft_qs.values("fleet_status").annotate(c=Count("id"))
+    }
+    available = status_counts.get("active", 0)
+    in_maintenance = status_counts.get("maintenance_due", 0)
+    grounded = status_counts.get("aog", 0) + status_counts.get("grounded", 0)
+    known_statuses = {"active", "maintenance_due", "aog", "grounded"}
+    for key, val in status_counts.items():
+        if key not in known_statuses:
+            in_maintenance += val
+
+    open_qs = WorkOrder.objects.filter(aircraft__company=company).exclude(
+        status="closed"
+    )
+    open_total = open_qs.count()
+    critical_open = open_qs.filter(priority="critical").count()
+
+    priority_order = ["critical", "high", "medium", "low"]
+    prio_rows = open_qs.values("priority").annotate(c=Count("id"))
+    prio_map = {row["priority"]: row["c"] for row in prio_rows}
+    open_by_priority = {p: prio_map.get(p, 0) for p in priority_order}
+
+    closed_qs = WorkOrder.objects.filter(
+        aircraft__company=company, status="closed"
+    )
+    closures_last_7d = closed_qs.filter(updated_at__gte=boundary_7).count()
+    closures_prior_7d = closed_qs.filter(
+        updated_at__gte=boundary_14, updated_at__lt=boundary_7
+    ).count()
+
+    available_pct = (
+        round(100.0 * available / total_aircraft, 1) if total_aircraft else 0.0
+    )
+
+    return Response(
+        {
+            "as_of": now.isoformat(),
+            "fleet": {
+                "total_aircraft": total_aircraft,
+                "segments": [
+                    {
+                        "key": "available",
+                        "label": "Available",
+                        "count": available,
+                        "color": "#4CAF50",
+                    },
+                    {
+                        "key": "in_maintenance",
+                        "label": "In maintenance",
+                        "count": in_maintenance,
+                        "color": "#FF9800",
+                    },
+                    {
+                        "key": "grounded",
+                        "label": "Grounded",
+                        "count": grounded,
+                        "color": "#E53935",
+                    },
+                ],
+            },
+            "open_work_orders_by_priority": open_by_priority,
+            "open_work_orders_total": open_total,
+            "critical_open_work_orders": critical_open,
+            "available_aircraft_percent": available_pct,
+            "trends": {
+                "closures_last_7d": closures_last_7d,
+                "closures_prior_7d": closures_prior_7d,
+            },
+        }
+    )
+
+
 ###
 #endpoints for all of the company submodels
 ###

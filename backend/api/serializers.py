@@ -28,6 +28,30 @@ from .maintenance_activity import (
 )
 
 
+def profile_display_name(profile):
+    """First + last name, else username — never expose raw username when a name exists."""
+    if not profile:
+        return ""
+    fn = (profile.first_name or "").strip()
+    ln = (profile.last_name or "").strip()
+    full = f"{fn} {ln}".strip()
+    return full or (profile.username or "").strip() or ""
+
+
+def profile_to_dict(profile):
+    if not profile:
+        return None
+    fn = (profile.first_name or "").strip()
+    ln = (profile.last_name or "").strip()
+    return {
+        "id": profile.id,
+        "first_name": fn,
+        "last_name": ln,
+        "username": profile.username or "",
+        "display_name": profile_display_name(profile),
+    }
+
+
 ####
 # User Profile
 ####
@@ -238,7 +262,7 @@ class PartSerializer(serializers.ModelSerializer):
         ]
 
 class DiscrepancySerializer(serializers.ModelSerializer):
-    reporter_name = serializers.CharField(source="reporter.username", read_only=True)
+    reporter_name = serializers.SerializerMethodField()
     activities = DiscrepancyActivitySerializer(many=True, read_only=True)
 
     class Meta:
@@ -259,6 +283,9 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             "activities",
         ]
 
+    def get_reporter_name(self, obj):
+        return profile_display_name(obj.reporter)
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         ac = instance.aircraft
@@ -270,19 +297,19 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             }
         rp = instance.reporter
         if rp:
-            fn = (rp.first_name or "").strip()
-            ln = (rp.last_name or "").strip()
-            rep["reporter"] = {
-                "id": rp.id,
-                "first_name": fn,
-                "last_name": ln,
-                "username": rp.username or "",
-            }
+            rep["reporter"] = profile_to_dict(rp)
+        rep["reporter_name"] = profile_display_name(rp)
         wo = instance.work_order
         if wo:
             rep["work_order"] = {
                 "id": wo.id,
                 "title": wo.title or "",
+                "status": wo.status or "",
+                "created_by": profile_to_dict(wo.created_by),
+                "assignee": profile_to_dict(wo.assignee),
+                "created_by_name": profile_display_name(wo.created_by),
+                "assignee_name": profile_display_name(wo.assignee)
+                or profile_display_name(wo.created_by),
             }
         return rep
 
@@ -376,24 +403,15 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             }
         cb = instance.created_by
         if cb:
-            fn = (cb.first_name or "").strip()
-            ln = (cb.last_name or "").strip()
-            rep["created_by"] = {
-                "id": cb.id,
-                "first_name": fn,
-                "last_name": ln,
-                "username": cb.username or "",
-            }
+            rep["created_by"] = profile_to_dict(cb)
+        assignee = instance.assignee
+        if assignee:
+            rep["assignee"] = profile_to_dict(assignee)
+        rep["created_by_name"] = profile_display_name(cb)
+        rep["assignee_name"] = profile_display_name(assignee) or profile_display_name(cb)
         sb = instance.signed_by
         if sb:
-            fn = (sb.first_name or "").strip()
-            ln = (sb.last_name or "").strip()
-            rep["signed_by"] = {
-                "id": sb.id,
-                "first_name": fn,
-                "last_name": ln,
-                "username": sb.username or "",
-            }
+            rep["signed_by"] = profile_to_dict(sb)
         rep["parts_needed"] = serialize_work_order_parts(instance)
         latest = instance.activities.first()
         if latest:
@@ -820,7 +838,9 @@ class WorkOrderHistoryListSerializer(serializers.ModelSerializer):
         return self._profile_name(obj.signed_by)
 
     def get_assignee_name(self, obj):
-        return self._profile_name(getattr(obj, "created_by", None))
+        return self._profile_name(getattr(obj, "assignee", None)) or self._profile_name(
+            getattr(obj, "created_by", None)
+        )
 
     def get_created_by_name(self, obj):
         return self._profile_name(getattr(obj, "created_by", None))

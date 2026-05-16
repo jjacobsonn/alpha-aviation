@@ -7,8 +7,8 @@
 | ID | Deliverable | Route / surface | Roles | Status |
 |----|-------------|-----------------|-------|--------|
 | 3.3.1 | Service History Search | `/service-history` | owner, manager, mechanic, dispatcher | **Shipped** |
-| 3.1.1 | Fleet Availability Dashboard | `/management` (Overview tab) | owner, manager | Not started |
-| 3.1.2 | Dashboard Configuration (live fleet panel; DnD deferred) | `/management` | owner, manager | Not started |
+| 3.1.1 | Fleet Availability Dashboard | `/management` (Overview tab) | owner, manager | **Shipped** (core charts + KPIs) |
+| 3.1.2 | Dashboard Configuration (live fleet panel; DnD deferred) | `/management` | owner, manager | **Shipped** (panel + filter/sort; DnD out of scope) |
 | 3.4.2 | Module-specific search | maintenance, dispatch, parts, fleet | per module | Not started |
 | 3.4.1 | Site-wide search (Ctrl+K) | `Layout` command palette | company users* | Not started |
 | 3.2.1 | Maintenance Analytics | `/analytics` | owner, manager | Not started |
@@ -44,18 +44,30 @@
 
 ## 3.1.1 Fleet Availability Dashboard
 
-- Donut: Available / In-Maintenance / Grounded (`fleet_status` mapped)
-- Open WO counts by priority
-- KPI cards with trends + drill-down to `/work-orders`, `/fleet`
+**Acceptance criteria (MVP)**
 
-**API:** `GET /api/dashboard/fleet-availability/`
+- [x] Visual breakdown of fleet by availability (maps `fleet_status`: active vs maintenance vs grounded/AOG)
+- [x] Open work orders by priority (horizontal bars)
+- [x] KPI cards: availability %, critical open count, closures last 7d vs prior week
+- [x] Drill-down: links to `/fleet`, `/work-orders`
+
+**API:** `GET /api/dashboard/fleet-availability/` (same RBAC as management dashboard — owner/manager)
+
+**Frontend:** `FleetAvailabilityPanel` on `frontend/src/pages/Management.js`
 
 ---
 
 ## 3.1.2 Dashboard Configuration
 
-**MVP slice:** Live fleet status panel (all aircraft, badges, filter, click → `/fleet/:id`).  
-**Deferred:** Drag-and-drop widget layout per user.
+**MVP slice (shipped)**
+
+- [x] Live **Fleet status** panel: all company aircraft from `/company/aircrafts/`
+- [x] Badges for `fleet_status` (active, maintenance due, AOG, grounded)
+- [x] Filter by status group, sort (tail / status / open WO count), search tail or model
+- [x] Row click → `/fleet/:id`
+- [ ] Drag-and-drop widget layout per user — **deferred**
+
+**Frontend:** `FleetStatusPanel` on `frontend/src/pages/Management.js`
 
 ---
 
@@ -101,9 +113,9 @@
 
 ```
 Layout (+ Ctrl+K later)
-├── /management      → 3.1.x dashboards
+├── /management      → 3.1.x (fleet availability KPIs shipped)
 ├── /analytics       → 3.2.x
-├── /service-history → 3.3.1  ← current sprint
+├── /service-history → 3.3.1 ✓
 ├── /component-history → 3.3.2
 └── existing modules (fleet, maintenance, work-orders, …)
 ```

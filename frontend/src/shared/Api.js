@@ -347,6 +347,11 @@ export const fetchManagementDashboard = async () => {
 	return await makeApiRequest('GET', '/management/dashboard/');
 };
 
+/** Phase 2 — Fleet availability donut, open WO by priority, trends (manager/owner). */
+export const fetchFleetAvailabilityDashboard = async () => {
+	return await makeApiRequest('GET', '/dashboard/fleet-availability/');
+};
+
 // Site admin (global scope)
 export const fetchCompanies = async () => {
 	return await makeApiRequest('GET', '/companies/');

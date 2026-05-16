@@ -195,6 +195,71 @@ class TestCompanyFunctionViews:
         assert response.status_code == status.HTTP_200_OK
         assert "company_id" in response.data
 
+    def test_fleet_availability_dashboard_requires_manager_or_owner(
+        self, authenticated_client
+    ):
+        url = reverse("fleet-availability-dashboard")
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_fleet_availability_dashboard_owner_success(
+        self, owner_client, sample_aircraft
+    ):
+        url = reverse("fleet-availability-dashboard")
+        response = owner_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.data
+        assert "fleet" in data
+        assert data["fleet"]["total_aircraft"] >= 1
+        assert len(data["fleet"]["segments"]) == 3
+        keys = {s["key"] for s in data["fleet"]["segments"]}
+        assert keys == {"available", "in_maintenance", "grounded"}
+        assert "open_work_orders_by_priority" in data
+        assert "critical" in data["open_work_orders_by_priority"]
+        assert "trends" in data
+
+    def test_fleet_availability_maps_statuses_to_segments(
+        self, owner_client, sample_company
+    ):
+        from api.models import Aircraft
+
+        Aircraft.objects.create(
+            registration_number="N111XX",
+            model="Citation",
+            manufacturer="Textron",
+            engine_type="Jet",
+            year_built=2010,
+            company=sample_company,
+            fleet_status="maintenance_due",
+        )
+        Aircraft.objects.create(
+            registration_number="N222XX",
+            model="King Air",
+            manufacturer="Beech",
+            engine_type="Turboprop",
+            year_built=2005,
+            company=sample_company,
+            fleet_status="grounded",
+        )
+        Aircraft.objects.create(
+            registration_number="N333XX",
+            model="Citation",
+            manufacturer="Textron",
+            engine_type="Jet",
+            year_built=2012,
+            company=sample_company,
+            fleet_status="aog",
+        )
+
+        url = reverse("fleet-availability-dashboard")
+        response = owner_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        seg_map = {s["key"]: s["count"] for s in response.data["fleet"]["segments"]}
+        assert seg_map["in_maintenance"] >= 1
+        assert seg_map["grounded"] >= 2  # grounded + AOG bucket
+
+
     def test_company_users_success(self, authenticated_client, sample_user):
         url = reverse("company-users")
         response = authenticated_client.get(url)
