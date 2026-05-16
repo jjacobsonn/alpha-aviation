@@ -42,6 +42,13 @@ import {
   updatePart,
 } from "../shared/Api";
 import { useAppContext } from "../context/AppContext";
+import useDebouncedValue from "../shared/useDebouncedValue";
+import {
+  PARTS_STATUS_FILTERS,
+  buildPartsSuggestions,
+  filterPartsRows,
+} from "../shared/moduleSearch";
+import ModuleSearchBar from "../components/search/ModuleSearchBar";
 
 function PartsPage() {
   const { state } = useAppContext();
@@ -54,6 +61,8 @@ function PartsPage() {
   const [inventories, setInventories] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [search, setSearch] = useState("");
+  const [partsStatus, setPartsStatus] = useState("all");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [aircraftOptions, setAircraftOptions] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
   const [isSavingAdd, setIsSavingAdd] = useState(false);
@@ -296,22 +305,15 @@ function PartsPage() {
     });
   }, [inventories]);
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return inventoryData;
-    return inventoryData.filter((row) => {
-      const blob = [
-        row.pn,
-        row.partName,
-        row.partDescription,
-        row.location,
-        row.shopLocation,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
-    });
-  }, [inventoryData, search]);
+  const partsSuggestions = useMemo(
+    () => buildPartsSuggestions(inventoryData, debouncedSearch),
+    [inventoryData, debouncedSearch]
+  );
+
+  const filteredRows = useMemo(
+    () => filterPartsRows(inventoryData, debouncedSearch, partsStatus),
+    [inventoryData, debouncedSearch, partsStatus]
+  );
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -353,16 +355,22 @@ function PartsPage() {
           <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
             <CardContent>
               <Stack spacing={2}>
-                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    variant="outlined"
-                    placeholder="Search part number, name, description, location…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                  <Button variant="contained" onClick={handleOpenAdd} sx={{ whiteSpace: "nowrap" }}>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "flex-start" }}>
+                  <Box sx={{ flex: 1, width: "100%" }}>
+                    <ModuleSearchBar
+                      value={search}
+                      onChange={setSearch}
+                      placeholder="Search part number, name, description, location…"
+                      suggestions={partsSuggestions}
+                      statusOptions={PARTS_STATUS_FILTERS}
+                      statusValue={partsStatus}
+                      onStatusChange={setPartsStatus}
+                      statusVariant="chips"
+                      resultCount={filteredRows.length}
+                      totalCount={inventoryData.length}
+                    />
+                  </Box>
+                  <Button variant="contained" onClick={handleOpenAdd} sx={{ whiteSpace: "nowrap", mt: { xs: 0, md: 0.5 } }}>
                     Add Part
                   </Button>
                 </Stack>

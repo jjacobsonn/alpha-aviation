@@ -32,6 +32,9 @@ import {
 	updateAircraft,
 } from '../shared/Api';
 import { isPlatformAdmin } from '../shared/rbac';
+import useDebouncedValue from '../shared/useDebouncedValue';
+import { buildFleetSuggestions, filterFleetRows } from '../shared/moduleSearch';
+import ModuleSearchBar from '../components/search/ModuleSearchBar';
 
 const STATUS_OPTIONS = [
 	{ value: '', label: 'All statuses' },
@@ -68,6 +71,7 @@ const FleetPage = () => {
 	const [error, setError] = useState('');
 	const [aircraft, setAircraft] = useState([]);
 	const [search, setSearch] = useState('');
+	const debouncedSearch = useDebouncedValue(search, 300);
 	const [statusFilter, setStatusFilter] = useState('');
 	const [locationFilter, setLocationFilter] = useState('');
 	const [typeFilter, setTypeFilter] = useState('');
@@ -136,25 +140,15 @@ const FleetPage = () => {
 		return vals.sort((a, b) => a.localeCompare(b));
 	}, [aircraft]);
 
-	const filteredRows = useMemo(() => {
-		const q = search.trim().toLowerCase();
-		return aircraft.filter((a) => {
-			if (statusFilter && a.fleet_status !== statusFilter) return false;
-			if (locationFilter && String(a.location || '') !== locationFilter) return false;
-			if (typeFilter && String(a.aircraft_type || '') !== typeFilter) return false;
-			if (!q) return true;
-			const blob = [
-				a.registration_number,
-				a.model,
-				a.location,
-				a.aircraft_type,
-				a.fleet_status,
-			]
-				.join(' ')
-				.toLowerCase();
-			return blob.includes(q);
-		});
-	}, [aircraft, search, statusFilter, locationFilter, typeFilter]);
+	const fleetSuggestions = useMemo(
+		() => buildFleetSuggestions(aircraft, debouncedSearch),
+		[aircraft, debouncedSearch]
+	);
+
+	const filteredRows = useMemo(
+		() => filterFleetRows(aircraft, debouncedSearch, statusFilter, locationFilter, typeFilter),
+		[aircraft, debouncedSearch, statusFilter, locationFilter, typeFilter]
+	);
 
 	const refreshFleet = async () => {
 		const data = await fetchFleetAircraft();
@@ -281,14 +275,15 @@ const FleetPage = () => {
 					<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 						<CardContent>
 							<Stack spacing={2}>
+								<ModuleSearchBar
+									value={search}
+									onChange={setSearch}
+									placeholder="Search tail, model, location, type…"
+									suggestions={fleetSuggestions}
+									resultCount={filteredRows.length}
+									totalCount={aircraft.length}
+								/>
 								<Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-									<TextField
-										fullWidth
-										size="small"
-										placeholder="Search tail, model, location, type..."
-										value={search}
-										onChange={(e) => setSearch(e.target.value)}
-									/>
 									<TextField
 										select
 										size="small"

@@ -19,8 +19,6 @@ import {
   TableHead,
   TableRow,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
@@ -34,6 +32,14 @@ import {
   patchCompanyFlightDispatch,
   updateFlight,
 } from "../shared/Api";
+import { formatAircraftRef } from "../shared/aircraftDisplay";
+import useDebouncedValue from "../shared/useDebouncedValue";
+import {
+  DISPATCH_STATUS_FILTERS,
+  buildDispatchSuggestions,
+  filterDispatchFlights,
+} from "../shared/moduleSearch";
+import ModuleSearchBar from "../components/search/ModuleSearchBar";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
 
@@ -71,6 +77,7 @@ export default function DispatcherDashboard() {
   const [flights, setFlights] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [busyId, setBusyId] = useState(null);
   const [editingFlight, setEditingFlight] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -128,35 +135,24 @@ export default function DispatcherDashboard() {
     }).length;
   }, [flights, startOfToday, endOfToday]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let list = flights;
-    if (aircraftFilterFromQuery) {
-      list = list.filter((f) => {
-        const aircraftId =
-          typeof f?.aircraft === "object" && f?.aircraft != null ? f.aircraft.id : f?.aircraft;
-        return String(aircraftId) === String(aircraftFilterFromQuery);
-      });
-    }
-    if (filter === "pending") list = list.filter((f) => f?.status === "pending approval");
-    else if (filter === "approved")
-      list = list.filter((f) => f?.status === "approved" || f?.status === "scheduled");
-    else if (filter === "completed") list = list.filter((f) => f?.status === "completed");
-    if (!q) return list;
-    return list.filter((f) => {
-      const blob = [
-        f.flight_number,
-        f.origin,
-        f.destination,
-        f.aircraft_name,
-        f.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
+  const dispatchSuggestions = useMemo(
+    () => buildDispatchSuggestions(flights, debouncedSearch),
+    [flights, debouncedSearch]
+  );
+
+  const aircraftFilteredFlights = useMemo(() => {
+    if (!aircraftFilterFromQuery) return flights;
+    return flights.filter((f) => {
+      const aircraftId =
+        typeof f?.aircraft === "object" && f?.aircraft != null ? f.aircraft.id : f?.aircraft;
+      return String(aircraftId) === String(aircraftFilterFromQuery);
     });
-  }, [flights, search, filter, aircraftFilterFromQuery]);
+  }, [flights, aircraftFilterFromQuery]);
+
+  const filtered = useMemo(
+    () => filterDispatchFlights(aircraftFilteredFlights, debouncedSearch, filter, null),
+    [aircraftFilteredFlights, debouncedSearch, filter]
+  );
 
   const handleApprove = async (id) => {
     setBusyId(id);
@@ -367,7 +363,9 @@ export default function DispatcherDashboard() {
                       <TableRow key={f.id}>
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
-                        <TableCell>{f.aircraft_name || f.aircraft || "—"}</TableCell>
+                        <TableCell>
+                          {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
+                        </TableCell>
                         <TableCell>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
@@ -414,32 +412,29 @@ export default function DispatcherDashboard() {
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
                   All flights
                 </Typography>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-start">
                   <Button
                     variant="outlined"
                     startIcon={<CalendarMonthIcon />}
                     onClick={() => navigate("/calendar")}
+                    sx={{ mt: 0.5 }}
                   >
                     Calendar
                   </Button>
-                  <TextField
-                    size="small"
-                    placeholder="Search flight #, route, status…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    sx={{ minWidth: 260 }}
-                  />
-                  <ToggleButtonGroup
-                    size="small"
-                    value={filter}
-                    exclusive
-                    onChange={(_, v) => v != null && setFilter(v)}
-                  >
-                    <ToggleButton value="all">All</ToggleButton>
-                    <ToggleButton value="pending">Pending</ToggleButton>
-                    <ToggleButton value="approved">Approved</ToggleButton>
-                    <ToggleButton value="completed">Completed</ToggleButton>
-                  </ToggleButtonGroup>
+                  <Box sx={{ flex: 1, width: "100%" }}>
+                    <ModuleSearchBar
+                      value={search}
+                      onChange={setSearch}
+                      placeholder="Search flight #, route, aircraft, status…"
+                      suggestions={dispatchSuggestions}
+                      statusOptions={DISPATCH_STATUS_FILTERS}
+                      statusValue={filter}
+                      onStatusChange={setFilter}
+                      statusVariant="toggle"
+                      resultCount={filtered.length}
+                      totalCount={aircraftFilteredFlights.length}
+                    />
+                  </Box>
                 </Stack>
               </Stack>
               <Table size="small">
@@ -472,7 +467,9 @@ export default function DispatcherDashboard() {
                       <TableRow key={f.id}>
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
-                        <TableCell>{f.aircraft_name || f.aircraft || "—"}</TableCell>
+                        <TableCell>
+                          {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
+                        </TableCell>
                         <TableCell>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>

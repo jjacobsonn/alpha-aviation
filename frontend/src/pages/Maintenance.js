@@ -55,6 +55,17 @@ import {
 	workOrderHeadline,
 	workOrderRefId,
 } from '../shared/workOrderDisplay';
+import useDebouncedValue from '../shared/useDebouncedValue';
+import {
+	DISCREPANCY_TABLE_FILTERS,
+	WORK_ORDER_TABLE_FILTERS,
+	buildDiscrepancySuggestions,
+	buildWorkOrderSuggestions,
+	filterMaintenanceDiscrepancies,
+	filterMaintenanceWorkOrders,
+	maintenanceTableEmptyHint,
+} from '../shared/moduleSearch';
+import ModuleSearchBar from '../components/search/ModuleSearchBar';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
 	closeWorkOrder,
@@ -222,6 +233,12 @@ const Maintenance = () => {
 	const [deleteConfirmType, setDeleteConfirmType] = useState(null); // 'workorder' or 'discrepancy'
 	const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 	const [didHandleDeepLink, setDidHandleDeepLink] = useState(false);
+	const [woSearch, setWoSearch] = useState('');
+	const [woStatusFilters, setWoStatusFilters] = useState([]);
+	const [discSearch, setDiscSearch] = useState('');
+	const [discStatusFilters, setDiscStatusFilters] = useState([]);
+	const debouncedWoSearch = useDebouncedValue(woSearch, 300);
+	const debouncedDiscSearch = useDebouncedValue(discSearch, 300);
 	const [dashboardKPIs, setDashboardKPIs] = useState(null);
 	const [closeWoDialogOpen, setCloseWoDialogOpen] = useState(false);
 	const [closeWoNotes, setCloseWoNotes] = useState('');
@@ -467,6 +484,47 @@ const Maintenance = () => {
 			return String(aircraftId) === String(aircraftFilterFromQuery);
 		});
 	}, [aircraftFilterFromQuery, mappedDiscrepancies, discrepancies]);
+
+	const woSuggestions = useMemo(
+		() => buildWorkOrderSuggestions(workOrders, debouncedWoSearch),
+		[workOrders, debouncedWoSearch]
+	);
+
+	const discSuggestions = useMemo(
+		() => buildDiscrepancySuggestions(discrepancies, debouncedDiscSearch),
+		[discrepancies, debouncedDiscSearch]
+	);
+
+	const searchedWorkOrders = useMemo(
+		() =>
+			filterMaintenanceWorkOrders(
+				workOrders,
+				displayedWorkOrders,
+				debouncedWoSearch,
+				woStatusFilters,
+				profileById,
+				partLabelById
+			),
+		[
+			workOrders,
+			displayedWorkOrders,
+			debouncedWoSearch,
+			woStatusFilters,
+			profileById,
+			partLabelById,
+		]
+	);
+
+	const searchedDiscrepancies = useMemo(
+		() =>
+			filterMaintenanceDiscrepancies(
+				discrepancies,
+				displayedDiscrepancies,
+				debouncedDiscSearch,
+				discStatusFilters
+			),
+		[discrepancies, displayedDiscrepancies, debouncedDiscSearch, discStatusFilters]
+	);
 
 	const mechanicUsers = useMemo(
 		() => companyUsers.filter((u) => ['mechanic', 'manager', 'owner'].includes(u?.company_role)),
@@ -921,9 +979,24 @@ const Maintenance = () => {
 					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
 						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5 }}>
 									Work Orders
 								</Typography>
+								<Box sx={{ mb: 2 }}>
+									<ModuleSearchBar
+										value={woSearch}
+										onChange={setWoSearch}
+										placeholder="Search work orders (title, tail, parts, assignee)…"
+										suggestions={woSuggestions}
+										statusOptions={WORK_ORDER_TABLE_FILTERS}
+										statusValue={woStatusFilters}
+										onStatusChange={setWoStatusFilters}
+										statusMulti
+										statusVariant="chips"
+										resultCount={searchedWorkOrders.length}
+										totalCount={displayedWorkOrders.length}
+									/>
+								</Box>
 
 								{isLoading ? (
 									<Stack alignItems="center" sx={{ py: 4 }}>
@@ -943,7 +1016,7 @@ const Maintenance = () => {
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{displayedWorkOrders.map((order) => (
+											{searchedWorkOrders.map((order) => (
 												<TableRow
 													key={order.id}
 													hover
@@ -990,10 +1063,16 @@ const Maintenance = () => {
 													<TableCell>{order.description || '—'}</TableCell>
 												</TableRow>
 											))}
-											{displayedWorkOrders.length === 0 ? (
+											{searchedWorkOrders.length === 0 ? (
 												<TableRow>
 													<TableCell colSpan={7} sx={{ color: 'text.secondary' }}>
-														No work orders found.
+														{maintenanceTableEmptyHint(
+															'workorder',
+															woStatusFilters,
+															displayedWorkOrders.length,
+															searchedWorkOrders.length,
+															Boolean(debouncedWoSearch.trim())
+														)}
 													</TableCell>
 												</TableRow>
 											) : null}
@@ -1007,9 +1086,24 @@ const Maintenance = () => {
 					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
 						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
 							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5 }}>
 									Discrepancies
 								</Typography>
+								<Box sx={{ mb: 2 }}>
+									<ModuleSearchBar
+										value={discSearch}
+										onChange={setDiscSearch}
+										placeholder="Search discrepancies (description, tail, ATA)…"
+										suggestions={discSuggestions}
+										statusOptions={DISCREPANCY_TABLE_FILTERS}
+										statusValue={discStatusFilters}
+										onStatusChange={setDiscStatusFilters}
+										statusMulti
+										statusVariant="chips"
+										resultCount={searchedDiscrepancies.length}
+										totalCount={displayedDiscrepancies.length}
+									/>
+								</Box>
 
 								{isLoading ? (
 									<Stack alignItems="center" sx={{ py: 4 }}>
@@ -1028,7 +1122,7 @@ const Maintenance = () => {
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{displayedDiscrepancies.map((d) => (
+											{searchedDiscrepancies.map((d) => (
 												<TableRow
 													key={d.id}
 													hover
@@ -1051,10 +1145,16 @@ const Maintenance = () => {
 													<TableCell>{d.description || '—'}</TableCell>
 												</TableRow>
 											))}
-											{displayedDiscrepancies.length === 0 ? (
+											{searchedDiscrepancies.length === 0 ? (
 												<TableRow>
 													<TableCell colSpan={6} sx={{ color: 'text.secondary' }}>
-														No discrepancies found.
+														{maintenanceTableEmptyHint(
+															'discrepancy',
+															discStatusFilters,
+															displayedDiscrepancies.length,
+															searchedDiscrepancies.length,
+															Boolean(debouncedDiscSearch.trim())
+														)}
 													</TableCell>
 												</TableRow>
 											) : null}

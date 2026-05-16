@@ -9,7 +9,7 @@
 | 3.3.1 | Service History Search | `/service-history` | owner, manager, mechanic, dispatcher | **Shipped** |
 | 3.1.1 | Fleet Availability Dashboard | `/management` (Overview tab) | owner, manager | **Shipped** (core charts + KPIs) |
 | 3.1.2 | Dashboard Configuration (live fleet panel; DnD deferred) | `/management` | owner, manager | **Shipped** (panel + filter/sort; DnD out of scope) |
-| 3.4.2 | Module-specific search | maintenance, dispatch, parts, fleet | per module | Not started |
+| 3.4.2 | Module-specific search | maintenance, dispatch, parts, fleet | per module | **Shipped** |
 | 3.4.1 | Site-wide search (Ctrl+K) | `Layout` command palette | company users* | Not started |
 | 3.2.1 | Maintenance Analytics | `/analytics` | owner, manager | Not started |
 | 3.2.2 | Fleet Performance Metrics | `/analytics` | owner, manager | Not started |
@@ -103,9 +103,16 @@
 
 ---
 
-## 3.4.2 Module-Specific Search
+## 3.4.2 Module-Specific Search (shipped)
 
-- Debounced search on Maintenance, Dispatch, Parts; fleet uses API `?search=`
+**Acceptance criteria**
+
+- [x] Dedicated contextual search on Maintenance, Dispatch (dashboard), Parts, Fleet
+- [x] Status filters per module (chips / toggles / existing fleet filters)
+- [x] Debounced filtering (300ms) as you type
+- [x] Autocomplete suggestions from visible dataset (≥2 characters)
+
+**Shared:** `ModuleSearchBar`, `useDebouncedValue`, `shared/moduleSearch.js`
 
 ---
 
