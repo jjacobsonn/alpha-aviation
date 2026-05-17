@@ -11,8 +11,8 @@
 | 3.1.2 | Dashboard Configuration (live fleet panel; DnD deferred) | `/management` | owner, manager | **Shipped** (panel + filter/sort; DnD out of scope) |
 | 3.4.2 | Module-specific search | maintenance, dispatch, parts, fleet | per module | **Shipped** |
 | 3.4.1 | Site-wide search (Ctrl+K) | `Layout` command palette | company users* | Shipped |
-| 3.2.1 | Maintenance Analytics | `/analytics` | owner, manager | Not started |
-| 3.2.2 | Fleet Performance Metrics | `/analytics` | owner, manager | Not started |
+| 3.2.1 | Maintenance Analytics | `/analytics` | owner, manager | **Shipped** |
+| 3.2.2 | Fleet Performance Metrics | `/analytics` | owner, manager | **Shipped** |
 | 3.3.2 | Component History Timeline | `/component-history` | owner, manager, mechanic | Not started |
 
 \* Pilots: no Phase 2 manager surfaces in MVP.
@@ -71,21 +71,31 @@
 
 ---
 
-## 3.2.1 Maintenance Analytics
+## 3.2.1 Maintenance Analytics (shipped)
 
-- Recurring issues by ATA/aircraft
-- Labor-hours chart (requires `LaborEntry` model)
-- Maintenance events per 100 flight hours
+**Acceptance criteria**
 
-**API:** `GET /api/analytics/maintenance/`
+- [x] Recurring issues ranked by frequency with ATA + aircraft filters
+- [x] Labor-hours chart with date range and week/month grouping (WO touch-time proxy until `LaborEntry`)
+- [x] Maintenance events per 100 flight hours
+
+**API:** `GET /api/analytics/maintenance/` — query: `date_from`, `date_to`, `aircraft_id`, `ata`, `group_by`
+
+**Frontend:** `MaintenanceAnalyticsPanel` on `/analytics`
 
 ---
 
-## 3.2.2 Fleet Performance Metrics
+## 3.2.2 Fleet Performance Metrics (shipped)
 
-- Utilization, uptime/downtime, on-time %
+**Acceptance criteria**
+
+- [x] Utilization: flight hours vs available operational hours per tail
+- [x] Uptime vs downtime stacked hours (flying / maintenance / idle)
+- [x] On-time % with delay breakdown by flight status
 
 **API:** `GET /api/analytics/fleet-performance/`
+
+**Frontend:** `FleetPerformancePanel` on `/analytics`
 
 ---
 
@@ -128,7 +138,7 @@
 ```
 Layout (+ site search ✓)
 ├── /management      → 3.1.x (fleet availability KPIs shipped)
-├── /analytics       → 3.2.x
+├── /analytics       → 3.2.x ✓
 ├── /service-history → 3.3.1 ✓
 ├── /component-history → 3.3.2
 └── existing modules (fleet, maintenance, work-orders, …)

@@ -276,6 +276,14 @@ export const fetchGlobalSearch = async (q) => {
 	return await makeApiRequest('GET', '/search/', null, { q });
 };
 
+export const fetchAnalyticsMaintenance = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/analytics/maintenance/', null, queryParams);
+};
+
+export const fetchAnalyticsFleetPerformance = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/analytics/fleet-performance/', null, queryParams);
+};
+
 export const fetchCompanyWorkorders = async () => {
 	return await makeApiRequest('GET', '/company/workorders/');
 };

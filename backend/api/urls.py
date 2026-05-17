@@ -6,6 +6,10 @@ from .history_views import (
     service_history_work_orders_list,
 )
 from .search_views import global_search_view
+from .analytics_views import (
+    fleet_performance_analytics_view,
+    maintenance_analytics_view,
+)
 from .views import (
     health,
     login,
@@ -155,5 +159,15 @@ urlpatterns = [
         name="service-history-work-order-detail",
     ),
     path("search/", global_search_view, name="global-search"),
+    path(
+        "analytics/maintenance/",
+        maintenance_analytics_view,
+        name="analytics-maintenance",
+    ),
+    path(
+        "analytics/fleet-performance/",
+        fleet_performance_analytics_view,
+        name="analytics-fleet-performance",
+    ),
 ]
 

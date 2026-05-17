@@ -20,6 +20,7 @@ import SiteAdminPortal from './pages/SiteAdminPortal';
 import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
 import ServiceHistoryPage from './pages/ServiceHistoryPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import AccountPage from './pages/AccountPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -112,6 +113,16 @@ function App() {
 								<ProtectedRoute allowedRoles={['owner', 'manager']}>
 									<Layout>
 										<Management />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/analytics"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('analytics')}>
+									<Layout>
+										<AnalyticsPage />
 									</Layout>
 								</ProtectedRoute>
 							}

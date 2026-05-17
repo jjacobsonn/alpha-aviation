@@ -20,6 +20,7 @@ import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
 import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import HistoryIcon from "@mui/icons-material/History";
+import InsightsIcon from "@mui/icons-material/Insights";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -27,7 +28,6 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
-import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
@@ -37,7 +37,7 @@ import { allowedRolesForModule, isPlatformAdmin } from "../shared/rbac";
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
 
-function NavigationDrawer({ onOpenSearch }) {
+function NavigationDrawer() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const navigate = useNavigate();
@@ -87,6 +87,14 @@ function NavigationDrawer({ onOpenSearch }) {
       icon: <DashboardIcon />,
       color: "#2B7FD4",
       allowedRoles: ["owner", "manager"],
+    },
+    {
+      id: "analytics",
+      title: "Analytics",
+      icon: <InsightsIcon />,
+      color: "#6a1b9a",
+      allowedRoles: allowedRolesForModule("analytics"),
+      to: "/analytics",
     },
     {
       id: "admin",
@@ -286,45 +294,6 @@ function NavigationDrawer({ onOpenSearch }) {
           </Tooltip>
         ))}
       </List>
-
-      <Divider />
-
-      {onOpenSearch && (
-        <List sx={{ px: 1, pt: 1 }}>
-          <Tooltip title={!sidebarOpen ? "Search" : ""} placement="right">
-            <ListItem disablePadding>
-              <ListItemButton
-                onClick={onOpenSearch}
-                sx={{
-                  borderRadius: 2,
-                  minHeight: 48,
-                  justifyContent: sidebarOpen ? "initial" : "center",
-                  px: 2.5,
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 0,
-                    mr: sidebarOpen ? 2 : "auto",
-                    justifyContent: "center",
-                    color: "text.secondary",
-                  }}
-                >
-                  <SearchIcon />
-                </ListItemIcon>
-                {sidebarOpen && (
-                  <ListItemText
-                    primary="Search"
-                    secondary="Ctrl+K"
-                    primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
-                    secondaryTypographyProps={{ fontSize: "0.75rem" }}
-                  />
-                )}
-              </ListItemButton>
-            </ListItem>
-          </Tooltip>
-        </List>
-      )}
 
       <Divider />
 

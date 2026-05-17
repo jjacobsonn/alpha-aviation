@@ -672,3 +672,55 @@ class TestGlobalSearch:
         if disc_group:
             titles = " ".join(i["title"] for i in disc_group["items"])
             assert "Other pilot" not in titles
+
+
+@pytest.mark.django_db
+class TestAnalyticsViews:
+    def test_maintenance_analytics_requires_manager_or_owner(
+        self, authenticated_client
+    ):
+        url = reverse("analytics-maintenance")
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_maintenance_analytics_owner_success(
+        self, owner_client, sample_work_order, sample_aircraft
+    ):
+        url = reverse("analytics-maintenance")
+        response = owner_client.get(url, {"aircraft_id": sample_aircraft.id})
+        assert response.status_code == status.HTTP_200_OK
+        assert "recurring_issues" in response.data
+        assert "maintenance_rate" in response.data
+        assert "labor_hours" in response.data
+
+    def test_fleet_performance_owner_success(
+        self, owner_client, sample_aircraft, sample_flight
+    ):
+        url = reverse("analytics-fleet-performance")
+        response = owner_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert "utilization" in response.data
+        assert "on_time_performance" in response.data
+        assert any(
+            row["aircraft_id"] == sample_aircraft.id for row in response.data["utilization"]
+        )
+
+    def test_pilot_cannot_access_analytics(self, api_client, sample_pilot_profile):
+        api_client.force_authenticate(user=sample_pilot_profile)
+        for name in ("analytics-maintenance", "analytics-fleet-performance"):
+            response = api_client.get(reverse(name))
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_ata_filter_ignores_non_numeric(
+        self, owner_client, sample_work_order, sample_aircraft
+    ):
+        url = reverse("analytics-maintenance")
+        with_ata = owner_client.get(
+            url, {"aircraft_id": sample_aircraft.id, "ata": "29"}
+        )
+        bogus = owner_client.get(
+            url, {"aircraft_id": sample_aircraft.id, "ata": "hydraulic"}
+        )
+        assert with_ata.status_code == status.HTTP_200_OK
+        assert bogus.status_code == status.HTTP_200_OK
+        assert bogus.data["filters"]["ata"] is None

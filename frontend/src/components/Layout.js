@@ -24,7 +24,7 @@ const Layout = ({ children }) => {
 
 	return (
 		<Box sx={{ display: 'flex', minHeight: '100vh' }}>
-			<NavigationDrawer onOpenSearch={openSearch} />
+			<NavigationDrawer />
 			<Box
 				component="main"
 				sx={{
