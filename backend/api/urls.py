@@ -5,6 +5,7 @@ from .history_views import (
     service_history_work_order_detail,
     service_history_work_orders_list,
 )
+from .search_views import global_search_view
 from .views import (
     health,
     login,
@@ -153,5 +154,6 @@ urlpatterns = [
         service_history_work_order_detail,
         name="service-history-work-order-detail",
     ),
+    path("search/", global_search_view, name="global-search"),
 ]
 

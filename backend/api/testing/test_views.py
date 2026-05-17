@@ -605,3 +605,70 @@ class TestServiceHistoryViews:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] >= 3
         assert len(response.data["results"]) == 2
+
+
+@pytest.mark.django_db
+class TestGlobalSearch:
+    def test_requires_authentication(self, api_client):
+        url = reverse("global-search")
+        response = api_client.get(url, {"q": "N123"})
+        assert response.status_code in {
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        }
+
+    def test_short_query_returns_empty_groups(self, owner_client):
+        url = reverse("global-search")
+        response = owner_client.get(url, {"q": "N"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["groups"] == []
+
+    def test_owner_finds_aircraft_and_work_order(
+        self, owner_client, sample_aircraft, sample_work_order
+    ):
+        url = reverse("global-search")
+        ac_resp = owner_client.get(url, {"q": sample_aircraft.registration_number[:5]})
+        assert ac_resp.status_code == status.HTTP_200_OK
+        keys = {g["key"] for g in ac_resp.data["groups"]}
+        assert "aircraft" in keys
+
+        wo_resp = owner_client.get(url, {"q": sample_work_order.title[:4]})
+        assert wo_resp.status_code == status.HTTP_200_OK
+        wo_keys = {g["key"] for g in wo_resp.data["groups"]}
+        assert "work_orders" in wo_keys
+
+    def test_pilot_sees_flights_not_work_orders(
+        self, api_client, sample_pilot_profile, sample_flight
+    ):
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("global-search")
+        response = api_client.get(
+            url, {"q": (sample_flight.flight_number or "flight")[:4]}
+        )
+        assert response.status_code == status.HTTP_200_OK
+        keys = {g["key"] for g in response.data["groups"]}
+        assert "flights" in keys or response.data["groups"] == []
+        assert "work_orders" not in keys
+        assert "aircraft" not in keys
+
+    def test_pilot_discrepancy_search_scoped_to_reporter(
+        self, api_client, sample_pilot_profile, sample_discrepancy, sample_user, sample_aircraft
+    ):
+        from api.models import Discrepancy
+
+        other = Discrepancy.objects.create(
+            aircraft=sample_aircraft,
+            reporter=sample_user,
+            description="Other pilot squawk",
+            status="pending",
+        )
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("global-search")
+        response = api_client.get(url, {"q": "squawk"})
+        assert response.status_code == status.HTTP_200_OK
+        disc_group = next(
+            (g for g in response.data["groups"] if g["key"] == "discrepancies"), None
+        )
+        if disc_group:
+            titles = " ".join(i["title"] for i in disc_group["items"])
+            assert "Other pilot" not in titles

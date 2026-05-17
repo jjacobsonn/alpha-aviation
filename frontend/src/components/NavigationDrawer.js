@@ -27,6 +27,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
@@ -36,7 +37,7 @@ import { allowedRolesForModule, isPlatformAdmin } from "../shared/rbac";
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
 
-function NavigationDrawer() {
+function NavigationDrawer({ onOpenSearch }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const navigate = useNavigate();
@@ -285,6 +286,45 @@ function NavigationDrawer() {
           </Tooltip>
         ))}
       </List>
+
+      <Divider />
+
+      {onOpenSearch && (
+        <List sx={{ px: 1, pt: 1 }}>
+          <Tooltip title={!sidebarOpen ? "Search" : ""} placement="right">
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={onOpenSearch}
+                sx={{
+                  borderRadius: 2,
+                  minHeight: 48,
+                  justifyContent: sidebarOpen ? "initial" : "center",
+                  px: 2.5,
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: sidebarOpen ? 2 : "auto",
+                    justifyContent: "center",
+                    color: "text.secondary",
+                  }}
+                >
+                  <SearchIcon />
+                </ListItemIcon>
+                {sidebarOpen && (
+                  <ListItemText
+                    primary="Search"
+                    secondary="Ctrl+K"
+                    primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
+                    secondaryTypographyProps={{ fontSize: "0.75rem" }}
+                  />
+                )}
+              </ListItemButton>
+            </ListItem>
+          </Tooltip>
+        </List>
+      )}
 
       <Divider />
 

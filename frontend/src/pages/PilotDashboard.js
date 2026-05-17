@@ -31,6 +31,7 @@ import AssignmentIcon from "@mui/icons-material/Assignment";
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 import CloseIcon from "@mui/icons-material/Close";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   createCompanyFlightRequest,
   createDiscrepancy,
@@ -214,6 +215,7 @@ function getChangedDiscrepancyFields(current, baseline) {
 }
 
 export default function PilotDashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { state } = useAppContext();
   const platformAdmin = isPlatformAdmin(state.user);
   const hasCompanyContext =
@@ -556,6 +558,24 @@ export default function PilotDashboard() {
     setSelectedDiscrepancyBaseline(null);
     setSelectedDiscrepancyEditedAt("");
   };
+
+  useEffect(() => {
+    const discId = searchParams.get("disc");
+    if (!discId || !discrepancies.length) return;
+    const id = Number(discId);
+    if (!Number.isFinite(id)) return;
+    const disc = discrepancies.find((d) => Number(d.id) === id);
+    if (!disc) return;
+    openDiscrepancyDetails(disc);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("disc");
+        return next;
+      },
+      { replace: true }
+    );
+  }, [discrepancies, searchParams, setSearchParams]);
 
   const updateSelectedDiscrepancyForm = (field, value) => {
     if (!PILOT_EDITABLE_DISCREPANCY_FIELDS.has(field)) return;

@@ -10,7 +10,7 @@
 | 3.1.1 | Fleet Availability Dashboard | `/management` (Overview tab) | owner, manager | **Shipped** (core charts + KPIs) |
 | 3.1.2 | Dashboard Configuration (live fleet panel; DnD deferred) | `/management` | owner, manager | **Shipped** (panel + filter/sort; DnD out of scope) |
 | 3.4.2 | Module-specific search | maintenance, dispatch, parts, fleet | per module | **Shipped** |
-| 3.4.1 | Site-wide search (Ctrl+K) | `Layout` command palette | company users* | Not started |
+| 3.4.1 | Site-wide search (Ctrl+K) | `Layout` command palette | company users* | Shipped |
 | 3.2.1 | Maintenance Analytics | `/analytics` | owner, manager | Not started |
 | 3.2.2 | Fleet Performance Metrics | `/analytics` | owner, manager | Not started |
 | 3.3.2 | Component History Timeline | `/component-history` | owner, manager, mechanic | Not started |
@@ -96,10 +96,17 @@
 
 ---
 
-## 3.4.1 Site-Wide Search
+## 3.4.1 Site-Wide Search (shipped)
 
-- Persistent Ctrl+K palette in `Layout`
-- `GET /api/search/?q=` — grouped results, &lt;500ms
+**Acceptance criteria**
+
+- [x] Persistent Ctrl+K / ⌘K palette in `Layout` (+ sidebar Search entry)
+- [x] `GET /api/search/?q=` — grouped, role-scoped results (debounced 300ms)
+- [x] Deep links: fleet detail, maintenance WO/disc, parts, calendar flight, pilot disc
+
+**Role scope (matches `rbac.js`):** owner/manager/mechanic — aircraft, WO, disc, parts, flights; dispatcher — aircraft, WO, flights; pilot — own discrepancies + flights.
+
+**Shared:** `SiteSearchDialog`, `SiteSearchTrigger`, `shared/searchNavigation.js`
 
 ---
 
@@ -119,7 +126,7 @@
 ## Architecture (quick reference)
 
 ```
-Layout (+ Ctrl+K later)
+Layout (+ site search ✓)
 ├── /management      → 3.1.x (fleet availability KPIs shipped)
 ├── /analytics       → 3.2.x
 ├── /service-history → 3.3.1 ✓

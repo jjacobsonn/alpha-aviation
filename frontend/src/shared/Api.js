@@ -272,6 +272,10 @@ export const updateInventory = async (id, payload) => {
 	return await makeApiRequest('PATCH', `/inventories/${id}/`, payload);
 };
 
+export const fetchGlobalSearch = async (q) => {
+	return await makeApiRequest('GET', '/search/', null, { q });
+};
+
 export const fetchCompanyWorkorders = async () => {
 	return await makeApiRequest('GET', '/company/workorders/');
 };
