@@ -296,6 +296,48 @@ export const fetchServiceHistoryDetail = async (id) => {
 	return await makeApiRequest('GET', `/history/work-orders/${id}/`);
 };
 
+export const fetchComponentHistorySearch = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/history/components/', null, queryParams);
+};
+
+export const createTrackedComponent = async (payload) => {
+	return await makeApiRequest('POST', '/history/components/', payload);
+};
+
+export const fetchComponentHistoryDetail = async (id) => {
+	return await makeApiRequest('GET', `/history/components/${id}/`);
+};
+
+export const downloadComponentHistoryExport = async (id) => {
+	const tokens = getTokens();
+	const adminCompanyId = localStorage.getItem('adminCompanyId');
+	const headers = { Accept: 'text/csv' };
+	if (tokens.accessToken) {
+		headers.Authorization = `Bearer ${tokens.accessToken}`;
+	}
+	if (adminCompanyId) {
+		headers['X-Company-Id'] = adminCompanyId;
+	}
+	const base = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+	const response = await axios.get(`${base}/history/components/${id}/export/`, {
+		headers,
+		responseType: 'blob',
+		withCredentials: true,
+	});
+	const blob = new Blob([response.data], { type: 'text/csv' });
+	const url = window.URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	const disposition = response.headers['content-disposition'] || '';
+	const match = disposition.match(/filename="?([^"]+)"?/);
+	const filename = match ? match[1] : `component-${id}.csv`;
+	link.href = url;
+	link.setAttribute('download', filename);
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	window.URL.revokeObjectURL(url);
+};
+
 export const fetchCompanyDiscrepancies = async () => {
 	return await makeApiRequest('GET', '/company/discrepancies/');
 };
@@ -494,10 +536,38 @@ export const changeOwnPassword = async (newPassword, confirmPassword) => {
 	});
 };
 
-export const closeWorkOrder = async (id, completionNotes) => {
-	return await makeApiRequest('POST', `/workorders/${id}/close/`, {
-		completion_notes: completionNotes || '',
-	});
+export const closeWorkOrder = async (id, { completionNotes = '', laborHours = null, laborNotes = '' } = {}) => {
+	const body = { completion_notes: completionNotes || '' };
+	if (laborHours != null && laborHours !== '') {
+		body.labor_hours = laborHours;
+	}
+	if (laborNotes) {
+		body.labor_notes = laborNotes;
+	}
+	return await makeApiRequest('POST', `/workorders/${id}/close/`, body);
+};
+
+export const fetchLaborEntries = async (workOrderId) => {
+	return await makeApiRequest('GET', `/workorders/${workOrderId}/labor-entries/`);
+};
+
+export const createLaborEntry = async (workOrderId, payload) => {
+	return await makeApiRequest('POST', `/workorders/${workOrderId}/labor-entries/`, payload);
+};
+
+export const updateLaborEntry = async (workOrderId, entryId, payload) => {
+	return await makeApiRequest(
+		'PATCH',
+		`/workorders/${workOrderId}/labor-entries/${entryId}/`,
+		payload
+	);
+};
+
+export const deleteLaborEntry = async (workOrderId, entryId) => {
+	return await makeApiRequest(
+		'DELETE',
+		`/workorders/${workOrderId}/labor-entries/${entryId}/`
+	);
 };
 
 export const openWorkOrderFromDiscrepancy = async (discrepancyId) => {

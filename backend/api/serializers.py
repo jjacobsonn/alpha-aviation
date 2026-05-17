@@ -17,6 +17,9 @@ from .models import (
     Tool,
     CalibrationRecord,
     InventoryPart,
+    InstalledComponent,
+    ComponentEvent,
+    LaborEntry,
 )
 from .maintenance_activity import (
     log_discrepancy_created,
@@ -352,6 +355,41 @@ def serialize_work_order_parts(work_order):
     return rows
 
 
+class LaborEntrySerializer(serializers.ModelSerializer):
+    mechanic_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LaborEntry
+        fields = [
+            "id",
+            "work_order",
+            "mechanic",
+            "mechanic_name",
+            "hours",
+            "work_date",
+            "notes",
+            "created_by",
+            "created_by_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "work_order", "created_by", "created_at", "updated_at"]
+
+    def get_mechanic_name(self, obj):
+        return profile_display_name(obj.mechanic)
+
+    def get_created_by_name(self, obj):
+        return profile_display_name(obj.created_by)
+
+    def validate_hours(self, value):
+        if value is None or float(value) <= 0:
+            raise serializers.ValidationError("Hours must be greater than zero.")
+        if float(value) > 24:
+            raise serializers.ValidationError("Hours cannot exceed 24 per entry.")
+        return value
+
+
 class WorkOrderSerializer(serializers.ModelSerializer):
     """
     `parts_needed` is a M2M through `WorkOrderPart` (each row requires a quantity).
@@ -426,6 +464,12 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         else:
             rep["last_edited_by"] = None
             rep["last_edited_at"] = None
+        from .labor_utils import work_order_labor_total
+
+        entries = instance.labor_entries.select_related("mechanic", "created_by").all()
+        rep["labor_entries"] = LaborEntrySerializer(entries, many=True).data
+        total = work_order_labor_total(instance)
+        rep["labor_hours_total"] = round(total, 2) if total else None
         return rep
 
     def validate(self, data):
@@ -873,4 +917,141 @@ class WorkOrderHistoryListSerializer(serializers.ModelSerializer):
     def get_last_edited_at(self, obj):
         act = obj.activities.first()
         return act.created_at if act else None
+
+
+class InstalledComponentListSerializer(serializers.ModelSerializer):
+    aircraft_label = serializers.SerializerMethodField()
+    remaining_value = serializers.SerializerMethodField()
+    event_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = InstalledComponent
+        fields = [
+            "id",
+            "part_number",
+            "part_name",
+            "serial_number",
+            "component_type",
+            "aircraft",
+            "aircraft_label",
+            "location",
+            "limit_type",
+            "limit_value",
+            "used_value",
+            "remaining_value",
+            "limit_due_date",
+            "installed_at",
+            "event_count",
+        ]
+
+    def get_aircraft_label(self, obj):
+        ac = obj.aircraft
+        if not ac:
+            return ""
+        reg = ac.registration_number or ""
+        model = (ac.model or "").strip()
+        return f"{reg} {model}".strip() if model else reg
+
+    def get_remaining_value(self, obj):
+        rem = obj.remaining_value
+        return rem
+
+
+class ComponentEventSerializer(serializers.ModelSerializer):
+    aircraft_label = serializers.SerializerMethodField()
+    work_order_label = serializers.SerializerMethodField()
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComponentEvent
+        fields = [
+            "id",
+            "event_type",
+            "occurred_at",
+            "summary",
+            "metadata",
+            "aircraft",
+            "aircraft_label",
+            "work_order",
+            "work_order_label",
+            "actor_name",
+        ]
+
+    def _profile_name(self, profile):
+        if not profile:
+            return ""
+        fn = (profile.first_name or "").strip()
+        ln = (profile.last_name or "").strip()
+        return f"{fn} {ln}".strip() or (profile.username or "")
+
+    def get_aircraft_label(self, obj):
+        ac = obj.aircraft
+        if not ac:
+            return ""
+        return ac.registration_number or ""
+
+    def get_work_order_label(self, obj):
+        wo = obj.work_order
+        if not wo:
+            return ""
+        return wo.title or f"Work order #{wo.id}"
+
+    def get_actor_name(self, obj):
+        return self._profile_name(obj.actor)
+
+
+class InstalledComponentDetailSerializer(InstalledComponentListSerializer):
+    notes = serializers.CharField()
+
+    class Meta(InstalledComponentListSerializer.Meta):
+        fields = InstalledComponentListSerializer.Meta.fields + ["notes"]
+
+
+class InstalledComponentCreateSerializer(serializers.ModelSerializer):
+    """Register a tracked component (rotable or consumable) for lifecycle history."""
+
+    part_id = serializers.PrimaryKeyRelatedField(
+        queryset=Part.objects.all(), required=False, allow_null=True, source="part"
+    )
+    initial_event_summary = serializers.CharField(
+        required=False, allow_blank=True, max_length=500
+    )
+
+    class Meta:
+        model = InstalledComponent
+        fields = [
+            "part_number",
+            "part_name",
+            "serial_number",
+            "component_type",
+            "aircraft",
+            "location",
+            "limit_type",
+            "limit_value",
+            "used_value",
+            "limit_due_date",
+            "installed_at",
+            "notes",
+            "part_id",
+            "initial_event_summary",
+        ]
+
+    def validate(self, data):
+        sn = (data.get("serial_number") or "").strip()
+        data["serial_number"] = sn
+        ctype = data.get("component_type") or InstalledComponent.ComponentType.SERIALIZED
+        if sn:
+            data["component_type"] = InstalledComponent.ComponentType.SERIALIZED
+        elif ctype == InstalledComponent.ComponentType.SERIALIZED:
+            raise serializers.ValidationError(
+                {"serial_number": "Enter a serial number for serialized (rotable) parts."}
+            )
+        else:
+            data["component_type"] = InstalledComponent.ComponentType.CONSUMABLE
+        if not (data.get("part_number") or "").strip():
+            raise serializers.ValidationError(
+                {"part_number": "Part number is required."}
+            )
+        data["part_number"] = data["part_number"].strip()
+        return data
 

@@ -608,6 +608,136 @@ class TestServiceHistoryViews:
 
 
 @pytest.mark.django_db
+class TestComponentHistoryViews:
+    @pytest.fixture
+    def sample_installed_component(self, db, sample_company, sample_aircraft, sample_user):
+        from api.models import InstalledComponent, ComponentEvent
+        from django.utils import timezone
+
+        comp = InstalledComponent.objects.create(
+            company=sample_company,
+            part_number="P-TEST",
+            part_name="Test Pump",
+            serial_number="SN-001",
+            component_type=InstalledComponent.ComponentType.SERIALIZED,
+            aircraft=sample_aircraft,
+            limit_type=InstalledComponent.LimitType.HOURS,
+            limit_value=1000,
+            used_value=100,
+        )
+        ComponentEvent.objects.create(
+            component=comp,
+            event_type=ComponentEvent.EventType.INSTALL,
+            occurred_at=timezone.now(),
+            aircraft=sample_aircraft,
+            summary="Installed for test",
+            actor=sample_user,
+        )
+        return comp
+
+    def test_mechanic_can_search_components(
+        self, authenticated_client, sample_installed_component
+    ):
+        url = reverse("component-history-list")
+        response = authenticated_client.get(url, {"q": "P-TEST"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] >= 1
+        assert any(r["id"] == sample_installed_component.id for r in response.data["results"])
+
+    def test_dispatcher_cannot_access_component_history(self, api_client, sample_company):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        dispatcher = User.objects.create_user(
+            username="disp.comp",
+            email="disp@example.com",
+            password="pass12345",
+            company=sample_company,
+            company_role="dispatcher",
+        )
+        api_client.force_authenticate(user=dispatcher)
+        url = reverse("component-history-list")
+        response = api_client.get(url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_component_detail_and_export(
+        self, authenticated_client, sample_installed_component
+    ):
+        detail_url = reverse(
+            "component-history-detail", kwargs={"pk": sample_installed_component.id}
+        )
+        detail = authenticated_client.get(detail_url)
+        assert detail.status_code == status.HTTP_200_OK
+        assert len(detail.data["events"]) >= 1
+
+        export_url = reverse(
+            "component-history-export", kwargs={"pk": sample_installed_component.id}
+        )
+        export_resp = authenticated_client.get(export_url)
+        assert export_resp.status_code == status.HTTP_200_OK
+        assert "text/csv" in export_resp["Content-Type"]
+        assert b"P-TEST" in export_resp.content
+
+
+@pytest.mark.django_db
+class TestLaborEntries:
+    def test_create_and_list_labor_entry(
+        self, authenticated_client, sample_work_order, sample_user
+    ):
+        url = reverse("work-order-labor-entries", kwargs={"work_order_pk": sample_work_order.id})
+        response = authenticated_client.post(
+            url,
+            {
+                "mechanic": sample_user.id,
+                "hours": "2.5",
+                "work_date": "2026-05-01",
+                "notes": "Troubleshoot",
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        assert float(response.data["hours"]) == 2.5
+
+        list_resp = authenticated_client.get(url)
+        assert list_resp.status_code == status.HTTP_200_OK
+        assert len(list_resp.data) == 1
+
+    def test_service_history_includes_labor_total(
+        self, authenticated_client, sample_work_order, sample_user
+    ):
+        from api.models import LaborEntry
+
+        LaborEntry.objects.create(
+            work_order=sample_work_order,
+            mechanic=sample_user,
+            hours=3,
+            work_date="2026-05-01",
+            created_by=sample_user,
+        )
+        url = reverse(
+            "service-history-work-order-detail", kwargs={"pk": sample_work_order.id}
+        )
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["labor_hours_total"] == 3.0
+        assert len(response.data["labor_entries"]) == 1
+
+    def test_close_work_order_with_labor_hours(
+        self, owner_client, sample_work_order
+    ):
+        from api.models import LaborEntry
+
+        url = reverse("workorders-close", kwargs={"pk": sample_work_order.id})
+        response = owner_client.post(
+            url,
+            {"completion_notes": "Done", "labor_hours": 1.5},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert LaborEntry.objects.filter(work_order=sample_work_order).count() == 1
+
+
+@pytest.mark.django_db
 class TestGlobalSearch:
     def test_requires_authentication(self, api_client):
         url = reverse("global-search")

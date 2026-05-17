@@ -13,7 +13,7 @@
 | 3.4.1 | Site-wide search (Ctrl+K) | `Layout` command palette | company users* | Shipped |
 | 3.2.1 | Maintenance Analytics | `/analytics` | owner, manager | **Shipped** |
 | 3.2.2 | Fleet Performance Metrics | `/analytics` | owner, manager | **Shipped** |
-| 3.3.2 | Component History Timeline | `/component-history` | owner, manager, mechanic | Not started |
+| 3.3.2 | Component History Timeline | `/component-history` | owner, manager, mechanic | **Shipped** |
 
 \* Pilots: no Phase 2 manager surfaces in MVP.
 
@@ -76,12 +76,14 @@
 **Acceptance criteria**
 
 - [x] Recurring issues ranked by frequency with ATA + aircraft filters
-- [x] Labor-hours chart with date range and week/month grouping (WO touch-time proxy until `LaborEntry`)
+- [x] Labor-hours chart with date range and week/month grouping (`LaborEntry` model; proxy fallback when none logged)
 - [x] Maintenance events per 100 flight hours
 
 **API:** `GET /api/analytics/maintenance/` — query: `date_from`, `date_to`, `aircraft_id`, `ata`, `group_by`
 
-**Frontend:** `MaintenanceAnalyticsPanel` on `/analytics`
+**Labor:** `LaborEntry` on work orders; `GET/POST /api/workorders/<id>/labor-entries/`; chart uses logged hours when present.
+
+**Frontend:** `MaintenanceAnalyticsPanel` on `/analytics`; log labor on Maintenance WO detail, Service History viewer, and close-and-sign dialog.
 
 ---
 
@@ -99,10 +101,26 @@
 
 ---
 
-## 3.3.2 Component History Timeline
+## 3.3.2 Component History Timeline (shipped)
 
-- P/N or S/N search, timeline, life limits, export  
-- Requires new models: `InstalledComponent`, `ComponentEvent`
+**Acceptance criteria**
+
+- [x] Search by P/N or S/N (autocomplete list; serialized vs consumable badges)
+- [x] Full maintenance timeline (install, removal, inspection, work order, note)
+- [x] Life-limit tracking for serialized units (hours / cycles / calendar) with remaining display
+- [x] Current location (aircraft tail or shop/stock)
+- [x] CSV export for compliance audits
+
+**Models:** `InstalledComponent`, `ComponentEvent`
+
+**API:**
+- `GET /api/history/components/` — search (`q`, `component_type`, pagination)
+- `GET /api/history/components/<id>/` — detail + events
+- `GET /api/history/components/<id>/export/` — audit CSV
+
+**Frontend:** `ComponentHistoryPage` at `/component-history`
+
+**RBAC:** `IsComponentHistoryReader` — owner, manager, mechanic (+ platform admin)
 
 ---
 
@@ -140,7 +158,7 @@ Layout (+ site search ✓)
 ├── /management      → 3.1.x (fleet availability KPIs shipped)
 ├── /analytics       → 3.2.x ✓
 ├── /service-history → 3.3.1 ✓
-├── /component-history → 3.3.2
+├── /component-history → 3.3.2 ✓
 └── existing modules (fleet, maintenance, work-orders, …)
 ```
 

@@ -29,6 +29,7 @@ import {
 	updateWorkorder,
 } from '../../shared/Api';
 import DeleteConfirmationDialog from '../DeleteConfirmationDialog';
+import LaborEntriesPanel from '../maintenance/LaborEntriesPanel';
 import { workOrderHeadline, workOrderSourceLabel } from '../../shared/workOrderDisplay';
 import { profileDisplayName, resolvePersonDisplay } from '../../shared/profileDisplay';
 
@@ -174,6 +175,7 @@ export default function WorkOrderHistoryViewer({
 	canUpdate = false,
 	canSupervise = false,
 	canDelete = false,
+	currentUserId = null,
 }) {
 	const theme = useTheme();
 	const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -386,12 +388,20 @@ export default function WorkOrderHistoryViewer({
 							value={`${profileDisplayName(wo.signed_by)}${wo.signature_date ? ` on ${wo.signature_date}` : ''}`}
 						/>
 					) : null}
-					<Field
-						label="Labor hours"
-						value={wo.labor_hours_total != null ? String(wo.labor_hours_total) : '—'}
-					/>
 				</Stack>
 			</Stack>
+
+			<Divider sx={{ my: 1 }} />
+			<LaborEntriesPanel
+				workOrderId={wo.id}
+				canEdit={canUpdate || canSupervise}
+				mechanicUsers={mechanicUsers}
+				currentUserId={currentUserId}
+				onChanged={() => {
+					loadDetail();
+					onChanged?.();
+				}}
+			/>
 
 			<Divider />
 			<Field label="Description" value={wo.description || '—'} />

@@ -138,6 +138,6 @@ def service_history_work_order_detail(request, pk):
     if work_order is None:
         return Response({"error": "Work order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    data = WorkOrderSerializer(work_order, context={"request": request}).data
-    data["labor_hours_total"] = None
-    return Response(data)
+    return Response(
+        WorkOrderSerializer(work_order, context={"request": request}).data
+    )

@@ -22,6 +22,7 @@ import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
 import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import HistoryIcon from "@mui/icons-material/History";
+import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
 import InsightsIcon from "@mui/icons-material/Insights";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -168,6 +169,14 @@ function NavigationDrawer() {
       color: "#5c6bc0",
       allowedRoles: allowedRolesForModule("serviceHistory"),
       to: "/service-history",
+    },
+    {
+      id: "component-history",
+      title: "Component History",
+      icon: <PrecisionManufacturingIcon />,
+      color: "#6d4c41",
+      allowedRoles: allowedRolesForModule("componentHistory"),
+      to: "/component-history",
     },
     {
       id: "pilot-dashboard",

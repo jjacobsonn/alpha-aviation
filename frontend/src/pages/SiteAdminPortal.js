@@ -26,6 +26,8 @@ import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import { useEffect, useMemo, useState } from "react";
 import StatCard from "../components/StatCard";
 import DeleteConfirmationDialog from "../components/DeleteConfirmationDialog";
+import { aircraftRefId, formatAircraftRef } from "../shared/aircraftDisplay";
+import { resolvePersonDisplay } from "../shared/profileDisplay";
 import {
   createCompany,
   createAircraft,
@@ -58,6 +60,12 @@ import {
   updateProfile,
   updateWorkorder,
 } from "../shared/Api";
+
+function profileRefId(ref) {
+  if (ref == null || ref === "") return "";
+  if (typeof ref === "object") return ref.id != null ? String(ref.id) : "";
+  return String(ref);
+}
 
 export default function SiteAdminPortal() {
   const [companies, setCompanies] = useState([]);
@@ -258,6 +266,20 @@ export default function SiteAdminPortal() {
     return map;
   }, [aircraft]);
 
+  const aircraftLookup = useMemo(() => {
+    const map = new Map();
+    aircraft.forEach((a) => {
+      if (a?.id == null) return;
+      const reg = (a.registration_number || "").trim();
+      const model = (a.model || "").trim();
+      map.set(
+        Number(a.id),
+        reg && model ? `${reg} (${model})` : reg || model || `Aircraft #${a.id}`
+      );
+    });
+    return map;
+  }, [aircraft]);
+
   const handleCreateCompany = async () => {
     if (!newCompanyName.trim()) {
       setError("Company name is required.");
@@ -446,7 +468,7 @@ export default function SiteAdminPortal() {
     setSelectedFlight(f);
     setEditFlightForm({
       company: f?.company || "",
-      aircraft: f?.aircraft || "",
+      aircraft: aircraftRefId(f?.aircraft) || "",
       flight_number: f?.flight_number || "",
       origin: f?.origin || "",
       destination: f?.destination || "",
@@ -556,7 +578,7 @@ export default function SiteAdminPortal() {
       part_number: p?.part_number || "",
       name: p?.name || "",
       description: p?.description || "",
-      aircraft: p?.aircraft || "",
+      aircraft: aircraftRefId(p?.aircraft) || "",
     });
     setEditPartOpen(true);
   };
@@ -701,7 +723,7 @@ export default function SiteAdminPortal() {
     setSelectedWorkorder(wo);
     setWorkorderForm({
       title: wo?.title || "",
-      aircraft: wo?.aircraft || "",
+      aircraft: aircraftRefId(wo?.aircraft) || "",
       description: wo?.description || "",
       status: wo?.status || "open",
       due_by: wo?.due_by || "",
@@ -761,8 +783,8 @@ export default function SiteAdminPortal() {
   const handleOpenEditDiscrepancy = (d) => {
     setSelectedDiscrepancy(d);
     setDiscrepancyForm({
-      aircraft: d?.aircraft || "",
-      reporter: d?.reporter || "",
+      aircraft: aircraftRefId(d?.aircraft) || "",
+      reporter: profileRefId(d?.reporter) || "",
       description: d?.description || "",
       ata_code: d?.ata_code || "",
       tach_time: d?.tach_time || "",
@@ -1047,9 +1069,7 @@ export default function SiteAdminPortal() {
                         {companies.find((c) => Number(c.id) === Number(f.company))?.name || "—"}
                       </TableCell>
                       <TableCell>
-                        {aircraft.find((a) => Number(a.id) === Number(f.aircraft))?.registration_number ||
-                          f.aircraft_name ||
-                          "—"}
+                        {formatAircraftRef(f.aircraft, aircraftLookup) || f.aircraft_name || "—"}
                       </TableCell>
                       <TableCell>{f.origin || "—"}</TableCell>
                       <TableCell>{f.destination || "—"}</TableCell>
@@ -1098,7 +1118,9 @@ export default function SiteAdminPortal() {
                     <TableRow key={p.id}>
                       <TableCell>{p.part_number || "—"}</TableCell>
                       <TableCell>{p.name || "—"}</TableCell>
-                      <TableCell>{p.aircraft_name || p.aircraft || "—"}</TableCell>
+                      <TableCell>
+                        {p.aircraft_name || formatAircraftRef(p.aircraft, aircraftLookup)}
+                      </TableCell>
                       <TableCell>
                         <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditPart(p)}>Edit</Button>
                         <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeletePart(p.id)}>Delete</Button>
@@ -1181,7 +1203,7 @@ export default function SiteAdminPortal() {
                       <TableCell>{wo.id}</TableCell>
                       <TableCell>{wo.title || "—"}</TableCell>
                       <TableCell>{wo.status || "—"}</TableCell>
-                      <TableCell>{wo.aircraft || "—"}</TableCell>
+                      <TableCell>{formatAircraftRef(wo.aircraft, aircraftLookup)}</TableCell>
                       <TableCell>{wo.due_by || "—"}</TableCell>
                       <TableCell>
                         <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
@@ -1223,8 +1245,10 @@ export default function SiteAdminPortal() {
                       <TableCell>{d.id}</TableCell>
                       <TableCell>{d.status || "—"}</TableCell>
                       <TableCell>{d.ata_code || "—"}</TableCell>
-                      <TableCell>{d.aircraft || "—"}</TableCell>
-                      <TableCell>{d.reporter_name || d.reporter || "—"}</TableCell>
+                      <TableCell>{formatAircraftRef(d.aircraft, aircraftLookup)}</TableCell>
+                      <TableCell>
+                        {resolvePersonDisplay(d.reporter, d.reporter_name) || "—"}
+                      </TableCell>
                       <TableCell>
                         <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
                         <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>

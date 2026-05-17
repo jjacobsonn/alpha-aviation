@@ -752,6 +752,7 @@ export default function ServiceHistoryPage() {
 				canUpdate={canUpdateWorkOrder}
 				canSupervise={superviseMaintenance}
 				canDelete={canDelete}
+				currentUserId={state.user?.id}
 			/>
 		</Container>
 	);

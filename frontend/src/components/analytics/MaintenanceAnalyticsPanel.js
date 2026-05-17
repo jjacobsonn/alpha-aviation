@@ -181,17 +181,22 @@ export default function MaintenanceAnalyticsPanel({
 								<Typography variant="subtitle2" fontWeight={600}>
 									Labor hours
 								</Typography>
-								<Chip size="small" label="Estimated" variant="outlined" />
+								<Chip
+									size="small"
+									label={labor?.available ? "Logged" : "Estimated"}
+									color={labor?.available ? "success" : "warning"}
+									variant="outlined"
+								/>
 							</Stack>
 							{labor?.note && (
-								<Alert severity="info" sx={{ mb: 2 }}>
+								<Alert severity={labor?.available ? "success" : "info"} sx={{ mb: 2 }}>
 									{labor.note}
 								</Alert>
 							)}
 							<HorizontalBarChart
 								rows={laborRows}
 								valueFormatter={(n) => `${n}h`}
-								emptyMessage="No closed work orders in this period for labor estimates."
+								emptyMessage="No labor data in this period. Log hours on work orders or close WOs with labor."
 							/>
 						</Grid>
 					</Grid>

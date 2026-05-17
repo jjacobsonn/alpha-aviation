@@ -11,6 +11,7 @@ from django.utils.dateparse import parse_date
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
+from .labor_utils import labor_hours_series_for_analytics
 from .models import Aircraft, Discrepancy, Flight, WorkOrder
 from .permissions import IsManagerOrOwner
 from .views import get_request_company
@@ -65,14 +66,6 @@ def _flight_duration_hours(flight):
     if not dep or not arr or arr <= dep:
         return 0.0
     return (arr - dep).total_seconds() / 3600.0
-
-
-def _wo_touch_hours(wo):
-    if wo.created_at and wo.updated_at and wo.status == "closed":
-        delta = wo.updated_at - wo.created_at
-        hours = delta.total_seconds() / 3600.0
-        return min(max(hours, 0.25), 40.0)
-    return 0.0
 
 
 @api_view(["GET"])
@@ -159,18 +152,13 @@ def maintenance_analytics_view(request):
         )
     recurring.sort(key=lambda x: (-x["count"], x["label"]))
 
-    # Labor proxy from closed WO touch time (until LaborEntry exists).
-    labor_series = defaultdict(float)
-    for wo in wo_qs.filter(status="closed"):
-        if not wo.updated_at:
-            continue
-        period_key = wo.updated_at.strftime("%Y-%m" if group_by == "month" else "%Y-W%W")
-        labor_series[period_key] += _wo_touch_hours(wo)
-
-    labor_points = [
-        {"period": k, "hours": round(v, 1)}
-        for k, v in sorted(labor_series.items())
-    ]
+    labor_points, labor_meta = labor_hours_series_for_analytics(
+        aircraft_ids=aircraft_ids,
+        date_from=date_from,
+        date_to=date_to,
+        group_by=group_by,
+        ata_filter=ata_filter,
+    )
 
     flights = Flight.objects.filter(
         company=company,
@@ -197,9 +185,7 @@ def maintenance_analytics_view(request):
             },
             "recurring_issues": recurring[:25],
             "labor_hours": {
-                "available": False,
-                "source": "work_order_touch_time_proxy",
-                "note": "Estimated from closed work order duration until LaborEntry is available.",
+                **labor_meta,
                 "series": labor_points,
             },
             "maintenance_rate": {

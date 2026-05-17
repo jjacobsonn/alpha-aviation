@@ -20,6 +20,7 @@ export const MODULE_ALLOWED_ROLES = {
   pilotDashboard: ["owner", "manager", "dispatcher", "pilot"],
   calendar: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
   serviceHistory: ["owner", "manager", "dispatcher", "mechanic"],
+  componentHistory: ["owner", "manager", "mechanic"],
   analytics: ["owner", "manager"],
 };
 

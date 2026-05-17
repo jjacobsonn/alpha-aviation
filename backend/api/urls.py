@@ -1,6 +1,12 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .labor_views import work_order_labor_entries, work_order_labor_entry_detail
+from .component_history_views import (
+    component_history_detail,
+    component_history_export,
+    component_history_list,
+)
 from .history_views import (
     service_history_work_order_detail,
     service_history_work_orders_list,
@@ -157,6 +163,31 @@ urlpatterns = [
         "history/work-orders/<int:pk>/",
         service_history_work_order_detail,
         name="service-history-work-order-detail",
+    ),
+    path(
+        "history/components/",
+        component_history_list,
+        name="component-history-list",
+    ),
+    path(
+        "history/components/<int:pk>/",
+        component_history_detail,
+        name="component-history-detail",
+    ),
+    path(
+        "history/components/<int:pk>/export/",
+        component_history_export,
+        name="component-history-export",
+    ),
+    path(
+        "workorders/<int:work_order_pk>/labor-entries/",
+        work_order_labor_entries,
+        name="work-order-labor-entries",
+    ),
+    path(
+        "workorders/<int:work_order_pk>/labor-entries/<int:entry_pk>/",
+        work_order_labor_entry_detail,
+        name="work-order-labor-entry-detail",
     ),
     path("search/", global_search_view, name="global-search"),
     path(

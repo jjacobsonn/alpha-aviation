@@ -382,6 +382,114 @@ class InventoryPart(models.Model):
         return f"{self.part.name} with {self.quantity} in stock"
 
 
+class InstalledComponent(models.Model):
+    """Tracked rotable (P/N + S/N) or consumable (P/N only) for component history."""
+
+    class ComponentType(models.TextChoices):
+        SERIALIZED = "serialized", "Serialized"
+        CONSUMABLE = "consumable", "Consumable"
+
+    class LimitType(models.TextChoices):
+        HOURS = "hours", "Hours"
+        CYCLES = "cycles", "Cycles"
+        CALENDAR = "calendar", "Calendar"
+
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="installed_components"
+    )
+    part = models.ForeignKey(
+        Part,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="installed_components",
+    )
+    part_number = models.CharField(max_length=200)
+    part_name = models.CharField(max_length=200, blank=True, default="")
+    serial_number = models.CharField(max_length=200, blank=True, default="")
+    component_type = models.CharField(
+        max_length=16, choices=ComponentType.choices, default=ComponentType.SERIALIZED
+    )
+    aircraft = models.ForeignKey(
+        Aircraft,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="installed_components",
+    )
+    location = models.CharField(max_length=200, blank=True, default="")
+    limit_type = models.CharField(
+        max_length=16, choices=LimitType.choices, blank=True, default=""
+    )
+    limit_value = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    used_value = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True, default=0
+    )
+    limit_due_date = models.DateField(null=True, blank=True)
+    installed_at = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["part_number", "serial_number"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "part_number", "serial_number"],
+                name="unique_installed_component_company_pn_sn",
+            )
+        ]
+
+    def __str__(self):
+        sn = self.serial_number or "—"
+        return f"{self.part_number} / {sn}"
+
+    @property
+    def remaining_value(self):
+        if self.limit_value is None:
+            return None
+        used = self.used_value or 0
+        return float(self.limit_value) - float(used)
+
+
+class ComponentEvent(models.Model):
+    """Lifecycle event on an installed component."""
+
+    class EventType(models.TextChoices):
+        INSTALL = "install", "Install"
+        REMOVAL = "removal", "Removal"
+        INSPECTION = "inspection", "Inspection"
+        WORK_ORDER = "work_order", "Work Order"
+        NOTE = "note", "Note"
+
+    component = models.ForeignKey(
+        InstalledComponent, on_delete=models.CASCADE, related_name="events"
+    )
+    event_type = models.CharField(max_length=32, choices=EventType.choices)
+    occurred_at = models.DateTimeField()
+    aircraft = models.ForeignKey(
+        Aircraft, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    work_order = models.ForeignKey(
+        "WorkOrder", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="component_events",
+    )
+
+    class Meta:
+        ordering = ["-occurred_at"]
+
+    def __str__(self):
+        return f"{self.component_id} {self.event_type} @ {self.occurred_at}"
+
+
 class Flight(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, related_name="flights")
     aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null=True, related_name="flights")
@@ -551,6 +659,39 @@ class WorkOrderPart(models.Model):
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE)
     part = models.ForeignKey(Part, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
+
+
+class LaborEntry(models.Model):
+    """Mechanic labor hours logged against a work order."""
+
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="labor_entries"
+    )
+    mechanic = models.ForeignKey(
+        "Profile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="labor_entries",
+    )
+    hours = models.DecimalField(max_digits=8, decimal_places=2)
+    work_date = models.DateField()
+    notes = models.CharField(max_length=500, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="labor_entries_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-work_date", "-id"]
+
+    def __str__(self):
+        return f"WO#{self.work_order_id} {self.hours}h on {self.work_date}"
 
 
 class Discrepancy(models.Model):

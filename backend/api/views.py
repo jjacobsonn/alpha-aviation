@@ -1204,6 +1204,24 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         work_order.completion_notes = request.data.get("completion_notes")
         work_order.save()
 
+        from .models import LaborEntry
+
+        raw_labor = request.data.get("labor_hours")
+        if raw_labor not in (None, ""):
+            try:
+                hours = float(raw_labor)
+                if hours > 0:
+                    LaborEntry.objects.create(
+                        work_order=work_order,
+                        mechanic=request.user,
+                        hours=round(hours, 2),
+                        work_date=date.today(),
+                        notes=(request.data.get("labor_notes") or "").strip()[:500],
+                        created_by=request.user,
+                    )
+            except (TypeError, ValueError):
+                pass
+
         notes = (work_order.completion_notes or "").strip()
         summary_parts = [f"Status {prev_status.replace('_', ' ').title()} → Closed", "Signed off"]
         if notes:

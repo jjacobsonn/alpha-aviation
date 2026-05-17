@@ -32,6 +32,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 
 import KPICard from '../components/KPICard';
+import LaborEntriesPanel from '../components/maintenance/LaborEntriesPanel';
 import {
 	MaintenanceActivityTimeline,
 	MaintenanceDescriptionBlock,
@@ -247,6 +248,7 @@ const Maintenance = () => {
 	const [dashboardKPIs, setDashboardKPIs] = useState(null);
 	const [closeWoDialogOpen, setCloseWoDialogOpen] = useState(false);
 	const [closeWoNotes, setCloseWoNotes] = useState('');
+	const [closeWoLaborHours, setCloseWoLaborHours] = useState('');
 	const [successMessage, setSuccessMessage] = useState('');
 	const aircraftFilterFromQuery = new URLSearchParams(location.search).get('aircraft') || '';
 
@@ -826,10 +828,14 @@ const Maintenance = () => {
 		setError('');
 		setSuccessMessage('');
 		try {
-			await closeWorkOrder(selectedWorkOrder.id, closeWoNotes);
+			await closeWorkOrder(selectedWorkOrder.id, {
+				completionNotes: closeWoNotes,
+				laborHours: closeWoLaborHours,
+			});
 			const woLabel = selectedWorkOrder.title || `Work order #${selectedWorkOrder.id}`;
 			setCloseWoDialogOpen(false);
 			setCloseWoNotes('');
+			setCloseWoLaborHours('');
 			closeWorkOrderDetail();
 			await refreshMaintenanceData();
 			setSuccessMessage(`${woLabel} closed and signed off.`);
@@ -1396,6 +1402,14 @@ const Maintenance = () => {
 												text={selectedWorkOrder.completion_notes}
 											/>
 										) : null}
+										<LaborEntriesPanel
+											workOrderId={selectedWorkOrder.id}
+											canEdit={mechanicRole || superviseMaintenance || platformAdmin}
+											mechanicUsers={mechanicUsers}
+											currentUserId={state.user?.id}
+											onChanged={refreshMaintenanceData}
+											compact
+										/>
 										<MaintenanceActivityList
 											items={selectedWorkOrder?.activities}
 											emptyHint="No history yet."
@@ -1815,10 +1829,26 @@ const Maintenance = () => {
 								onChange={(e) => setCloseWoNotes(e.target.value)}
 								fullWidth
 							/>
+							<TextField
+								label="Labor hours (this visit)"
+								type="number"
+								inputProps={{ min: 0.25, max: 24, step: 0.25 }}
+								value={closeWoLaborHours}
+								onChange={(e) => setCloseWoLaborHours(e.target.value)}
+								helperText="Logged as a labor entry when you sign off"
+								fullWidth
+							/>
 						</Stack>
 					</DialogContent>
 					<DialogActions>
-						<Button onClick={() => setCloseWoDialogOpen(false)}>Cancel</Button>
+						<Button
+							onClick={() => {
+								setCloseWoDialogOpen(false);
+								setCloseWoLaborHours('');
+							}}
+						>
+							Cancel
+						</Button>
 						<Button variant="contained" color="success" onClick={handleCloseAndSign}>
 							Close &amp; Sign Off
 						</Button>
