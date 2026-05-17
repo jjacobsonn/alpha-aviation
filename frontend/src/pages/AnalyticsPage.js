@@ -125,18 +125,28 @@ export default function AnalyticsPage() {
 	}
 
 	return (
-		<Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3 } }}>
-			<Stack
-				direction={{ xs: 'column', sm: 'row' }}
-				spacing={2}
-				alignItems={{ sm: 'flex-start' }}
-				justifyContent="space-between"
-				sx={{ mb: 3 }}
-			>
-				<Stack direction="row" spacing={1.5} alignItems="center">
-					<InsightsOutlinedIcon sx={{ fontSize: 32, color: 'primary.main' }} />
-					<Box>
-						<Typography variant="h4" fontWeight={700}>
+		<Container
+			maxWidth="lg"
+			disableGutters
+			sx={{
+				py: { xs: 2, sm: 3 },
+				px: { xs: 1.5, sm: 2, md: 3 },
+				width: '100%',
+				maxWidth: '100%',
+				boxSizing: 'border-box',
+			}}
+		>
+			<Stack spacing={2.5} sx={{ mb: 3, minWidth: 0 }}>
+				<Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+					<InsightsOutlinedIcon
+						sx={{ fontSize: { xs: 28, sm: 32 }, color: 'primary.main', flexShrink: 0, mt: 0.25 }}
+					/>
+					<Box sx={{ minWidth: 0 }}>
+						<Typography
+							component="h1"
+							fontWeight={700}
+							sx={{ fontSize: { xs: '1.35rem', sm: '1.75rem', md: '2rem' }, lineHeight: 1.2 }}
+						>
 							Analytics
 						</Typography>
 						<Typography variant="body2" color="text.secondary">
@@ -144,7 +154,11 @@ export default function AnalyticsPage() {
 						</Typography>
 					</Box>
 				</Stack>
-				<Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+				<Stack
+					direction={{ xs: 'column', sm: 'row' }}
+					spacing={1.5}
+					sx={{ width: '100%' }}
+				>
 					<TextField
 						label="From"
 						type="date"
@@ -152,7 +166,7 @@ export default function AnalyticsPage() {
 						value={range.date_from}
 						onChange={(e) => setRange((r) => ({ ...r, date_from: e.target.value }))}
 						InputLabelProps={{ shrink: true }}
-						sx={{ width: { xs: '100%', sm: 160 } }}
+						sx={{ width: '100%', minWidth: 0, flex: { sm: 1 } }}
 					/>
 					<TextField
 						label="To"
@@ -161,7 +175,7 @@ export default function AnalyticsPage() {
 						value={range.date_to}
 						onChange={(e) => setRange((r) => ({ ...r, date_to: e.target.value }))}
 						InputLabelProps={{ shrink: true }}
-						sx={{ width: { xs: '100%', sm: 160 } }}
+						sx={{ width: '100%', minWidth: 0, flex: { sm: 1 } }}
 					/>
 				</Stack>
 			</Stack>
@@ -172,7 +186,7 @@ export default function AnalyticsPage() {
 				</Alert>
 			)}
 
-			<Stack spacing={3}>
+			<Stack spacing={{ xs: 2, sm: 3 }} sx={{ minWidth: 0, width: '100%' }}>
 				<MaintenanceAnalyticsPanel
 					data={maintenanceData}
 					loading={loadingMaint}

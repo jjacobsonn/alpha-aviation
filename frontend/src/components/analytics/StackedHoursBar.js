@@ -19,12 +19,22 @@ export default function StackedHoursBar({ tail, flying = 0, maintenance = 0, idl
 	];
 
 	return (
-		<Box>
-			<Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-				<Typography variant="body2" fontWeight={500}>
+		<Box sx={{ width: '100%', minWidth: 0 }}>
+			<Stack
+				direction={{ xs: 'column', sm: 'row' }}
+				spacing={{ xs: 0.25, sm: 1 }}
+				justifyContent="space-between"
+				alignItems={{ xs: 'flex-start', sm: 'center' }}
+				sx={{ mb: 0.5 }}
+			>
+				<Typography variant="body2" fontWeight={500} sx={{ wordBreak: 'break-word' }}>
 					{tail}
 				</Typography>
-				<Typography variant="caption" color="text.secondary">
+				<Typography
+					variant="caption"
+					color="text.secondary"
+					sx={{ wordBreak: 'break-word', textAlign: { xs: 'left', sm: 'right' } }}
+				>
 					{flying.toFixed(1)}h fly · {maintenance.toFixed(1)}h maint
 				</Typography>
 			</Stack>
@@ -35,6 +45,7 @@ export default function StackedHoursBar({ tail, flying = 0, maintenance = 0, idl
 					borderRadius: 1,
 					overflow: 'hidden',
 					bgcolor: 'action.hover',
+					width: '100%',
 				}}
 				role="img"
 				aria-label={`${tail} hours breakdown`}

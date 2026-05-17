@@ -40,6 +40,7 @@ import {
   filterDispatchFlights,
 } from "../shared/moduleSearch";
 import ModuleSearchBar from "../components/search/ModuleSearchBar";
+import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
 
@@ -60,6 +61,22 @@ function formatDt(iso) {
   } catch {
     return String(iso);
   }
+}
+
+function clickableRowProps(onActivate) {
+  return {
+    hover: true,
+    onClick: onActivate,
+    onKeyDown: (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onActivate();
+      }
+    },
+    tabIndex: 0,
+    role: "button",
+    sx: { cursor: "pointer" },
+  };
 }
 
 export default function DispatcherDashboard() {
@@ -253,8 +270,8 @@ export default function DispatcherDashboard() {
 
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Stack spacing={3}>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
+        <Stack spacing={3} sx={{ minWidth: 0 }}>
           <Stack spacing={1}>
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
               <Box>
@@ -337,8 +354,8 @@ export default function DispatcherDashboard() {
             </Grid>
           </Grid>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0, p: { xs: 2, sm: 3 } }}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
                 Pending requests
               </Typography>
@@ -347,31 +364,35 @@ export default function DispatcherDashboard() {
               ) : pending.length === 0 ? (
                 <Typography color="text.secondary">No requests awaiting approval.</Typography>
               ) : (
-                <Table size="small">
+                <ScrollableTableContainer minWidth={1180}>
+                <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Flight #</TableCell>
-                      <TableCell>Aircraft</TableCell>
-                      <TableCell>Route</TableCell>
-                      <TableCell>Departure</TableCell>
-                      <TableCell align="right">Actions</TableCell>
+                      <TableCell sx={{ minWidth: 110 }}>Status</TableCell>
+                      <TableCell sx={{ minWidth: 90 }}>Flight #</TableCell>
+                      <TableCell sx={{ minWidth: 120 }}>Aircraft</TableCell>
+                      <TableCell sx={{ minWidth: 360 }}>Route</TableCell>
+                      <TableCell sx={{ minWidth: 160 }}>Departure</TableCell>
+                      <TableCell align="right" sx={{ minWidth: 200 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {pending.map((f) => (
-                      <TableRow key={f.id}>
+                      <TableRow
+                        key={f.id}
+                        {...clickableRowProps(() => openEdit(f))}
+                      >
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
                         <TableCell>
                           {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ minWidth: 360, whiteSpace: "nowrap" }}>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
-                        <TableCell>{formatDt(f.departure_time)}</TableCell>
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.departure_time)}</TableCell>
+                        <TableCell align="right" sx={{ minWidth: 200 }} onClick={(e) => e.stopPropagation()}>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="nowrap">
                             <Button
                               size="small"
                               variant="contained"
@@ -396,12 +417,13 @@ export default function DispatcherDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                </ScrollableTableContainer>
               )}
             </CardContent>
           </Card>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0, p: { xs: 2, sm: 3 } }}>
               <Stack
                 direction={{ xs: "column", md: "row" }}
                 spacing={2}
@@ -437,16 +459,17 @@ export default function DispatcherDashboard() {
                   </Box>
                 </Stack>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={1320}>
+              <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Flight #</TableCell>
-                    <TableCell>Aircraft</TableCell>
-                    <TableCell>Route</TableCell>
-                    <TableCell>Departure</TableCell>
-                    <TableCell>Arrival</TableCell>
-                    <TableCell align="right">Actions</TableCell>
+                    <TableCell sx={{ minWidth: 110 }}>Status</TableCell>
+                    <TableCell sx={{ minWidth: 90 }}>Flight #</TableCell>
+                    <TableCell sx={{ minWidth: 120 }}>Aircraft</TableCell>
+                    <TableCell sx={{ minWidth: 360 }}>Route</TableCell>
+                    <TableCell sx={{ minWidth: 160 }}>Departure</TableCell>
+                    <TableCell sx={{ minWidth: 160 }}>Arrival</TableCell>
+                    <TableCell align="right" sx={{ minWidth: 180 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -464,19 +487,22 @@ export default function DispatcherDashboard() {
                     </TableRow>
                   ) : (
                     filtered.map((f) => (
-                      <TableRow key={f.id}>
+                      <TableRow
+                        key={f.id}
+                        {...clickableRowProps(() => openEdit(f))}
+                      >
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
                         <TableCell>
                           {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ minWidth: 360, whiteSpace: "nowrap" }}>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
-                        <TableCell>{formatDt(f.departure_time)}</TableCell>
-                        <TableCell>{formatDt(f.arrival_time)}</TableCell>
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.departure_time)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.arrival_time)}</TableCell>
+                        <TableCell align="right" sx={{ minWidth: 180 }} onClick={(e) => e.stopPropagation()}>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="nowrap">
                             <Button size="small" variant="outlined" onClick={() => openEdit(f)}>
                               Edit
                             </Button>
@@ -497,6 +523,7 @@ export default function DispatcherDashboard() {
                   )}
                 </TableBody>
               </Table>
+              </ScrollableTableContainer>
             </CardContent>
           </Card>
           <Dialog

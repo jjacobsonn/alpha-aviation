@@ -454,13 +454,21 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             if request_user is not None and getattr(request_user, "is_authenticated", False)
             else None
         )
-        assignee = data.get(
-            "created_by",
-            getattr(self.instance, "created_by", None) or default_assignee,
-        )
-        if next_status != "open" and assignee is None:
+        effective_assignee = data.get("assignee")
+        if effective_assignee is None and "created_by" in data:
+            effective_assignee = data.get("created_by")
+        if effective_assignee is None:
+            inst = self.instance
+            effective_assignee = (
+                getattr(inst, "assignee", None) if inst else None
+            ) or (getattr(inst, "created_by", None) if inst else None)
+        if effective_assignee is None:
+            effective_assignee = default_assignee
+        if next_status != "open" and effective_assignee is None:
             raise serializers.ValidationError(
-                {"created_by": "Assign a mechanic before moving work order out of Open."}
+                {
+                    "assignee": "Assign a mechanic before moving work order out of Open."
+                }
             )
         return data
 

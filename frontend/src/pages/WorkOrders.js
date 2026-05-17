@@ -41,7 +41,62 @@ import {
 	updateWorkorder,
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
-import { canSuperviseMaintenance, isPlatformAdmin } from '../shared/rbac';
+import {
+	canDeleteWorkOrders,
+	canSuperviseMaintenance,
+	isMechanicRole,
+	isPlatformAdmin,
+} from '../shared/rbac';
+
+const WO_STATUS_OPTIONS = [
+	{ value: 'open', label: 'Open' },
+	{ value: 'in_progress', label: 'In Progress' },
+	{ value: 'awaiting_parts', label: 'Awaiting Parts' },
+	{ value: 'closed', label: 'Closed' },
+];
+
+const WO_PRIORITY_OPTIONS = [
+	{ value: 'low', label: 'Low' },
+	{ value: 'medium', label: 'Medium' },
+	{ value: 'high', label: 'High' },
+	{ value: 'critical', label: 'Critical' },
+];
+
+const EMPTY_EDIT_FORM = {
+	title: '',
+	aircraft: '',
+	assignee: '',
+	status: 'open',
+	priority: 'medium',
+	due_by: '',
+	description: '',
+	parts_needed: [],
+};
+
+function buildEditFormFromWorkOrder(wo) {
+	const aircraftId =
+		typeof wo?.aircraft === 'object' && wo?.aircraft != null ? wo.aircraft.id : wo?.aircraft ?? '';
+	const assigneeRaw =
+		typeof wo?.assignee === 'object' && wo?.assignee != null
+			? wo.assignee.id
+			: wo?.assignee ??
+				(typeof wo?.created_by === 'object' && wo?.created_by != null
+					? wo.created_by.id
+					: wo?.created_by ?? '');
+	const rawPartIds = Array.isArray(wo?.parts_needed)
+		? wo.parts_needed.map((x) => (typeof x === 'object' && x?.id != null ? x.id : x))
+		: [];
+	return {
+		title: wo?.title || '',
+		aircraft: aircraftId === '' ? '' : String(aircraftId),
+		assignee: assigneeRaw === '' ? '' : String(assigneeRaw),
+		status: wo?.status || 'open',
+		priority: wo?.priority || 'medium',
+		due_by: wo?.due_by || '',
+		description: wo?.description || '',
+		parts_needed: rawPartIds.map(Number).filter((n) => Number.isFinite(n)),
+	};
+}
 
 const STATUS_TABS = [
 	{ key: 'all', label: 'All' },
@@ -87,8 +142,9 @@ export default function WorkOrders() {
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state);
-	const effectiveRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
-	const canDeleteWorkOrders = effectiveRole === 'owner';
+	const mechanicRole = isMechanicRole(state.user);
+	const canEditWorkOrders = superviseMaintenance || mechanicRole || platformAdmin;
+	const canDeleteWo = canDeleteWorkOrders(state);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [workOrders, setWorkOrders] = useState([]);
@@ -103,6 +159,9 @@ export default function WorkOrders() {
 	const [assignTarget, setAssignTarget] = useState(null);
 	const [assignUserId, setAssignUserId] = useState('');
 	const [assignPriority, setAssignPriority] = useState('medium');
+	const [editOpen, setEditOpen] = useState(false);
+	const [editTargetId, setEditTargetId] = useState(null);
+	const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [page, setPage] = useState(1);
 	const [pageSize, setPageSize] = useState(10);
@@ -213,8 +272,14 @@ export default function WorkOrders() {
 				const aircraftRef = typeof wo.aircraft === 'object' && wo.aircraft != null ? wo.aircraft : null;
 				const aircraftId = Number(aircraftRef?.id ?? wo.aircraft);
 				const ac = aircraftRef || aircraftById.get(aircraftId) || null;
-				const assigneeRef = typeof wo.created_by === 'object' && wo.created_by != null ? wo.created_by : null;
-				const assigneeId = Number(assigneeRef?.id ?? wo.created_by);
+				const assigneeRef =
+					typeof wo.assignee === 'object' && wo.assignee != null
+						? wo.assignee
+						: typeof wo.created_by === 'object' && wo.created_by != null
+							? wo.created_by
+							: null;
+				const assigneeRaw = assigneeRef?.id ?? wo.assignee ?? wo.created_by;
+				const assigneeId = Number(assigneeRaw);
 				const assignee = assigneeRef || userById.get(assigneeId) || null;
 				return {
 					...wo,
@@ -276,6 +341,22 @@ export default function WorkOrders() {
 		[users]
 	);
 
+	const editTargetWo = useMemo(
+		() => workOrders.find((w) => Number(w.id) === Number(editTargetId)) || null,
+		[workOrders, editTargetId]
+	);
+
+	const partsForEditAircraft = useMemo(() => {
+		const aid = editForm.aircraft === '' ? null : Number(editForm.aircraft);
+		if (!Number.isFinite(aid)) return [];
+		return parts.filter((p) => {
+			const pAc = p?.aircraft;
+			const pAid =
+				typeof pAc === 'object' && pAc != null ? Number(pAc.id) : Number(pAc);
+			return Number.isFinite(pAid) && pAid === aid;
+		});
+	}, [parts, editForm.aircraft]);
+
 	const openAssignDialog = (wo) => {
 		setAssignTarget(wo);
 		setAssignUserId(wo?.assigneeId ? String(wo.assigneeId) : '');
@@ -318,8 +399,75 @@ export default function WorkOrders() {
 		}
 	};
 
+	const openEditDialog = (wo) => {
+		const raw = workOrders.find((w) => Number(w.id) === Number(wo.id)) || wo;
+		setEditTargetId(raw.id);
+		setEditForm(buildEditFormFromWorkOrder(raw));
+		setEditOpen(true);
+	};
+
+	const closeEditDialog = () => {
+		setEditOpen(false);
+		setEditTargetId(null);
+		setEditForm(EMPTY_EDIT_FORM);
+	};
+
+	const saveEditDialog = async () => {
+		if (!editTargetId) return;
+		setIsSubmitting(true);
+		setError('');
+		try {
+			let payload;
+			if (superviseMaintenance) {
+				payload = {
+					title: editForm.title,
+					aircraft: Number(editForm.aircraft),
+					description: editForm.description,
+					status: editForm.status,
+					priority: editForm.priority,
+					due_by: editForm.due_by || null,
+					parts_needed: (editForm.parts_needed || []).map(Number),
+				};
+				const assigneeId = editForm.assignee ? Number(editForm.assignee) : null;
+				payload.assignee = assigneeId;
+				payload.created_by = assigneeId;
+			} else {
+				payload = {
+					status: editForm.status,
+					priority: editForm.priority,
+					due_by: editForm.due_by || null,
+					description: editForm.description,
+					parts_needed: (editForm.parts_needed || []).map(Number),
+				};
+			}
+			await updateWorkorder(editTargetId, payload);
+			closeEditDialog();
+			await load();
+		} catch (e) {
+			setError(e?.message || 'Failed to update work order.');
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	useEffect(() => {
+		const woParam = searchParams.get('wo');
+		if (isLoading || !woParam || !workOrders.length) return;
+		const woId = Number(woParam);
+		const wo = workOrders.find((w) => Number(w.id) === woId);
+		if (!wo) return;
+		if (searchParams.get('edit') === '1' && canEditWorkOrders) {
+			openEditDialog(wo);
+		}
+		const next = new URLSearchParams(searchParams);
+		next.delete('wo');
+		next.delete('edit');
+		setSearchParams(next, { replace: true });
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isLoading, workOrders, searchParams]);
+
 	const quickDelete = async (wo) => {
-		if (!canDeleteWorkOrders) {
+		if (!canDeleteWo) {
 			setError('Only owners can delete work orders.');
 			return;
 		}
@@ -517,7 +665,15 @@ export default function WorkOrders() {
 																}}
 															>
 																<Button size="small" variant="contained" sx={actionBtnSx} onClick={() => navigate(`/maintenance?wo=${wo.id}`)}>View</Button>
-																<Button size="small" variant="contained" sx={actionBtnSx} onClick={() => navigate(`/maintenance?wo=${wo.id}&edit=1`)}>Edit</Button>
+																<Button
+																	size="small"
+																	variant="contained"
+																	sx={actionBtnSx}
+																	disabled={!canEditWorkOrders}
+																	onClick={() => openEditDialog(wo)}
+																>
+																	Edit
+																</Button>
 																{superviseMaintenance ? (
 																	<Button size="small" variant="contained" sx={actionBtnSx} onClick={() => openAssignDialog(wo)}>Assign/Reassign</Button>
 																) : null}
@@ -530,7 +686,7 @@ export default function WorkOrders() {
 																{wo.status !== 'closed' ? (
 																	<Button size="small" variant="contained" color="secondary" sx={actionBtnSx} onClick={() => quickStatus(wo, 'closed')}>Close</Button>
 																) : null}
-																{canDeleteWorkOrders ? (
+																{canDeleteWo ? (
 																	<Button size="small" variant="contained" color="error" sx={actionBtnSx} onClick={() => quickDelete(wo)}>Delete</Button>
 																) : null}
 															</Box>
@@ -573,6 +729,161 @@ export default function WorkOrders() {
 						</Card>
 					</Grid>
 				</Grid>
+
+				<Dialog open={editOpen} onClose={closeEditDialog} fullWidth maxWidth="sm">
+					<DialogTitle>
+						Edit work order
+						{editTargetWo?.id != null ? ` #${editTargetWo.id}` : ''}
+					</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							{superviseMaintenance ? (
+								<>
+									<TextField
+										label="Title"
+										value={editForm.title}
+										onChange={(e) => setEditForm((s) => ({ ...s, title: e.target.value }))}
+										fullWidth
+									/>
+									<TextField
+										select
+										label="Aircraft"
+										value={editForm.aircraft}
+										onChange={(e) => {
+											const nextAc = e.target.value;
+											setEditForm((s) => {
+												const aid = nextAc === '' ? null : Number(nextAc);
+												const nextParts = (s.parts_needed || []).filter((pid) => {
+													const p = parts.find((x) => Number(x.id) === Number(pid));
+													if (!p) return false;
+													const pAc = p.aircraft;
+													const pAid =
+														typeof pAc === 'object' && pAc != null
+															? Number(pAc.id)
+															: Number(pAc);
+													return Number.isFinite(pAid) && pAid === aid;
+												});
+												return { ...s, aircraft: nextAc, parts_needed: nextParts };
+											});
+										}}
+										fullWidth
+									>
+										{aircraft.map((a) => (
+											<MenuItem key={a.id} value={String(a.id)}>
+												{a.registration_number} ({a.model})
+											</MenuItem>
+										))}
+									</TextField>
+									<TextField
+										select
+										label="Assigned to"
+										value={editForm.assignee}
+										onChange={(e) => setEditForm((s) => ({ ...s, assignee: e.target.value }))}
+										fullWidth
+									>
+										<MenuItem value="">Unassigned</MenuItem>
+										{assignableUsers.map((u) => (
+											<MenuItem key={u.id} value={String(u.id)}>
+												{profileDisplayName(u)}
+											</MenuItem>
+										))}
+									</TextField>
+								</>
+							) : null}
+							<TextField
+								select
+								label="Status"
+								value={editForm.status}
+								onChange={(e) => setEditForm((s) => ({ ...s, status: e.target.value }))}
+								fullWidth
+							>
+								{WO_STATUS_OPTIONS.map((opt) => (
+									<MenuItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</MenuItem>
+								))}
+							</TextField>
+							<TextField
+								select
+								label="Priority"
+								value={editForm.priority}
+								onChange={(e) => setEditForm((s) => ({ ...s, priority: e.target.value }))}
+								fullWidth
+							>
+								{WO_PRIORITY_OPTIONS.map((opt) => (
+									<MenuItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</MenuItem>
+								))}
+							</TextField>
+							<TextField
+								type="date"
+								label="Due date"
+								InputLabelProps={{ shrink: true }}
+								value={editForm.due_by}
+								onChange={(e) => setEditForm((s) => ({ ...s, due_by: e.target.value }))}
+								fullWidth
+							/>
+							{superviseMaintenance ? (
+								<TextField
+									select
+									label="Parts needed"
+									SelectProps={{
+										multiple: true,
+										renderValue: (selected) =>
+											(selected || []).length
+												? (selected || [])
+														.map((id) => {
+															const p = parts.find((x) => Number(x.id) === Number(id));
+															return p ? `${p.part_number} — ${p.name}` : `#${id}`;
+														})
+														.join(', ')
+												: '—',
+									}}
+									value={editForm.parts_needed || []}
+									onChange={(e) =>
+										setEditForm((s) => ({
+											...s,
+											parts_needed:
+												typeof e.target.value === 'string'
+													? e.target.value.split(',').map(Number)
+													: e.target.value,
+										}))
+									}
+									disabled={!editForm.aircraft}
+									helperText={
+										!editForm.aircraft
+											? 'Select an aircraft first'
+											: partsForEditAircraft.length === 0
+												? 'No parts for this aircraft'
+												: undefined
+									}
+									fullWidth
+								>
+									{partsForEditAircraft.map((p) => (
+										<MenuItem key={p.id} value={p.id}>
+											{p.part_number} — {p.name}
+										</MenuItem>
+									))}
+								</TextField>
+							) : null}
+							<TextField
+								label="Description"
+								multiline
+								minRows={3}
+								value={editForm.description}
+								onChange={(e) => setEditForm((s) => ({ ...s, description: e.target.value }))}
+								fullWidth
+							/>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={closeEditDialog}>Cancel</Button>
+						<Button variant="contained" onClick={saveEditDialog} disabled={isSubmitting}>
+							Save
+						</Button>
+					</DialogActions>
+				</Dialog>
 
 				<Dialog open={assignOpen} onClose={closeAssignDialog} fullWidth maxWidth="xs">
 					<DialogTitle>Assign work order</DialogTitle>

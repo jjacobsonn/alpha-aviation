@@ -12,6 +12,8 @@ import {
   ListItemText,
   Typography,
   Tooltip,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -32,20 +34,45 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
 import { ACTION_TYPES } from "../context/AppContext";
-import { allowedRolesForModule, isPlatformAdmin } from "../shared/rbac";
+import {
+  allowedRolesForModule,
+  getDefaultRouteForUser,
+  isPlatformAdmin,
+} from "../shared/rbac";
 
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
 
 function NavigationDrawer() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const navigate = useNavigate();
   const location = useLocation();
   const { state, dispatch } = useAppContext();
 
+  /** Phones/tablets: always icon rail. Desktop: user can expand/collapse. */
+  const isCompact = isMobile || !sidebarOpen;
+  const drawerWidth = isCompact ? drawerWidthCollapsed : drawerWidthExpanded;
+
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [isMobile]);
+
   const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    if (!isMobile) {
+      setSidebarOpen((open) => !open);
+    }
+  };
+
+  const goToAppHome = () => {
+    const home = getDefaultRouteForUser(state.user);
+    if (home && home !== "/login") {
+      navigate(home);
+    }
   };
 
   const handleLogout = async () => {
@@ -180,15 +207,19 @@ function NavigationDrawer() {
     <Drawer
       variant="permanent"
       sx={{
-        width: sidebarOpen ? drawerWidthExpanded : drawerWidthCollapsed,
+        width: drawerWidth,
         flexShrink: 0,
+        display: { xs: "block" },
         "& .MuiDrawer-paper": {
-          width: sidebarOpen ? drawerWidthExpanded : drawerWidthCollapsed,
+          width: drawerWidth,
           boxSizing: "border-box",
           bgcolor: "white",
           borderRight: "1px solid",
           borderColor: "divider",
-          transition: "width 0.3s",
+          transition: theme.transitions.create("width", {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
           overflowX: "hidden",
         },
       }}
@@ -196,42 +227,63 @@ function NavigationDrawer() {
       {/* Header Section */}
       <Box
         sx={{
-          p: 2,
+          px: isCompact ? 1 : 2,
+          py: 1.5,
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          minHeight: 64,
+          justifyContent: isCompact ? "center" : "space-between",
+          minHeight: 56,
+          flexDirection: isCompact ? "column" : "row",
+          gap: isCompact ? 0.5 : 0,
         }}
       >
-        {sidebarOpen && (
+        {!isCompact && (
           <Stack
             direction="row"
             alignItems="center"
             spacing={1.5}
-            onClick={() => navigate("/")}
-            sx={{ cursor: "pointer" }}
+            onClick={goToAppHome}
+            sx={{ cursor: "pointer", minWidth: 0 }}
           >
             <img src="/logo.png" alt="AIMS" style={{ height: 28, width: 28 }} />
             <Typography
               variant="h6"
-              sx={{ fontWeight: 600, color: "primary.main" }}
+              noWrap
+              sx={{ fontWeight: 600, color: "primary.main", fontSize: "1rem" }}
             >
               Alpha Aviation
             </Typography>
           </Stack>
         )}
-        {!sidebarOpen && (
-          <img
-            src="/logo.png"
-            alt="AIMS"
-            style={{ height: 28, width: 28, cursor: "pointer" }}
-            onClick={() => navigate("/")}
-          />
+        {isCompact && (
+          <Tooltip title="Home" placement="right">
+            <Box
+              component="button"
+              type="button"
+              onClick={goToAppHome}
+              aria-label="Go to home dashboard"
+              sx={{
+                border: 0,
+                p: 0.5,
+                bgcolor: "transparent",
+                cursor: "pointer",
+                borderRadius: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                "&:hover": { bgcolor: "action.hover" },
+              }}
+            >
+              <img src="/logo.png" alt="AIMS" style={{ height: 28, width: 28 }} />
+            </Box>
+          </Tooltip>
         )}
 
-        <IconButton onClick={toggleSidebar} size="small">
-          {sidebarOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
-        </IconButton>
+        {!isMobile && (
+          <IconButton onClick={toggleSidebar} size="small" aria-label="Toggle sidebar">
+            {sidebarOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+          </IconButton>
+        )}
       </Box>
 
       <Divider />
@@ -241,7 +293,7 @@ function NavigationDrawer() {
         {menuItems.map((item) => (
           <Tooltip
             key={item.id}
-            title={!sidebarOpen ? item.title : ""}
+            title={isCompact ? item.title : ""}
             placement="right"
           >
             <ListItem disablePadding sx={{ mb: 1 }}>
@@ -255,8 +307,8 @@ function NavigationDrawer() {
                 sx={{
                   borderRadius: 2,
                   minHeight: 48,
-                  justifyContent: sidebarOpen ? "initial" : "center",
-                  px: 2.5,
+                  justifyContent: isCompact ? "center" : "initial",
+                  px: isCompact ? 1 : 2.5,
                   "&.Mui-selected": {
                     bgcolor: `${item.color}15`,
                     color: item.color,
@@ -272,7 +324,7 @@ function NavigationDrawer() {
                 <ListItemIcon
                   sx={{
                     minWidth: 0,
-                    mr: sidebarOpen ? 2 : "auto",
+                    mr: isCompact ? "auto" : 2,
                     justifyContent: "center",
                     color:
                       selectedTab === item.id ? item.color : "text.secondary",
@@ -280,7 +332,7 @@ function NavigationDrawer() {
                 >
                   {item.icon}
                 </ListItemIcon>
-                {sidebarOpen && (
+                {!isCompact && (
                   <ListItemText
                     primary={item.title}
                     primaryTypographyProps={{
@@ -299,7 +351,7 @@ function NavigationDrawer() {
 
       {/* Footer: account & session (backlog 1.3.1 — profile from Account, not dead nav) */}
       <List sx={{ px: 1, py: 2 }}>
-        <Tooltip title={!sidebarOpen ? "Account" : ""} placement="right">
+        <Tooltip title={isCompact ? "Account" : ""} placement="right">
           <ListItem disablePadding sx={{ mb: 1 }}>
             <ListItemButton
               selected={location.pathname.startsWith("/account")}
@@ -310,8 +362,8 @@ function NavigationDrawer() {
               sx={{
                 borderRadius: 2,
                 minHeight: 48,
-                justifyContent: sidebarOpen ? "initial" : "center",
-                px: 2.5,
+                justifyContent: isCompact ? "center" : "initial",
+                px: isCompact ? 1 : 2.5,
                 "&.Mui-selected": {
                   bgcolor: "rgba(92, 107, 192, 0.12)",
                   color: "#3949ab",
@@ -322,7 +374,7 @@ function NavigationDrawer() {
               <ListItemIcon
                 sx={{
                   minWidth: 0,
-                  mr: sidebarOpen ? 2 : "auto",
+                  mr: isCompact ? "auto" : 2,
                   justifyContent: "center",
                   color: location.pathname.startsWith("/account")
                     ? "#3949ab"
@@ -331,7 +383,7 @@ function NavigationDrawer() {
               >
                 <AccountCircleIcon />
               </ListItemIcon>
-              {sidebarOpen && (
+              {!isCompact && (
                 <ListItemText
                   primary="Account"
                   primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
@@ -341,27 +393,27 @@ function NavigationDrawer() {
           </ListItem>
         </Tooltip>
 
-        <Tooltip title={!sidebarOpen ? "Logout" : ""} placement="right">
+        <Tooltip title={isCompact ? "Logout" : ""} placement="right">
           <ListItem disablePadding>
             <ListItemButton
               onClick={handleLogout}
               sx={{
                 borderRadius: 2,
                 minHeight: 48,
-                justifyContent: sidebarOpen ? "initial" : "center",
-                px: 2.5,
+                justifyContent: isCompact ? "center" : "initial",
+                px: isCompact ? 1 : 2.5,
               }}
             >
               <ListItemIcon
                 sx={{
                   minWidth: 0,
-                  mr: sidebarOpen ? 2 : "auto",
+                  mr: isCompact ? "auto" : 2,
                   justifyContent: "center",
                 }}
               >
                 <LogoutIcon />
               </ListItemIcon>
-              {sidebarOpen && (
+              {!isCompact && (
                 <ListItemText
                   primary="Logout"
                   primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}

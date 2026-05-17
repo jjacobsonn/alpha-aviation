@@ -44,6 +44,7 @@ import {
   updateDiscrepancy,
 } from "../shared/Api";
 import { formatAircraftRef } from "../shared/aircraftDisplay";
+import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
 
@@ -793,7 +794,7 @@ export default function PilotDashboard() {
 
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
         <Stack spacing={3}>
           <Stack spacing={1}>
             <Typography variant="h4" sx={{ fontWeight: 800 }}>
@@ -894,15 +895,16 @@ export default function PilotDashboard() {
             </CardContent>
           </Card>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0 }}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
                 My flights
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
                 Your assigned and requested flights.
               </Typography>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={880}>
+              <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Status</TableCell>
@@ -947,16 +949,17 @@ export default function PilotDashboard() {
                         <TableCell>{f.flight_number || "—"}</TableCell>
                         <TableCell>{roleOnFlight(f)}</TableCell>
                         <TableCell>{displayAircraft(f)}</TableCell>
-                        <TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
-                        <TableCell>{formatDt(f.departure_time)}</TableCell>
-                        <TableCell>{formatDt(f.arrival_time)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDt(f.departure_time)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDt(f.arrival_time)}</TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
+              </ScrollableTableContainer>
             </CardContent>
           </Card>
 
@@ -1464,15 +1467,16 @@ export default function PilotDashboard() {
             </DialogActions>
           </Dialog>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0 }}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
                 My discrepancy reports
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
                 Issues you reported.
               </Typography>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={560}>
+              <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Reported</TableCell>
@@ -1507,12 +1511,15 @@ export default function PilotDashboard() {
                         <TableCell>{d.date_reported || "—"}</TableCell>
                         <TableCell>{d.status || "—"}</TableCell>
                         <TableCell>{d.ata_code || "—"}</TableCell>
-                        <TableCell>{d.description || "—"}</TableCell>
+                        <TableCell sx={{ minWidth: 200, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                          {d.description || "—"}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
+              </ScrollableTableContainer>
             </CardContent>
           </Card>
 

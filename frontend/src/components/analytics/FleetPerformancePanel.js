@@ -45,8 +45,17 @@ export default function FleetPerformancePanel({
 	}));
 
 	return (
-		<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-			<CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+		<Card
+			elevation={0}
+			sx={{
+				border: '1px solid',
+				borderColor: 'divider',
+				borderRadius: 2,
+				overflow: 'hidden',
+				width: '100%',
+			}}
+		>
+			<CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
 				<Stack
 					direction={{ xs: 'column', sm: 'row' }}
 					spacing={2}
@@ -54,10 +63,10 @@ export default function FleetPerformancePanel({
 					justifyContent="space-between"
 					sx={{ mb: 3 }}
 				>
-					<Stack direction="row" spacing={1.5} alignItems="center">
-						<FlightOutlinedIcon color="primary" />
-						<Box>
-							<Typography variant="h6" fontWeight={600}>
+					<Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+						<FlightOutlinedIcon color="primary" sx={{ mt: 0.25, flexShrink: 0 }} />
+						<Box sx={{ minWidth: 0 }}>
+							<Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>
 								Fleet performance
 							</Typography>
 							<Typography variant="body2" color="text.secondary">
@@ -71,7 +80,7 @@ export default function FleetPerformancePanel({
 						label="Aircraft"
 						value={filters.aircraft_id}
 						onChange={(e) => onFiltersChange({ ...filters, aircraft_id: e.target.value })}
-						sx={{ minWidth: { sm: 180 }, width: { xs: '100%', sm: 'auto' } }}
+						sx={{ width: '100%', minWidth: 0, maxWidth: { md: 220 } }}
 					>
 						<MenuItem value="">All aircraft</MenuItem>
 						{aircraftOptions.map((a) => (
@@ -89,13 +98,17 @@ export default function FleetPerformancePanel({
 				)}
 
 				{!loading && (
-					<Grid container spacing={3}>
-						<Grid size={{ xs: 12, md: 4 }}>
-							<Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
+					<Grid container spacing={2} sx={{ width: '100%', m: 0 }}>
+						<Grid size={{ xs: 12, md: 4 }} sx={{ minWidth: 0 }}>
+							<Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', minWidth: 0 }}>
 								<Typography variant="overline" color="text.secondary">
 									On-time performance
 								</Typography>
-								<Typography variant="h3" fontWeight={700} sx={{ my: 1 }}>
+								<Typography
+									variant="h3"
+									fontWeight={700}
+									sx={{ my: 1, fontSize: { xs: '2rem', sm: '2.5rem' } }}
+								>
 									{otp?.on_time_percent != null ? `${otp.on_time_percent}%` : '—'}
 								</Typography>
 								<Typography variant="body2" color="text.secondary">
@@ -105,7 +118,7 @@ export default function FleetPerformancePanel({
 							</Box>
 						</Grid>
 
-						<Grid size={{ xs: 12, md: 8 }}>
+						<Grid size={{ xs: 12, md: 8 }} sx={{ minWidth: 0 }}>
 							<Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
 								Utilization (% of available hours flown)
 							</Typography>
@@ -116,11 +129,11 @@ export default function FleetPerformancePanel({
 							/>
 						</Grid>
 
-						<Grid size={{ xs: 12, md: 6 }}>
+						<Grid size={{ xs: 12, lg: 6 }} sx={{ minWidth: 0 }}>
 							<Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
 								Uptime vs downtime (hours by tail)
 							</Typography>
-							<Stack spacing={1.5}>
+							<Stack spacing={1.5} sx={{ minWidth: 0 }}>
 								{uptime.length === 0 && (
 									<Typography variant="body2" color="text.secondary">
 										No aircraft to display.
@@ -136,14 +149,20 @@ export default function FleetPerformancePanel({
 									/>
 								))}
 							</Stack>
-							<Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+							<Stack
+								direction="row"
+								spacing={2}
+								flexWrap="wrap"
+								useFlexGap
+								sx={{ mt: 2 }}
+							>
 								<LegendDot color="#00A86B" label="Flying" />
 								<LegendDot color="#F5A623" label="Maintenance" />
 								<LegendDot color="#E2DDD9" label="Idle" />
 							</Stack>
 						</Grid>
 
-						<Grid size={{ xs: 12, md: 6 }}>
+						<Grid size={{ xs: 12, lg: 6 }} sx={{ minWidth: 0 }}>
 							<Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
 								Delay breakdown
 							</Typography>

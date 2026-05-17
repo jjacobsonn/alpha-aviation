@@ -66,6 +66,7 @@ import {
 	maintenanceTableEmptyHint,
 } from '../shared/moduleSearch';
 import ModuleSearchBar from '../components/search/ModuleSearchBar';
+import ScrollableTableContainer from '../components/ScrollableTableContainer';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
 	closeWorkOrder,
@@ -85,7 +86,12 @@ import {
 } from '../shared/Api';
 import AircraftSelector from '../components/AircraftSelector';
 import { useAppContext } from '../context/AppContext';
-import { canSuperviseMaintenance, isMechanicRole, isPlatformAdmin } from '../shared/rbac';
+import {
+	canDeleteWorkOrders,
+	canSuperviseMaintenance,
+	isMechanicRole,
+	isPlatformAdmin,
+} from '../shared/rbac';
 
 /** Matches backend `WorkOrder.STATUS_CHOICES` — value stored, label shown in UI */
 const WORK_ORDER_STATUS_OPTIONS = [
@@ -208,8 +214,7 @@ const Maintenance = () => {
 	const platformAdmin = isPlatformAdmin(state.user);
 	const mechanicRole = isMechanicRole(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state);
-	const effectiveRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
-	const canDeleteMaintenanceRecords = effectiveRole === 'owner';
+	const canDeleteMaintenanceRecords = canDeleteWorkOrders(state);
 	const canEditWorkOrderAssignment = superviseMaintenance || platformAdmin;
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
@@ -662,8 +667,11 @@ const Maintenance = () => {
 				parts_needed: (workorderForm.parts_needed || []).map(Number),
 			};
 			if (workorderForm.created_by) {
-				payload.created_by = Number(workorderForm.created_by);
+				const assigneeId = Number(workorderForm.created_by);
+				payload.assignee = assigneeId;
+				payload.created_by = assigneeId;
 			} else {
+				payload.assignee = null;
 				payload.created_by = null;
 			}
 			await updateWorkorder(selectedWorkOrder.id, payload);
@@ -856,10 +864,9 @@ const Maintenance = () => {
 		if (woParam) {
 			const woId = Number(woParam);
 			const wo = workOrders.find((w) => Number(w?.id) === woId);
-			if (wo) {
-				openWorkOrderDetail(wo);
-				if (editParam === '1') setWorkOrderDetailEditing(true);
-			}
+			if (!wo) return;
+			openWorkOrderDetail(wo);
+			if (editParam === '1') setWorkOrderDetailEditing(true);
 			setDidHandleDeepLink(true);
 			navigate('/maintenance', { replace: true });
 			return;
@@ -868,10 +875,9 @@ const Maintenance = () => {
 		if (discParam) {
 			const discId = Number(discParam);
 			const d = discrepancies.find((x) => Number(x?.id) === discId);
-			if (d) {
-				openDiscrepancyDetail(d);
-				if (editParam === '1') setDiscrepancyDetailEditing(true);
-			}
+			if (!d) return;
+			openDiscrepancyDetail(d);
+			if (editParam === '1') setDiscrepancyDetailEditing(true);
 			setDidHandleDeepLink(true);
 			navigate('/maintenance', { replace: true });
 			return;
@@ -882,7 +888,7 @@ const Maintenance = () => {
 	
   return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
-			<Container maxWidth="xl" sx={{ py: 4 }}>
+			<Container maxWidth="xl" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
 				<Box sx={{ mb: 3 }}>
 					<Typography variant="h4" sx={{ fontWeight: 800 }}>
 						Maintenance
@@ -977,8 +983,8 @@ const Maintenance = () => {
 				{/* Tables */}
 				<Grid container spacing={3} sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
 					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
-							<CardContent sx={{ p: 3 }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%', minWidth: 0 }}>
+							<CardContent sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5 }}>
 									Work Orders
 								</Typography>
@@ -1003,16 +1009,17 @@ const Maintenance = () => {
 										<CircularProgress />
 									</Stack>
 								) : (
-									<Table size="small">
+									<ScrollableTableContainer minWidth={1080}>
+									<Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
 										<TableHead>
 											<TableRow>
-												<TableCell>Title</TableCell>
-												<TableCell>Parts</TableCell>
-												<TableCell>Aircraft</TableCell>
-												<TableCell>Assigned</TableCell>
-												<TableCell>Status</TableCell>
-												<TableCell>Due</TableCell>
-												<TableCell>Description</TableCell>
+												<TableCell sx={{ minWidth: 160 }}>Title</TableCell>
+												<TableCell sx={{ minWidth: 200 }}>Parts</TableCell>
+												<TableCell sx={{ minWidth: 140 }}>Aircraft</TableCell>
+												<TableCell sx={{ minWidth: 120 }}>Assigned</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Status</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Due</TableCell>
+												<TableCell sx={{ minWidth: 200 }}>Description</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
@@ -1031,7 +1038,9 @@ const Maintenance = () => {
 													role="button"
 													sx={{ cursor: 'pointer' }}
 												>
-													<TableCell>{order.work_order_label}</TableCell>
+													<TableCell sx={{ minWidth: 160, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{order.work_order_label}
+													</TableCell>
 													<TableCell sx={{ maxWidth: 280 }}>
 														{order.part_labels?.length ? (
 															<Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
@@ -1059,8 +1068,10 @@ const Maintenance = () => {
 													<TableCell>{order.aircraft || '—'}</TableCell>
 													<TableCell>{order.assigned_to || '—'}</TableCell>
 													<TableCell>{order.status_label}</TableCell>
-													<TableCell>{order.due_date || '—'}</TableCell>
-													<TableCell>{order.description || '—'}</TableCell>
+													<TableCell sx={{ whiteSpace: 'nowrap' }}>{order.due_date || '—'}</TableCell>
+													<TableCell sx={{ minWidth: 180, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{order.description || '—'}
+													</TableCell>
 												</TableRow>
 											))}
 											{searchedWorkOrders.length === 0 ? (
@@ -1078,14 +1089,15 @@ const Maintenance = () => {
 											) : null}
 										</TableBody>
 									</Table>
+									</ScrollableTableContainer>
 								)}
 							</CardContent>
 						</Card>
 					</Grid>
 
 					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
-							<CardContent sx={{ p: 3 }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%', minWidth: 0 }}>
+							<CardContent sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
 								<Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5 }}>
 									Discrepancies
 								</Typography>
@@ -1110,15 +1122,16 @@ const Maintenance = () => {
 										<CircularProgress />
 									</Stack>
 								) : (
-									<Table size="small">
+									<ScrollableTableContainer minWidth={880}>
+									<Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
 										<TableHead>
 											<TableRow>
-												<TableCell>Discrepancy</TableCell>
-												<TableCell>Reported</TableCell>
-												<TableCell>ATA</TableCell>
-												<TableCell>Aircraft</TableCell>
-												<TableCell>Status</TableCell>
-												<TableCell>Description</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Discrepancy</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Reported</TableCell>
+												<TableCell sx={{ minWidth: 72 }}>ATA</TableCell>
+												<TableCell sx={{ minWidth: 140 }}>Aircraft</TableCell>
+												<TableCell sx={{ minWidth: 90 }}>Status</TableCell>
+												<TableCell sx={{ minWidth: 200 }}>Description</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
@@ -1142,7 +1155,9 @@ const Maintenance = () => {
 													<TableCell>{d.part_number || '—'}</TableCell>
 													<TableCell>{d.aircraft || '—'}</TableCell>
 													<TableCell>{d.status_label}</TableCell>
-													<TableCell>{d.description || '—'}</TableCell>
+													<TableCell sx={{ minWidth: 180, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{d.description || '—'}
+													</TableCell>
 												</TableRow>
 											))}
 											{searchedDiscrepancies.length === 0 ? (
@@ -1160,6 +1175,7 @@ const Maintenance = () => {
 											) : null}
 										</TableBody>
 									</Table>
+									</ScrollableTableContainer>
 								)}
 							</CardContent>
 						</Card>

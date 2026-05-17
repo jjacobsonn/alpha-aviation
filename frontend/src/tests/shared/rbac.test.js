@@ -1,4 +1,5 @@
 import {
+  canDeleteWorkOrders,
   canEditServiceHistory,
   canSuperviseMaintenance,
   getDefaultRouteForUser,
@@ -47,5 +48,17 @@ describe("RBAC role routing", () => {
   it("allows only owner/manager to supervise maintenance", () => {
     expect(canSuperviseMaintenance({ user: { company_role: "manager" } })).toBe(true);
     expect(canSuperviseMaintenance({ user: { company_role: "mechanic" } })).toBe(false);
+  });
+
+  it("allows owners and platform admins to delete work orders", () => {
+    expect(canDeleteWorkOrders({ user: { company_role: "owner" } })).toBe(true);
+    expect(canDeleteWorkOrders({ user: { company_role: "manager" } })).toBe(false);
+    expect(canDeleteWorkOrders({ user: { is_staff: true } })).toBe(true);
+    expect(
+      canDeleteWorkOrders({
+        user: { is_staff: true },
+        viewAsUser: { role: "mechanic" },
+      })
+    ).toBe(false);
   });
 });

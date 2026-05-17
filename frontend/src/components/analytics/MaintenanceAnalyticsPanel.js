@@ -32,16 +32,30 @@ export default function MaintenanceAnalyticsPanel({
 		color: '#2B7FD4',
 	}));
 
-	const recurringRows = recurring.slice(0, 10).map((r) => ({
-		label: `ATA ${r.ata_code} — ${r.label}`,
-		value: r.count,
-		sublabel: r.aircraft_tails?.join(', ') || `${r.aircraft_count} aircraft`,
-		color: '#FF9800',
-	}));
+	const recurringRows = recurring.slice(0, 10).map((r) => {
+		const tails = r.aircraft_tails?.join(', ') || `${r.aircraft_count} aircraft`;
+		return {
+			label: `ATA ${r.ata_code}`,
+			value: r.count,
+			sublabel: `${r.label}${tails ? ` · ${tails}` : ''}`,
+			color: '#FF9800',
+		};
+	});
+
+	const filterFieldSx = { width: '100%', minWidth: 0 };
 
 	return (
-		<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-			<CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+		<Card
+			elevation={0}
+			sx={{
+				border: '1px solid',
+				borderColor: 'divider',
+				borderRadius: 2,
+				overflow: 'hidden',
+				width: '100%',
+			}}
+		>
+			<CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
 				<Stack
 					direction={{ xs: 'column', sm: 'row' }}
 					spacing={2}
@@ -49,10 +63,10 @@ export default function MaintenanceAnalyticsPanel({
 					justifyContent="space-between"
 					sx={{ mb: 3 }}
 				>
-					<Stack direction="row" spacing={1.5} alignItems="center">
-						<BuildOutlinedIcon color="primary" />
-						<Box>
-							<Typography variant="h6" fontWeight={600}>
+					<Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+						<BuildOutlinedIcon color="primary" sx={{ mt: 0.25, flexShrink: 0 }} />
+						<Box sx={{ minWidth: 0 }}>
+							<Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>
 								Maintenance analytics
 							</Typography>
 							<Typography variant="body2" color="text.secondary">
@@ -60,14 +74,18 @@ export default function MaintenanceAnalyticsPanel({
 							</Typography>
 						</Box>
 					</Stack>
-					<Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+					<Stack
+						direction={{ xs: 'column', md: 'row' }}
+						spacing={1.5}
+						sx={{ width: '100%', minWidth: 0 }}
+					>
 						<TextField
 							select
 							size="small"
 							label="Aircraft"
 							value={filters.aircraft_id}
 							onChange={(e) => onFiltersChange({ ...filters, aircraft_id: e.target.value })}
-							sx={{ minWidth: { sm: 160 } }}
+							sx={filterFieldSx}
 						>
 							<MenuItem value="">All aircraft</MenuItem>
 							{aircraftOptions.map((a) => (
@@ -87,7 +105,7 @@ export default function MaintenanceAnalyticsPanel({
 							placeholder="29"
 							inputMode="numeric"
 							inputProps={{ maxLength: 3, 'aria-label': 'ATA chapter number' }}
-							sx={{ width: { sm: 110 } }}
+							sx={filterFieldSx}
 						/>
 						<TextField
 							select
@@ -95,7 +113,7 @@ export default function MaintenanceAnalyticsPanel({
 							label="Labor grouping"
 							value={filters.group_by}
 							onChange={(e) => onFiltersChange({ ...filters, group_by: e.target.value })}
-							sx={{ minWidth: { sm: 130 } }}
+							sx={filterFieldSx}
 						>
 							<MenuItem value="month">By month</MenuItem>
 							<MenuItem value="week">By week</MenuItem>
@@ -110,20 +128,25 @@ export default function MaintenanceAnalyticsPanel({
 				)}
 
 				{!loading && (
-					<Grid container spacing={3}>
-						<Grid size={{ xs: 12, md: 4 }}>
+					<Grid container spacing={2} sx={{ width: '100%', m: 0 }}>
+						<Grid size={{ xs: 12, md: 4 }} sx={{ minWidth: 0 }}>
 							<Box
 								sx={{
 									p: 2,
 									borderRadius: 2,
 									bgcolor: 'action.hover',
-									height: '100%',
+									height: { md: '100%' },
+									minWidth: 0,
 								}}
 							>
 								<Typography variant="overline" color="text.secondary">
 									Events per 100 flight hours
 								</Typography>
-								<Typography variant="h3" fontWeight={700} sx={{ my: 1 }}>
+								<Typography
+									variant="h3"
+									fontWeight={700}
+									sx={{ my: 1, fontSize: { xs: '2rem', sm: '2.5rem' } }}
+								>
 									{rate?.events_per_100_flight_hours != null
 										? rate.events_per_100_flight_hours
 										: '—'}
@@ -135,7 +158,7 @@ export default function MaintenanceAnalyticsPanel({
 							</Box>
 						</Grid>
 
-						<Grid size={{ xs: 12, md: 8 }}>
+						<Grid size={{ xs: 12, md: 8 }} sx={{ minWidth: 0 }}>
 							<Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
 								Recurring issues (2+ occurrences)
 							</Typography>
@@ -146,8 +169,15 @@ export default function MaintenanceAnalyticsPanel({
 							/>
 						</Grid>
 
-						<Grid size={{ xs: 12 }}>
-							<Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+						<Grid size={{ xs: 12 }} sx={{ minWidth: 0 }}>
+							<Stack
+								direction="row"
+								alignItems="center"
+								spacing={1}
+								flexWrap="wrap"
+								useFlexGap
+								sx={{ mb: 1 }}
+							>
 								<Typography variant="subtitle2" fontWeight={600}>
 									Labor hours
 								</Typography>

@@ -40,6 +40,14 @@ export function getEffectiveCompanyRole(context) {
   return user?.company_role ?? user?.role ?? null;
 }
 
+/** MVP: only owners delete work orders/discrepancies; platform admins when not viewing as another role. */
+export function canDeleteWorkOrders(context) {
+  const viewAs = context?.viewAsUser;
+  const user = context?.user ?? context;
+  if (isPlatformAdmin(user) && !viewAs) return true;
+  return getEffectiveCompanyRole(context) === "owner";
+}
+
 /** Owner/manager supervise assignment and operational edits (not delete authority). */
 export function canSuperviseMaintenance(userOrContext) {
   const viewAs = userOrContext?.viewAsUser;

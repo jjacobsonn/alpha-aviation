@@ -21,18 +21,42 @@ export default function HorizontalBarChart({
 	const maxVal = Math.max(...rows.map((r) => r.max ?? r.value), 1);
 
 	return (
-		<Stack spacing={1.5}>
-			{rows.map((row) => {
+		<Stack spacing={1.5} sx={{ width: '100%', minWidth: 0 }}>
+			{rows.map((row, index) => {
 				const pct = Math.min(100, (row.value / maxVal) * 100);
+				const valueLine = `${valueFormatter(row.value)}${row.sublabel ? ` · ${row.sublabel}` : ''}`;
 				return (
-					<Box key={row.label}>
-						<Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.5 }}>
-							<Typography variant="body2" fontWeight={500} noWrap sx={{ maxWidth: '55%' }}>
+					<Box key={`${row.label}-${index}`} sx={{ minWidth: 0, width: '100%' }}>
+						<Stack
+							direction={{ xs: 'column', sm: 'row' }}
+							spacing={{ xs: 0.25, sm: 1 }}
+							justifyContent="space-between"
+							alignItems={{ xs: 'flex-start', sm: 'baseline' }}
+							sx={{ mb: 0.5 }}
+						>
+							<Typography
+								variant="body2"
+								fontWeight={500}
+								sx={{
+									minWidth: 0,
+									width: { xs: '100%', sm: 'auto' },
+									maxWidth: '100%',
+									wordBreak: 'break-word',
+								}}
+							>
 								{row.label}
 							</Typography>
-							<Typography variant="caption" color="text.secondary">
-								{valueFormatter(row.value)}
-								{row.sublabel ? ` · ${row.sublabel}` : ''}
+							<Typography
+								variant="caption"
+								color="text.secondary"
+								sx={{
+									flexShrink: 0,
+									maxWidth: '100%',
+									wordBreak: 'break-word',
+									textAlign: { xs: 'left', sm: 'right' },
+								}}
+							>
+								{valueLine}
 							</Typography>
 						</Stack>
 						<Box
@@ -43,6 +67,7 @@ export default function HorizontalBarChart({
 								borderRadius: 1,
 								bgcolor: 'action.hover',
 								overflow: 'hidden',
+								width: '100%',
 							}}
 						>
 							<Box

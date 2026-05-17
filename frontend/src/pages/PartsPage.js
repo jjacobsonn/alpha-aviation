@@ -49,6 +49,7 @@ import {
   filterPartsRows,
 } from "../shared/moduleSearch";
 import ModuleSearchBar from "../components/search/ModuleSearchBar";
+import ScrollableTableContainer from "../components/ScrollableTableContainer";
 
 function PartsPage() {
   const { state } = useAppContext();
@@ -317,7 +318,7 @@ function PartsPage() {
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
-      <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
         <Stack spacing={3}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box>
@@ -352,8 +353,8 @@ function PartsPage() {
             ))}
           </Grid>
 
-          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0 }}>
               <Stack spacing={2}>
                 <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "flex-start" }}>
                   <Box sx={{ flex: 1, width: "100%" }}>
@@ -381,15 +382,16 @@ function PartsPage() {
                   </Box>
                 )}
 
+                <ScrollableTableContainer minWidth={920}>
                 <Table
                   size="small"
                   sx={{
-                    minWidth: '100%',
                     '& .MuiTableCell-head': {
                       bgcolor: 'primary.main',
                       color: 'common.white',
                       fontWeight: 700,
                       borderColor: 'divider',
+                      whiteSpace: 'nowrap',
                     },
                     '& .MuiTableCell-root': { borderColor: 'divider' },
                   }}
@@ -403,17 +405,29 @@ function PartsPage() {
                   </TableHead>
 
                   {filteredRows.map((item) => (
-                    <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
+                    <TableRow
+                      key={item.id ?? item.pn}
+                      hover
+                      onClick={() => handleOpenEdit(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleOpenEdit(item);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      sx={{ cursor: "pointer", bgcolor: "transparent" }}
+                    >
                       <TableCell>{item.pn}</TableCell>
                       <TableCell>{item.partName}</TableCell>
                       <TableCell
                         sx={{
-                          maxWidth: 280,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          minWidth: 220,
+                          maxWidth: 360,
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
                         }}
-                        title={item.partDescription || ""}
                       >
                         {item.partDescription || "—"}
                       </TableCell>
@@ -427,7 +441,7 @@ function PartsPage() {
                           <Chip size="small" variant="outlined" label="No" />
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <IconButton
                           onClick={(e) => openMenu(e, item)}
                           disabled={isLoading}
@@ -438,6 +452,7 @@ function PartsPage() {
                     </TableRow>
                   ))}
                 </Table>
+                </ScrollableTableContainer>
 
                 <Menu
                   anchorEl={menuAnchor}
