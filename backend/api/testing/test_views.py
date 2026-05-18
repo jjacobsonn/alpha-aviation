@@ -180,7 +180,7 @@ class TestCompanyFunctionViews:
         response = owner_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert "company_id" in response.data
+        assert "id" in response.data["company"]
 
     def test_company_users_success(self, authenticated_client, sample_user):
         url = reverse("company-users")
