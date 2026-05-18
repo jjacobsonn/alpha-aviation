@@ -1,5 +1,6 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
 import { useEffect, useMemo, useState } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
   Box,
   Chip,
@@ -31,6 +32,7 @@ import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import HistoryIcon from "@mui/icons-material/History";
 import {
   deleteInventory,
   createInventory,
@@ -52,6 +54,7 @@ import ModuleSearchBar from "../components/search/ModuleSearchBar";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
 
 function PartsPage() {
+  const navigate = useNavigate();
   const { state } = useAppContext();
   const effectiveRole = state.viewAsUser?.role || state.user?.role;
   const canDeleteParts = effectiveRole === "owner";
@@ -280,9 +283,22 @@ function PartsPage() {
     "In stock",
     "Reorder at",
     "Location",
+    "Tracked units",
     "Low stock",
     "Actions",
   ];
+
+  const goToComponentHistory = (row, { register = false } = {}) => {
+    const params = new URLSearchParams();
+    if (row?.pn) params.set("q", row.pn);
+    if (register && row?.partId) {
+      params.set("register", "1");
+      params.set("part_id", String(row.partId));
+      params.set("part_number", row.pn);
+      if (row.partName) params.set("part_name", row.partName);
+    }
+    navigate(`/component-history?${params.toString()}`);
+  };
 
   const inventoryData = useMemo(() => {
     return inventories.map((inv) => {
@@ -302,6 +318,7 @@ function PartsPage() {
         location: inv?.shop_location || "—",
         lowStock,
         partId: part?.id ?? null,
+        trackedUnits: Number(inv?.tracked_units_count ?? 0),
       };
     });
   }, [inventories]);
@@ -326,9 +343,13 @@ function PartsPage() {
                 Parts
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Part catalog and quantities for your company.
+                Catalog and shelf stock. Track individual serial numbers and install history on{" "}
+                <RouterLink to="/component-history">Component History</RouterLink>.
               </Typography>
             </Box>
+            <Button variant="outlined" component={RouterLink} to="/component-history">
+              Component history
+            </Button>
           </Stack>
 
           <Grid container spacing={3} sx={{ display: "flex" }}>
@@ -403,7 +424,7 @@ function PartsPage() {
                       ))}
                     </TableRow>
                   </TableHead>
-
+                  <TableBody>
                   {filteredRows.map((item) => (
                     <TableRow
                       key={item.id ?? item.pn}
@@ -434,6 +455,26 @@ function PartsPage() {
                       <TableCell>{item.inStock}</TableCell>
                       <TableCell>{item.stockAlert}</TableCell>
                       <TableCell>{item.location}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {item.trackedUnits > 0 ? (
+                          <Button
+                            size="small"
+                            variant="text"
+                            startIcon={<HistoryIcon fontSize="small" />}
+                            onClick={() => goToComponentHistory(item)}
+                          >
+                            {item.trackedUnits}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => goToComponentHistory(item, { register: true })}
+                          >
+                            Track
+                          </Button>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {item.lowStock ? (
                           <Chip size="small" color="warning" label="Yes" />
@@ -451,6 +492,7 @@ function PartsPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  </TableBody>
                 </Table>
                 </ScrollableTableContainer>
 
@@ -490,6 +532,22 @@ function PartsPage() {
                     }}
                   >
                     Edit
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      goToComponentHistory(selectedPart);
+                      closeMenu();
+                    }}
+                  >
+                    View component history
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      goToComponentHistory(selectedPart, { register: true });
+                      closeMenu();
+                    }}
+                  >
+                    Register tracked unit
                   </MenuItem>
                 </Menu>
 

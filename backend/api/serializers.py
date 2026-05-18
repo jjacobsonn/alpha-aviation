@@ -627,6 +627,7 @@ class InventorySerializer(serializers.ModelSerializer):
     )
     # Read/write `in_stock` maps to model `quantity` for API compatibility.
     in_stock = serializers.IntegerField(source="quantity", required=False)
+    tracked_units_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = InventoryPart
@@ -640,6 +641,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "stock_alert",
             "stock_alert_percentage",
             "shop_location",
+            "tracked_units_count",
         ]
 
 
@@ -928,6 +930,7 @@ class InstalledComponentListSerializer(serializers.ModelSerializer):
         model = InstalledComponent
         fields = [
             "id",
+            "part",
             "part_number",
             "part_name",
             "serial_number",
@@ -1048,6 +1051,12 @@ class InstalledComponentCreateSerializer(serializers.ModelSerializer):
             )
         else:
             data["component_type"] = InstalledComponent.ComponentType.CONSUMABLE
+        part = data.get("part")
+        if part:
+            if not (data.get("part_number") or "").strip():
+                data["part_number"] = part.part_number
+            if not (data.get("part_name") or "").strip():
+                data["part_name"] = part.name or ""
         if not (data.get("part_number") or "").strip():
             raise serializers.ValidationError(
                 {"part_number": "Part number is required."}

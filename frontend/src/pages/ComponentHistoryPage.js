@@ -1,12 +1,12 @@
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
   CircularProgress,
-  Collapse,
   Container,
   Dialog,
   DialogActions,
@@ -14,8 +14,8 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  Grid,
   LinearProgress,
-  Link,
   MenuItem,
   Stack,
   Switch,
@@ -26,22 +26,34 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
-import DownloadIcon from "@mui/icons-material/Download";
 import AddIcon from "@mui/icons-material/Add";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
+import DownloadIcon from "@mui/icons-material/Download";
+import HistoryIcon from "@mui/icons-material/History";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
+import ModuleSearchBar from "../components/search/ModuleSearchBar";
+import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import {
   createTrackedComponent,
   downloadComponentHistoryExport,
   fetchCompanyAircrafts,
+  fetchCompanyInventoriesDetailed,
   fetchComponentHistoryDetail,
   fetchComponentHistorySearch,
 } from "../shared/Api";
 import useDebouncedValue from "../shared/useDebouncedValue";
-import ScrollableTableContainer from "../components/ScrollableTableContainer";
+
+const TYPE_FILTERS = [
+  { value: "all", label: "All types" },
+  { value: "serialized", label: "Rotables" },
+  { value: "consumable", label: "Consumables" },
+];
 
 function formatDt(iso) {
   if (!iso) return "—";
@@ -70,6 +82,7 @@ function todayIsoDate() {
 }
 
 const emptyRegisterForm = {
+  catalog_part_id: "",
   part_number: "",
   part_name: "",
   serial_number: "",
@@ -84,11 +97,32 @@ const emptyRegisterForm = {
   notes: "",
 };
 
+function StatCard({ title, value, icon, color, loading }) {
+  return (
+    <Card
+      elevation={0}
+      sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}
+    >
+      <CardContent sx={{ py: 2.5 }}>
+        <Stack spacing={0.5} alignItems="center" textAlign="center">
+          <Box sx={{ color }}>{icon}</Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            {title}
+          </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 900, color }}>
+            {loading ? "—" : value}
+          </Typography>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ComponentTimeline({ events }) {
   if (!events?.length) {
     return (
-      <Typography variant="body2" color="text.secondary">
-        No history events yet. Events appear when you register a component or link maintenance work.
+      <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+        No events recorded yet.
       </Typography>
     );
   }
@@ -185,12 +219,19 @@ function LifeLimitSummary({ component }) {
 }
 
 export default function ComponentHistoryPage() {
+  const theme = useTheme();
+  const isCompact = useMediaQuery(theme.breakpoints.down("lg"));
+  const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
+  const isCompactHeader = useMediaQuery(theme.breakpoints.down("md"));
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
+  const [typeFilter, setTypeFilter] = useState(searchParams.get("type") || "all");
   const debouncedQuery = useDebouncedValue(query, 300);
   const [results, setResults] = useState([]);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({ total: 0, serialized: 0, consumable: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(
     searchParams.get("id") ? Number(searchParams.get("id")) : null
@@ -198,20 +239,41 @@ export default function ComponentHistoryPage() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(true);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm);
   const [registerBusy, setRegisterBusy] = useState(false);
   const [aircraft, setAircraft] = useState([]);
+  const [catalogParts, setCatalogParts] = useState([]);
+  const [statsRefreshKey, setStatsRefreshKey] = useState(0);
+
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const [all, serialized, consumable] = await Promise.all([
+        fetchComponentHistorySearch({ page_size: 1 }),
+        fetchComponentHistorySearch({ page_size: 1, component_type: "serialized" }),
+        fetchComponentHistorySearch({ page_size: 1, component_type: "consumable" }),
+      ]);
+      setStats({
+        total: all?.count ?? 0,
+        serialized: serialized?.count ?? 0,
+        consumable: consumable?.count ?? 0,
+      });
+    } catch {
+      setStats({ total: 0, serialized: 0, consumable: 0 });
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
 
   const loadSearch = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await fetchComponentHistorySearch({
-        q: debouncedQuery.trim() || undefined,
-        page_size: 25,
-      });
+      const params = { page_size: 25 };
+      if (debouncedQuery.trim()) params.q = debouncedQuery.trim();
+      if (typeFilter && typeFilter !== "all") params.component_type = typeFilter;
+      const data = await fetchComponentHistorySearch(params);
       setResults(Array.isArray(data?.results) ? data.results : []);
       setCount(data?.count ?? 0);
     } catch (e) {
@@ -221,7 +283,7 @@ export default function ComponentHistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedQuery]);
+  }, [debouncedQuery, typeFilter]);
 
   const loadDetail = useCallback(async (id) => {
     if (!id) {
@@ -242,15 +304,20 @@ export default function ComponentHistoryPage() {
   }, []);
 
   useEffect(() => {
+    loadStats();
+  }, [loadStats, statsRefreshKey]);
+
+  useEffect(() => {
     loadSearch();
   }, [loadSearch]);
 
   useEffect(() => {
     const params = {};
     if (debouncedQuery.trim()) params.q = debouncedQuery.trim();
+    if (typeFilter && typeFilter !== "all") params.type = typeFilter;
     if (selectedId) params.id = String(selectedId);
     setSearchParams(params, { replace: true });
-  }, [debouncedQuery, selectedId, setSearchParams]);
+  }, [debouncedQuery, typeFilter, selectedId, setSearchParams]);
 
   useEffect(() => {
     if (selectedId) {
@@ -265,6 +332,57 @@ export default function ComponentHistoryPage() {
       .then((data) => setAircraft(Array.isArray(data) ? data : []))
       .catch(() => setAircraft([]));
   }, []);
+
+  useEffect(() => {
+    fetchCompanyInventoriesDetailed()
+      .then((data) => {
+        const byId = new Map();
+        (Array.isArray(data) ? data : []).forEach((inv) => {
+          const p = inv?.part;
+          if (p?.id && !byId.has(p.id)) {
+            byId.set(p.id, {
+              id: p.id,
+              part_number: p.part_number || "",
+              name: p.name || "",
+            });
+          }
+        });
+        setCatalogParts([...byId.values()].sort((a, b) =>
+          a.part_number.localeCompare(b.part_number)
+        ));
+      })
+      .catch(() => setCatalogParts([]));
+  }, [statsRefreshKey]);
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) setQuery(q);
+    if (searchParams.get("register") !== "1") return;
+    setRegisterForm({
+      ...emptyRegisterForm,
+      catalog_part_id: searchParams.get("part_id") || "",
+      part_number: searchParams.get("part_number") || "",
+      part_name: searchParams.get("part_name") || "",
+    });
+    setRegisterOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("register");
+    next.delete("part_id");
+    next.delete("part_number");
+    next.delete("part_name");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deep-link once from Parts
+  }, []);
+
+  const suggestions = useMemo(() => {
+    const seen = new Set();
+    results.forEach((row) => {
+      if (row.part_number) seen.add(row.part_number);
+      if (row.serial_number) seen.add(row.serial_number);
+      if (row.part_name) seen.add(row.part_name);
+    });
+    return [...seen].slice(0, 24);
+  }, [results]);
 
   const selectComponent = (row) => {
     setSelectedId(row.id);
@@ -297,6 +415,9 @@ export default function ComponentHistoryPage() {
         notes: registerForm.notes.trim(),
         initial_event_summary: registerForm.initial_event_summary.trim(),
       };
+      if (registerForm.catalog_part_id) {
+        payload.part_id = Number(registerForm.catalog_part_id);
+      }
       if (registerForm.aircraft) {
         payload.aircraft = Number(registerForm.aircraft);
       }
@@ -308,6 +429,7 @@ export default function ComponentHistoryPage() {
       const created = await createTrackedComponent(payload);
       setRegisterOpen(false);
       setRegisterForm(emptyRegisterForm);
+      setStatsRefreshKey((k) => k + 1);
       await loadSearch();
       if (created?.id) {
         setSelectedId(created.id);
@@ -320,116 +442,207 @@ export default function ComponentHistoryPage() {
   };
 
   const header = detail || results.find((r) => r.id === selectedId);
+  const showEmpty = !loading && results.length === 0;
 
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
-      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 1.5, sm: 2, md: 3 }, minWidth: 0 }}>
-        <Stack spacing={2.5}>
+      <Container
+        maxWidth="xl"
+        sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}
+      >
+        <Stack spacing={3}>
           <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1.5}
-            alignItems={{ xs: "flex-start", sm: "center" }}
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            alignItems={{ xs: "stretch", md: "center" }}
             justifyContent="space-between"
+            sx={{ width: "100%" }}
           >
-            <Stack direction="row" spacing={1.5} alignItems="flex-start">
-              <PrecisionManufacturingIcon color="primary" sx={{ fontSize: { xs: 28, sm: 32 }, mt: 0.25 }} />
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: "1.35rem", sm: "2rem" } }}>
-                  Component history
+            <Stack
+              direction="row"
+              spacing={1.5}
+              alignItems="flex-start"
+              sx={{ minWidth: 0, flex: 1 }}
+            >
+              <HistoryIcon
+                color="primary"
+                sx={{ fontSize: { xs: 28, sm: 32 }, flexShrink: 0, mt: 0.25 }}
+              />
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: { xs: "1.35rem", sm: "2rem" },
+                    lineHeight: 1.2,
+                  }}
+                >
+                  Component History
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Track individual parts over time — installs, removals, and life limits.
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ wordBreak: "break-word" }}
+                >
+                  Track serial numbers and install history linked to your{" "}
+                  <RouterLink to="/parts">parts catalog</RouterLink>. Shelf quantities stay on
+                  Parts.
                 </Typography>
               </Box>
             </Stack>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              useFlexGap
+              sx={{
+                width: { xs: "100%", md: "auto" },
+                flexShrink: 0,
+              }}
+            >
               <Button
                 variant="outlined"
-                size="small"
-                startIcon={<HelpOutlineIcon />}
-                onClick={() => setHelpOpen((o) => !o)}
+                component={RouterLink}
+                to="/parts"
+                fullWidth={isPhone}
+                sx={{
+                  minHeight: 44,
+                  whiteSpace: "nowrap",
+                  width: { xs: "100%", sm: "auto" },
+                  flex: { sm: "1 1 0", md: "0 0 auto" },
+                  minWidth: { sm: 0 },
+                  px: { xs: 2, sm: 2.5 },
+                }}
               >
-                {helpOpen ? "Hide help" : "How this works"}
+                {isCompactHeader ? "Parts" : "Parts catalog"}
               </Button>
               <Button
                 variant="contained"
-                startIcon={<AddIcon />}
+                startIcon={isPhone ? undefined : <AddIcon />}
                 onClick={() => setRegisterOpen(true)}
+                fullWidth={isPhone}
+                sx={{
+                  minHeight: 44,
+                  whiteSpace: "nowrap",
+                  width: { xs: "100%", sm: "auto" },
+                  flex: { sm: "1 1 0", md: "0 0 auto" },
+                  minWidth: { sm: 0 },
+                  px: { xs: 2, sm: 2.5 },
+                }}
               >
-                Register component
+                {isCompactHeader ? "Register" : "Register component"}
               </Button>
             </Stack>
           </Stack>
 
-          <Collapse in={helpOpen}>
-            <Alert severity="info" icon={false} sx={{ "& .MuiAlert-message": { width: "100%" } }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Parts catalog vs. component history
-              </Typography>
-              <Stack spacing={1} component="ul" sx={{ m: 0, pl: 2.5 }}>
-                <Typography component="li" variant="body2">
-                  <strong>Parts</strong> (<Link component={RouterLink} to="/parts">open Parts</Link>) — your
-                  company catalog and stock counts (how many brake pads you have on the shelf).
-                </Typography>
-                <Typography component="li" variant="body2">
-                  <strong>Component history</strong> (this page) — a specific item you track over time, like
-                  hydraulic pump <em>S/N 12345</em> on tail N521SB, or a filter batch tracked by part number only.
-                </Typography>
-                <Typography component="li" variant="body2">
-                  <strong>Part number</strong> — manufacturer ID (e.g. P-2002). <strong>Serial number</strong> —
-                  unique ID on one rotable unit (leave blank for consumables).
-                </Typography>
-              </Stack>
-              <Typography variant="body2" sx={{ mt: 1.5 }}>
-                To get started: click <strong>Register component</strong> above, or run{" "}
-                <code>python manage.py bootstrap_component_history</code> for demo data.
-              </Typography>
-            </Alert>
-          </Collapse>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
+              <StatCard
+                title="Tracked components"
+                value={stats.total}
+                loading={statsLoading}
+                color="primary.main"
+                icon={<PrecisionManufacturingIcon />}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <StatCard
+                title="Rotables"
+                value={stats.serialized}
+                loading={statsLoading}
+                color="info.main"
+                icon={<CategoryOutlinedIcon />}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <StatCard
+                title="Consumables"
+                value={stats.consumable}
+                loading={statsLoading}
+                color="success.main"
+                icon={<Inventory2OutlinedIcon />}
+              />
+            </Grid>
+          </Grid>
 
-          {error ? <Alert severity="error" onClose={() => setError("")}>{error}</Alert> : null}
+          {error ? (
+            <Alert severity="error" onClose={() => setError("")}>
+              {error}
+            </Alert>
+          ) : null}
 
           <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent sx={{ py: { xs: 1.5, sm: 2 } }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Search tracked components"
-                placeholder="Part number, serial number, name, tail, or location…"
+            <CardContent sx={{ py: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
+              <ModuleSearchBar
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={setQuery}
+                placeholder="Part number, serial, name, tail, or location…"
+                suggestions={suggestions}
+                statusOptions={TYPE_FILTERS}
+                statusValue={typeFilter}
+                onStatusChange={setTypeFilter}
+                statusVariant="chips"
+                resultCount={count}
+                totalCount={stats.total}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                {loading ? "Searching…" : `${count} tracked component${count === 1 ? "" : "s"} found`}
-              </Typography>
             </CardContent>
           </Card>
 
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", lg: selectedId ? "minmax(280px, 1fr) minmax(320px, 1.4fr)" : "1fr" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                lg: selectedId && !isCompact ? "minmax(300px, 1fr) minmax(360px, 1.35fr)" : "1fr",
+              },
               gap: 2,
               alignItems: "start",
             }}
           >
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
-              <CardContent>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  Tracked components
-                </Typography>
-                {loading && !results.length ? (
-                  <Stack alignItems="center" py={3}>
-                    <CircularProgress size={28} />
-                  </Stack>
-                ) : results.length === 0 ? (
-                  <Stack spacing={2} alignItems="flex-start">
-                    <Typography color="text.secondary">
-                      {debouncedQuery.trim()
-                        ? "No matches. Try another part or serial number, or register a new component."
-                        : "Nothing registered yet. Add your first tracked component to build a timeline."}
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0, overflow: "hidden" }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ mb: 1.5 }}
+                >
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    Tracked components
+                  </Typography>
+                  {loading ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Loading…
                     </Typography>
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setRegisterOpen(true)}>
+                  ) : null}
+                </Stack>
+
+                {loading && !results.length ? (
+                  <Stack alignItems="center" py={5}>
+                    <CircularProgress size={32} />
+                  </Stack>
+                ) : showEmpty ? (
+                  <Stack alignItems="center" spacing={2} sx={{ py: { xs: 4, sm: 6 }, px: 2 }}>
+                    <PrecisionManufacturingIcon sx={{ fontSize: 48, color: "action.disabled" }} />
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      {debouncedQuery.trim() || typeFilter !== "all"
+                        ? "No matching components"
+                        : "No tracked components yet"}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      textAlign="center"
+                      sx={{ maxWidth: 400 }}
+                    >
+                      {debouncedQuery.trim() || typeFilter !== "all"
+                        ? "Adjust your search or filters, or register a new component."
+                        : "Register rotables by serial number or consumables by part number to build compliance timelines."}
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={() => setRegisterOpen(true)}
+                    >
                       Register component
                     </Button>
                   </Stack>
@@ -450,7 +663,7 @@ export default function ComponentHistoryPage() {
                           <TableCell>Part number</TableCell>
                           <TableCell>Serial #</TableCell>
                           <TableCell>Type</TableCell>
-                          <TableCell>On aircraft / location</TableCell>
+                          <TableCell>Aircraft / location</TableCell>
                           <TableCell align="right">Events</TableCell>
                         </TableRow>
                       </TableHead>
@@ -486,8 +699,16 @@ export default function ComponentHistoryPage() {
             </Card>
 
             {selectedId ? (
-              <Card elevation={0} sx={{ border: "2px solid", borderColor: "primary.main", minWidth: 0 }}>
-                <CardContent>
+              <Card
+                elevation={0}
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  minWidth: 0,
+                  boxShadow: (t) => `inset 3px 0 0 ${t.palette.primary.main}`,
+                }}
+              >
+                <CardContent sx={{ p: { xs: 1.5, sm: 2.5 } }}>
                   {detailLoading ? (
                     <Stack alignItems="center" py={4}>
                       <CircularProgress />
@@ -499,39 +720,43 @@ export default function ComponentHistoryPage() {
                         justifyContent="space-between"
                         spacing={2}
                       >
-                        <Box>
+                        <Box sx={{ minWidth: 0 }}>
                           <Typography variant="overline" color="text.secondary">
-                            Selected component
+                            Component detail
                           </Typography>
                           <Typography variant="h5" sx={{ fontWeight: 800 }}>
                             {header.part_name || header.part_number}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Part # <strong>{header.part_number}</strong>
-                            {header.serial_number ? (
-                              <>
-                                {" "}
-                                · Serial # <strong>{header.serial_number}</strong>
-                              </>
-                            ) : null}
+                            P/N {header.part_number}
+                            {header.serial_number ? ` · S/N ${header.serial_number}` : ""}
                           </Typography>
-                          <Chip
-                            size="small"
-                            sx={{ mt: 1 }}
-                            label={header.component_type === "serialized" ? "Rotable (serialized)" : "Consumable"}
-                          />
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            {header.aircraft_label
-                              ? `Installed on: ${header.aircraft_label}`
-                              : `Location: ${header.location || "—"}`}
-                          </Typography>
+                          <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              size="small"
+                              label={
+                                header.component_type === "serialized" ? "Rotable" : "Consumable"
+                              }
+                              variant="outlined"
+                            />
+                            <Chip
+                              size="small"
+                              label={
+                                header.aircraft_label
+                                  ? header.aircraft_label
+                                  : header.location || "No location"
+                              }
+                              variant="outlined"
+                            />
+                          </Stack>
                         </Box>
                         <Button
                           variant="outlined"
+                          size="small"
                           startIcon={<DownloadIcon />}
                           onClick={handleExport}
                           disabled={exporting}
-                          sx={{ alignSelf: "flex-start" }}
+                          sx={{ alignSelf: "flex-start", flexShrink: 0 }}
                         >
                           Export CSV
                         </Button>
@@ -542,7 +767,7 @@ export default function ComponentHistoryPage() {
                       <Divider />
 
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                        History timeline
+                        Timeline
                       </Typography>
                       <ComponentTimeline events={detail?.events} />
                     </Stack>
@@ -556,23 +781,48 @@ export default function ComponentHistoryPage() {
         </Stack>
       </Container>
 
-      <Dialog open={registerOpen} onClose={() => !registerBusy && setRegisterOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Register tracked component</DialogTitle>
+      <Dialog
+        open={registerOpen}
+        onClose={() => !registerBusy && setRegisterOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Register component</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              This creates a trackable item for compliance history. Stock quantities still live on the{" "}
-              <Link component={RouterLink} to="/parts" onClick={() => setRegisterOpen(false)}>
-                Parts
-              </Link>{" "}
-              page.
-            </Typography>
+            <Autocomplete
+              options={catalogParts}
+              getOptionLabel={(opt) =>
+                opt?.part_number ? `${opt.part_number} — ${opt.name || "Unnamed"}` : ""
+              }
+              value={
+                catalogParts.find((p) => String(p.id) === String(registerForm.catalog_part_id)) ||
+                null
+              }
+              onChange={(_, opt) =>
+                setRegisterForm((s) => ({
+                  ...s,
+                  catalog_part_id: opt ? String(opt.id) : "",
+                  part_number: opt?.part_number || s.part_number,
+                  part_name: opt?.name || s.part_name,
+                }))
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="From parts catalog"
+                  placeholder="Select a catalog part to link stock and history"
+                />
+              )}
+            />
             <TextField
               label="Part number"
               required
               placeholder="e.g. P-2002"
               value={registerForm.part_number}
-              onChange={(e) => setRegisterForm((s) => ({ ...s, part_number: e.target.value }))}
+              onChange={(e) =>
+                setRegisterForm((s) => ({ ...s, part_number: e.target.value, catalog_part_id: "" }))
+              }
               fullWidth
             />
             <TextField
@@ -591,7 +841,7 @@ export default function ComponentHistoryPage() {
                   }
                 />
               }
-              label="Rotable part (has a unique serial number)"
+              label="Rotable (serialized)"
             />
             {registerForm.is_serialized ? (
               <TextField
@@ -605,7 +855,7 @@ export default function ComponentHistoryPage() {
             ) : null}
             <TextField
               select
-              label="Aircraft (optional)"
+              label="Aircraft"
               value={registerForm.aircraft}
               onChange={(e) => setRegisterForm((s) => ({ ...s, aircraft: e.target.value }))}
               fullWidth
@@ -619,7 +869,7 @@ export default function ComponentHistoryPage() {
             </TextField>
             <TextField
               label="Location"
-              placeholder="Hangar shelf, shop stock, etc."
+              placeholder="Hangar, shop stock, etc."
               value={registerForm.location}
               onChange={(e) => setRegisterForm((s) => ({ ...s, location: e.target.value }))}
               fullWidth
@@ -656,7 +906,7 @@ export default function ComponentHistoryPage() {
               </>
             ) : null}
             <TextField
-              label="Install / start date"
+              label="Install date"
               type="date"
               InputLabelProps={{ shrink: true }}
               value={registerForm.installed_at}
@@ -664,7 +914,7 @@ export default function ComponentHistoryPage() {
               fullWidth
             />
             <TextField
-              label="First history note"
+              label="Initial note"
               placeholder="e.g. Installed during 100-hour inspection"
               value={registerForm.initial_event_summary}
               onChange={(e) =>

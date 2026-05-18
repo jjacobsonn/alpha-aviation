@@ -1,4 +1,5 @@
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, F, IntegerField, OuterRef, Prefetch, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
@@ -26,6 +27,7 @@ from .models import (
     Inventory,
     Tool,
     CalibrationRecord,
+    InstalledComponent,
     InventoryPart,
     Part,
     Profile,
@@ -991,10 +993,25 @@ class CompanyInventoryListView(generics.ListCreateAPIView):
         user_company = get_request_company(self.request)
         if not user_company:
             return InventoryPart.objects.none()
+        tracked_count = (
+            InstalledComponent.objects.filter(company_id=user_company.id)
+            .filter(
+                Q(part_id=OuterRef("part_id"))
+                | Q(part_number=OuterRef("part__part_number"))
+            )
+            .values("part_id")
+            .annotate(cnt=Count("id"))
+            .values("cnt")[:1]
+        )
         return (
             super()
             .get_queryset()
             .filter(inventory__company=user_company)
+            .annotate(
+                tracked_units_count=Coalesce(
+                    Subquery(tracked_count, output_field=IntegerField()), 0
+                )
+            )
             .order_by("part__part_number")
         )
 
