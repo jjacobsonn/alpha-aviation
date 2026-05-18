@@ -57,6 +57,11 @@ class WorkOrderAdmin(admin.ModelAdmin):
     list_filter = ('status', 'aircraft')
     inlines = [WorkOrderPartInline, WorkOrderActivityInline]
     search_fields = ('title', 'description')
+    
+    def get_inlines(self, request, obj):
+            if obj is None:
+                  return []
+            return self.inlines
 
 #Inline display used when refrenced on other page for workorders
 class WorkOrderInline(admin.TabularInline):
@@ -74,6 +79,11 @@ class AircraftInline(admin.TabularInline):
 class AircraftAdmin(admin.ModelAdmin):
       inlines = [WorkOrderInline, DiscrepancyInline, AircraftPartInline]
       search_fields = ["registration_number", "model"]
+
+      def get_inlines(self, request, obj):
+        if obj is None:
+            return []
+        return self.inlines
 
 #Admin display for users/profiles
 class CustomUserAdmin(UserAdmin):
@@ -231,6 +241,11 @@ class FlightInline(admin.TabularInline):
 class CompanyAdmin(admin.ModelAdmin):
       inlines = [UserInline, AircraftInline, InventoryInline, FlightInline]
 
+      def get_inlines(self, request, obj):
+            if obj is None:
+                  return []
+            return self.inlines
+      
       class Media:
             css = {
                   'all': ('api/admin.css',)

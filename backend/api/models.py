@@ -44,7 +44,7 @@ class Company(models.Model):
             if not aircraft:
                 return []
 
-            for flight in aircraft.flights.exclude(id=self.id):
+            for flight in aircraft.flights.all():
                 if flight.departure_time < end_date and flight.arrival_time > start_date:
                     return []
             return [aircraft]
@@ -298,19 +298,31 @@ class Company(models.Model):
     def get_aircraft_monthly_flight_hours(self):
         data = {}
         for aircraft in self.aircraft.all():
-            data[aircraft.registration_number] = aircraft.get_monthly_flight_hours()
+            if aircraft.model not in data:
+                data[aircraft.model] = aircraft.get_monthly_flight_hours()
+            else:
+                monthly_hours = aircraft.get_monthly_flight_hours()
+                for month, hours in monthly_hours.items():
+                    if month in data[aircraft.model]:
+                        data[aircraft.model][month] += hours
+                    else:
+                        data[aircraft.model][month] = hours
         return data
     
     def get_uptime_downtime(self):
         data = {}
         for aircraft in self.aircraft.all():
-            total_seconds = (timezone.now() - aircraft.created_at).total_seconds()
-            total_hours = round(total_seconds / 3600, 2)
-            down_hours = round(float(aircraft.calculate_downtime()), 2)
-            data[aircraft.registration_number] = {
-                'total_time_hours': total_hours,
-                'down_time_hours': down_hours,
-            }
+            if aircraft.model not in data:
+                total_seconds = (timezone.now() - aircraft.created_at).total_seconds()
+                total_hours = round(total_seconds / 3600, 2)
+                down_hours = round(float(aircraft.calculate_downtime()), 2)
+                data[aircraft.model] = {
+                    'total_time_hours': total_hours,
+                    'down_time_hours': down_hours,
+                }
+            else:
+                data[aircraft.model]['total_time_hours'] += round((timezone.now() - aircraft.created_at).total_seconds() / 3600, 2)
+                data[aircraft.model]['down_time_hours'] += round(float(aircraft.calculate_downtime()), 2)
         return data
 
 
@@ -342,8 +354,8 @@ class Profile(AbstractUser):
                 })
     
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
         self.full_clean()
+        super().save(*args, **kwargs)
         if self.company_role == "pilot":
             Pilot.objects.get_or_create(profile = self)
         elif self.company_role == "mechanic":
@@ -474,6 +486,8 @@ class Aircraft(models.Model):
         self.save()
     
     def check_fleet_status(self):
+        if not self.pk:
+            return
         today = timezone.now().date()
         if self.fleet_status == 'active':
             for ap in self.aircraftpart_set.all():
@@ -541,7 +555,7 @@ class Part(models.Model):
     part_number = models.CharField(max_length=200)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, blank= True)
+    aircraft = models.ForeignKey(Aircraft, on_delete=models.SET_NULL, null=True, blank= True)
 
     def __str__(self):
         return f"{self.part_number} - {self.name}"
@@ -556,11 +570,11 @@ class AircraftPart(models.Model):
 
     def clean(self):
         super().clean()
+        self._old_part = None
         if self.expiration_date and self.expiration_date < timezone.now().date():
             raise ValidationError({
                 "expiration_date": "Expiration date cannot be in the past."
             })
-        self._old_part = None
         existing = AircraftPart.objects.filter(aircraft=self.aircraft, part=self.part).exclude(pk=self.pk).order_by('-expiration_hobbs').first()
 
         if existing:
