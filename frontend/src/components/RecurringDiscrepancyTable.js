@@ -2,36 +2,47 @@ import React, { useState, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, Box } from '@mui/material';
 import { makeApiRequest } from '../shared/Api';
 
-// Function to fetch recurring discrepancies from the backend API  
+// Fetch recurring discrepancies from the management dashboard endpoint
 const fetchRecurringDiscrepancies = async () => {
     try {
-        const response = await makeApiRequest('/api/recurring_discrepancies');
-        return response.data; // Currently Expecting: { "32": [5, [1, 3]], "24": [8, [2, 4]] } TODO: this sould become one with part names
+        const response = await makeApiRequest('GET', '/management/dashboard/');
+        // Defensive: handle both possible spellings ("recuring" and "recurring")
+        return (
+            response.aircraft_analytics?.recuring_discrepancies ||
+            response.aircraft_analytics?.recurring_discrepancies ||
+            {}
+        );
     } catch (error) {
         console.error('Error fetching recurring discrepancies:', error);
-        return {}; // Return empty object instead of array to match data structure
+        return {};
     }
 };
-
+// RecurringDiscrepancyTable component displays recurring discrepancy trends from the dashboard
 export default function RecurringDiscrepancyTable() {
-    // 1. Manage state properly so React triggers a re-render when data arrives
     const [discrepancyData, setDiscrepancyData] = useState({});
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // 2. Fetch the data
     useEffect(() => {
-        fetchRecurringDiscrepancies().then(data => {
-            setDiscrepancyData(data);
-            setLoading(false);
-        });
+        fetchRecurringDiscrepancies()
+            .then(data => {
+                setDiscrepancyData(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                setError('Failed to load recurring discrepancies.');
+                setLoading(false);
+            });
     }, []);
 
     if (loading) {
         return <Typography sx={{ p: 2 }}>Loading discrepancy trends...</Typography>;
     }
+    if (error) {
+        return <Typography color="error" sx={{ p: 2 }}>{error}</Typography>;
+    }
 
-    // 3. Convert the dictionary object into a mapable array
-    // Object.entries(discrepancyData) turns the data into: [ ["32", [5, [1, 3]]], ["24", [8, [2, 4]]] ]
+    // Convert the dictionary object into a mappable array
     const dataRows = Object.entries(discrepancyData);
 
     return (
@@ -60,15 +71,12 @@ export default function RecurringDiscrepancyTable() {
                                 <TableRow key={ataCode} sx={{ '&:hover': { bgcolor: 'action.selected' } }}>
                                     {/* Column 1: The Key (ATA Code) */}
                                     <TableCell sx={{ fontWeight: 'medium' }}>{ataCode}</TableCell>
-                                    
                                     {/* Column 2: Kept blank until we can get part names*/}
                                     <TableCell color="text.secondary"><em>—</em></TableCell>
-                                    
                                     {/* Column 3: The first index in the array */}
                                     <TableCell>{frequency}</TableCell>
-                                    
                                     {/* Column 4: The nested array inside index 1 */}
-                                    <TableCell>{tailNumbers.join(', ')}</TableCell>
+                                    <TableCell>{Array.isArray(tailNumbers) ? tailNumbers.join(', ') : tailNumbers}</TableCell>
                                 </TableRow>
                             );
                         })

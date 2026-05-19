@@ -47,7 +47,9 @@ import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
 
 //Local imports
-import {RecurringDiscrepancyTable} from '../components/RecurringDiscrepancyTable';
+import RecurringDiscrepancyTable from '../components/RecurringDiscrepancyTable';
+import FleetUtilizationGraph from '../components/FleetUtilizationGraph';
+import AircraftUptimeDowntimeGraph from '../components/UptimeDowntimeGraph';
 
 // Human-readable labels for company roles
 const ROLE_LABELS = {
@@ -664,7 +666,15 @@ const Management = () => {
 						</Button>
 					</DialogActions>
 				</Dialog>
-			</Container>
+			{/* Recurring discrepancy trends table */}
+			<div className='recurring-discrepancy-section'>
+				<RecurringDiscrepancyTable />
+			</div>
+			<div className='fleet-utilization-section'>
+				<FleetUtilizationGraph />
+				<AircraftUptimeDowntimeGraph />
+			</div>
+		</Container>
 		</Box>
 	);
 };
