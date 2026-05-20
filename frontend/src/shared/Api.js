@@ -580,3 +580,32 @@ export const openWorkOrderFromDiscrepancy = async (discrepancyId) => {
 export const fetchMaintenanceDashboard = async () => {
 	return await makeApiRequest('GET', '/maintenance/dashboard/');
 };
+
+// Tool & equipment calibration
+export const fetchTools = async () => {
+	return await makeApiRequest('GET', '/tools/');
+};
+
+export const fetchTool = async (id) => {
+	return await makeApiRequest('GET', `/tools/${id}/`);
+};
+
+export const createTool = async (payload) => {
+	return await makeApiRequest('POST', '/tools/', payload);
+};
+
+export const updateTool = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/tools/${id}/`, payload);
+};
+
+export const deleteTool = async (id) => {
+	return await makeApiRequest('DELETE', `/tools/${id}/`);
+};
+
+export const fetchToolCalibrationHistory = async (id) => {
+	return await makeApiRequest('GET', `/tools/${id}/calibration_history/`);
+};
+
+export const recordToolCalibration = async (id, payload) => {
+	return await makeApiRequest('POST', `/tools/${id}/record_calibration/`, payload);
+};

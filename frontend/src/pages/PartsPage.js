@@ -1,12 +1,14 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
 import { useEffect, useMemo, useState } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import {
   Box,
   Chip,
   Divider,
   IconButton,
   Stack,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -52,9 +54,12 @@ import {
 } from "../shared/moduleSearch";
 import ModuleSearchBar from "../components/search/ModuleSearchBar";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
+import ToolsCalibrationPanel from "../components/parts/ToolsCalibrationPanel";
 
 function PartsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "tools" ? "tools" : "inventory";
   const { state } = useAppContext();
   const effectiveRole = state.viewAsUser?.role || state.user?.role;
   const canDeleteParts = effectiveRole === "owner";
@@ -333,25 +338,69 @@ function PartsPage() {
     [inventoryData, debouncedSearch, partsStatus]
   );
 
+  const handleTabChange = (_event, value) => {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (value === "inventory") {
+          params.delete("tab");
+          params.delete("tool");
+        } else {
+          params.set("tab", "tools");
+        }
+        return params;
+      },
+      { replace: true }
+    );
+  };
+
+  const pageTitle = activeTab === "tools" ? "Calibration" : "Parts";
+  const pageSubtitle =
+    activeTab === "tools"
+      ? "Calibration due dates and service records for shop equipment."
+      : "Part numbers, quantities, and reorder levels.";
+
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
         <Stack spacing={3}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "stretch", sm: "center" }}
+            spacing={1.5}
+          >
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                Parts
+                {pageTitle}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Catalog and shelf stock. Track individual serial numbers and install history on{" "}
-                <RouterLink to="/component-history">Component History</RouterLink>.
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {pageSubtitle}
               </Typography>
             </Box>
-            <Button variant="outlined" component={RouterLink} to="/component-history">
+            <Button
+              variant="outlined"
+              component={RouterLink}
+              to="/component-history"
+              sx={{ alignSelf: { xs: "stretch", sm: "center" }, whiteSpace: "nowrap" }}
+            >
               Component history
             </Button>
           </Stack>
 
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            sx={{ borderBottom: 1, borderColor: "divider" }}
+          >
+            <Tab value="inventory" label="Inventory" />
+            <Tab value="tools" label="Calibration" />
+          </Tabs>
+
+          {activeTab === "tools" ? <ToolsCalibrationPanel /> : null}
+
+          {activeTab === "inventory" ? (
+          <>
           <Grid container spacing={3} sx={{ display: "flex" }}>
             {dashboardNumbers.map((item) => (
               <Grid item sx={{ flex: 1, minWidth: 150 }} key={item.title}>
@@ -725,6 +774,8 @@ function PartsPage() {
               </Stack>
             </CardContent>
           </Card>
+          </>
+          ) : null}
         </Stack>
       </Container>
     </Box>

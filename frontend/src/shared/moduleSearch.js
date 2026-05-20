@@ -56,6 +56,13 @@ export const PARTS_STATUS_FILTERS = [
 	{ value: 'out_of_stock', label: 'Out of stock' },
 ];
 
+export const TOOLS_STATUS_FILTERS = [
+	{ value: 'all', label: 'All' },
+	{ value: 'overdue', label: 'Overdue' },
+	{ value: 'due_soon', label: 'Due soon' },
+	{ value: 'ok', label: 'OK' },
+];
+
 export const DISPATCH_STATUS_FILTERS = [
 	{ value: 'all', label: 'All' },
 	{ value: 'pending', label: 'Pending' },
@@ -269,6 +276,33 @@ export function filterPartsRows(rows, q, statusFilter) {
 export function buildPartsSuggestions(rows, q) {
 	return buildSuggestions(
 		(rows || []).flatMap((r) => [r.pn, r.partName, r.partDescription, r.shopLocation]),
+		q
+	);
+}
+
+function toolMatchesStatusFilter(tool, statusFilter) {
+	const alert = tool?.calibration_alert;
+	if (statusFilter === 'overdue') return alert === 'red';
+	if (statusFilter === 'due_soon') return alert === 'amber';
+	if (statusFilter === 'ok') return alert === 'green';
+	return true;
+}
+
+export function filterToolsRows(tools, q, statusFilter) {
+	const nq = normalizeSearchQuery(q);
+	return (tools || []).filter((tool) => {
+		if (!toolMatchesStatusFilter(tool, statusFilter)) return false;
+		if (!nq) return true;
+		const blob = [tool.name, tool.serial_number, tool.description, tool.location]
+			.join(' ')
+			.toLowerCase();
+		return textIncludes(blob, nq);
+	});
+}
+
+export function buildToolsSuggestions(tools, q) {
+	return buildSuggestions(
+		(tools || []).flatMap((t) => [t.name, t.serial_number, t.location, t.description]),
 		q
 	);
 }

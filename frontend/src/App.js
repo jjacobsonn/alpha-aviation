@@ -21,6 +21,7 @@ import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
 import ServiceHistoryPage from './pages/ServiceHistoryPage';
 import ComponentHistoryPage from './pages/ComponentHistoryPage';
+import ToolsPage from './pages/ToolsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import AccountPage from './pages/AccountPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
@@ -204,6 +205,16 @@ function App() {
 								<ProtectedRoute allowedRoles={allowedRolesForModule('componentHistory')}>
 									<Layout>
 										<ComponentHistoryPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/tools"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('tools')}>
+									<Layout>
+										<ToolsPage />
 									</Layout>
 								</ProtectedRoute>
 							}
