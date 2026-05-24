@@ -524,32 +524,7 @@ const Management = () => {
 					</Card>
 				)}
 
-				{hasCompanyContext && !loading ? (
-					<FleetAvailabilityPanel data={fleetAvailability} loading={false} />
-				) : hasCompanyContext && loading ? (
-					<FleetAvailabilityPanel data={null} loading />
-				) : null}
-
-				{hasCompanyContext && !loading ? (
-					<FleetStatusPanel
-						aircraft={companyAircraft}
-						openWoByAircraft={openWoByAircraft}
-						loading={false}
-					/>
-				) : hasCompanyContext && loading ? (
-					<FleetStatusPanel aircraft={[]} openWoByAircraft={{}} loading />
-				) : null}
-
-				{/* Error */}
-				{error && (
-					<Stack sx={{ mb: 3 }}>
-						<Typography variant="body2" color="error">
-							{error}
-						</Typography>
-					</Stack>
-				)}
-
-				<Grid container spacing={3} sx={{ mb: 5 }}>
+				<Grid container spacing={3} sx={{ mb: 4 }}>
 					{quickStats.map((stat, index) => (
 						<Grid item xs={12} sm={6} md={3} key={index}>
 							<Card
@@ -606,6 +581,31 @@ const Management = () => {
 						</Grid>
 					))}
 				</Grid>
+
+				{hasCompanyContext && !loading ? (
+					<FleetStatusPanel
+						aircraft={companyAircraft}
+						openWoByAircraft={openWoByAircraft}
+						loading={false}
+					/>
+				) : hasCompanyContext && loading ? (
+					<FleetStatusPanel aircraft={[]} openWoByAircraft={{}} loading />
+				) : null}
+
+				{hasCompanyContext && !loading ? (
+					<FleetAvailabilityPanel data={fleetAvailability} loading={false} />
+				) : hasCompanyContext && loading ? (
+					<FleetAvailabilityPanel data={null} loading />
+				) : null}
+
+				{/* Error */}
+				{error && (
+					<Stack sx={{ mb: 3 }}>
+						<Typography variant="body2" color="error">
+							{error}
+						</Typography>
+					</Stack>
+				)}
 
 				{!loading && teamByRole && Object.keys(teamByRole).length > 0 && (
 					<Box sx={{ mb: 4 }}>
