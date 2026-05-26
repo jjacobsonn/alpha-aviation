@@ -32,6 +32,3 @@ Contains a shell script for starting the backend server
 ### `config/`
 Django project configuration files
 
-### `profile_pics/`
-Sample user profile pictures for testing
-

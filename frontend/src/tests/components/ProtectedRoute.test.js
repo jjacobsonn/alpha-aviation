@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAppContext } from '../../context/AppContext';
 
@@ -9,8 +9,8 @@ jest.mock('../../context/AppContext', () => ({
 }));
 
 // Mock the react-router Navigate component
-jest.mock('react-router-dom', () => ({
-	...jest.requireActual('react-router-dom'),
+jest.mock('react-router', () => ({
+	...jest.requireActual('react-router'),
 	Navigate: ({ to, state, replace }) => (
 		<div data-testid="navigate-mock" data-to={to} data-replace={replace.toString()}>
 			Navigate to {to}
@@ -30,11 +30,11 @@ describe('ProtectedRoute', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		// Mock useLocation
-		const { useLocation } = require('react-router-dom');
+		const { useLocation } = require('react-router');
 		useLocation.mockReturnValue(mockLocation);
 	});
 
-	it('renders loading spinner when not initialized', () => {
+	test('renders loading spinner when not initialized', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: false,
@@ -58,7 +58,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
 	});
 
-	it('redirects to login when not authenticated', () => {
+	test('redirects to login when not authenticated', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: true,
@@ -83,7 +83,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
 	});
 
-	it('renders children when authenticated and initialized', () => {
+	test('renders children when authenticated and initialized', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: true,
@@ -104,7 +104,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByTestId('navigate-mock')).not.toBeInTheDocument();
 	});
 
-	it('prioritizes loading state over authentication check', () => {
+	test('prioritizes loading state over authentication check', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: false,
@@ -126,7 +126,7 @@ describe('ProtectedRoute', () => {
 		expect(screen.queryByTestId('navigate-mock')).not.toBeInTheDocument();
 	});
 
-	it('renders multiple children elements', () => {
+	test('renders multiple children elements', () => {
 		useAppContext.mockReturnValue({
 			state: {
 				initialized: true,

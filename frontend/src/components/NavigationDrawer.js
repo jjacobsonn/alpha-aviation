@@ -31,7 +31,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
 import { ACTION_TYPES } from "../context/AppContext";

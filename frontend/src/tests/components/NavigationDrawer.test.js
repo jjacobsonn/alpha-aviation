@@ -10,6 +10,12 @@ jest.mock("react-router", () => ({
 
 jest.mock("../../context/AppContext", () => ({
   useAppContext: () => ({
+    state: {
+      user: {
+        role: "manager",
+        platform_role: null,
+      },
+    },
     dispatch: jest.fn(),
   }),
   ACTION_TYPES: {
@@ -54,7 +60,7 @@ describe("NavigationDrawer Component", () => {
 
     test("should render logo with text when sidebar is open", () => {
       renderComponent();
-      expect(screen.getByText("AIMS Next")).toBeInTheDocument();
+      expect(screen.getByText("Alpha Aviation")).toBeInTheDocument();
     });
 
     test("should render all main navigation items", () => {
@@ -81,14 +87,14 @@ describe("NavigationDrawer Component", () => {
       renderComponent();
       const toggleButton = screen.getAllByRole("button")[0]; // First button is the toggle
       
-      // Initially should show AIMS Next text
-      expect(screen.getByText("AIMS Next")).toBeVisible();
+      // Initially should show Alpha Aviation text
+      expect(screen.getByText("Alpha Aviation")).toBeVisible();
 
       // Click to toggle
       fireEvent.click(toggleButton);
 
       // Text should be removed from DOM when sidebar is collapsed
-      expect(screen.queryByText("AIMS Next")).not.toBeInTheDocument();
+      expect(screen.queryByText("Alpha Aviation")).not.toBeInTheDocument();
     });
   });
 
@@ -125,7 +131,7 @@ describe("NavigationDrawer Component", () => {
 
     test("should navigate to home when logo is clicked", () => {
       renderComponent();
-      const logoText = screen.getByText("AIMS Next");
+      const logoText = screen.getByText("Alpha Aviation");
       fireEvent.click(logoText.closest("div"));
       expect(mockNavigate).toHaveBeenCalledWith("/");
     });

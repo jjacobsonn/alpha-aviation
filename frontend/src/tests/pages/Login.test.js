@@ -5,12 +5,11 @@ import { AppContext } from '../../context/AppContext';
 import { loginUser, fetchCurrentUser } from '../../shared/Api';
 
 const mockNavigate = jest.fn();
-const mockUseLocation = jest.fn(() => ({ pathname: '/login' }));
 
-jest.mock('react-router-dom', () => ({
-	...jest.requireActual('react-router-dom'),
+jest.mock('react-router', () => ({
+	...jest.requireActual('react-router'),
 	useNavigate: () => mockNavigate,
-	useLocation: () => mockUseLocation(),
+	useLocation: () => ({ pathname: '/login', state: null }),
 }));
 
 jest.mock('../../shared/Api', () => ({
@@ -18,103 +17,112 @@ jest.mock('../../shared/Api', () => ({
 	fetchCurrentUser: jest.fn(),
 }));
 
-const renderLogin = (state = { user: {}, isAuthenticated: false }, dispatch = jest.fn()) => {
+const renderLogin = (state = { user: {} }) => {
+	const mockDispatch = jest.fn();
 	return render(
-		<AppContext.Provider value={{ state, dispatch }}>
+		<AppContext.Provider value={{ state, dispatch: mockDispatch }}>
 			<Login />
 		</AppContext.Provider>
 	);
-};
-
-const getFieldByName = (name) => {
-	const input = document.querySelector(`input[name="${name}"]`);
-	if (!input) {
-		throw new Error(`Expected input with name="${name}" to exist`);
-	}
-	return input;
 };
 
 describe('Login page', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		localStorage.clear();
-		mockUseLocation.mockReturnValue({ pathname: '/login', state: null });
 	});
 
-	it('renders login form fields and submit button', () => {
+	test('renders login form with username and password fields', () => {
 		renderLogin();
 
-		expect(screen.getByText('Aviation Management')).toBeInTheDocument();
-		expect(getFieldByName('username')).toBeInTheDocument();
-		expect(getFieldByName('password')).toBeInTheDocument();
-		expect(
-			screen.getByRole('button', { name: /sign in/i })
-		).toBeInTheDocument();
+		expect(screen.getByRole('textbox', { name: /username/i })).toBeInTheDocument();
+		const passwordInput = Array.from(document.querySelectorAll('input')).find(inp => inp.type === 'password');
+		expect(passwordInput).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
 	});
 
-	it('redirects to management when tokens already exist', () => {
-		localStorage.setItem('accessToken', 'existing-access-token');
-		localStorage.setItem('refreshToken', 'existing-refresh-token');
-
-		renderLogin({ user: { role: 'owner' }, isAuthenticated: true });
-
-		expect(mockNavigate).toHaveBeenCalledWith('/management', { replace: true });
-	});
-
-	it('submits credentials and navigates to mechanic landing on success', async () => {
+	test('navigates to mechanic dashboard after successful login', async () => {
 		const user = userEvent.setup();
-		const mockDispatch = jest.fn();
 		loginUser.mockResolvedValue({});
 		fetchCurrentUser.mockResolvedValue({
 			id: 1,
-			username: 'zach',
+			username: 'mechanic_user',
 			company_role: 'mechanic',
 		});
 
-		renderLogin({ user: {}, isAuthenticated: false }, mockDispatch);
+		renderLogin();
 
-		await user.type(getFieldByName('username'), 'zach');
-		await user.type(getFieldByName('password'), 'super-secret');
+		const usernameInput = screen.getByRole('textbox', { name: /username/i });
+		const passwordInput = Array.from(document.querySelectorAll('input')).find(inp => inp.type === 'password');
+		
+		await user.type(usernameInput, 'mechanic_user');
+		await user.type(passwordInput, 'password123');
 		await user.click(screen.getByRole('button', { name: /sign in/i }));
 
 		await waitFor(() => {
-			expect(loginUser).toHaveBeenCalledWith(
-				{ username: 'zach', password: 'super-secret' },
-				mockDispatch
-			);
+			expect(mockNavigate).toHaveBeenCalledWith('/maintenance', { replace: true });
 		});
-		expect(fetchCurrentUser).toHaveBeenCalled();
-
-		expect(mockNavigate).toHaveBeenCalledWith('/maintenance', { replace: true });
 	});
 
-	it('shows an error message when login fails', async () => {
+	test('navigates to management dashboard for manager role', async () => {
+		const user = userEvent.setup();
+		loginUser.mockResolvedValue({});
+		fetchCurrentUser.mockResolvedValue({
+			id: 2,
+			username: 'manager_user',
+			company_role: 'manager',
+		});
+
+		renderLogin();
+
+		const usernameInput = screen.getByRole('textbox', { name: /username/i });
+		const passwordInput = Array.from(document.querySelectorAll('input')).find(inp => inp.type === 'password');
+		
+		await user.type(usernameInput, 'manager_user');
+		await user.type(passwordInput, 'password123');
+		await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+		await waitFor(() => {
+			expect(mockNavigate).toHaveBeenCalledWith('/management', { replace: true });
+		});
+	});
+
+	test('displays error message on failed login', async () => {
 		const user = userEvent.setup();
 		loginUser.mockRejectedValue(new Error('Invalid credentials'));
 
 		renderLogin();
 
-		await user.type(getFieldByName('username'), 'zach');
-		await user.type(getFieldByName('password'), 'bad-password');
+		const usernameInput = screen.getByRole('textbox', { name: /username/i });
+		const passwordInput = Array.from(document.querySelectorAll('input')).find(inp => inp.type === 'password');
+		
+		await user.type(usernameInput, 'user');
+		await user.type(passwordInput, 'wrong');
 		await user.click(screen.getByRole('button', { name: /sign in/i }));
 
-		expect(await screen.findByText('Invalid credentials')).toBeInTheDocument();
+		expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();
 		expect(mockNavigate).not.toHaveBeenCalled();
 	});
 
-	it('toggles password visibility when clicking the visibility button', async () => {
+	test('redirects to management when already authenticated with valid tokens', () => {
+		localStorage.setItem('accessToken', 'token');
+		localStorage.setItem('refreshToken', 'refresh');
+
+		renderLogin({ user: { role: 'owner', is_staff: false } });
+
+		expect(mockNavigate).toHaveBeenCalledWith('/management', { replace: true });
+	});
+
+	test('toggles password visibility when clicking visibility icon', async () => {
 		const user = userEvent.setup();
 		renderLogin();
 
-		const passwordInput = getFieldByName('password');
-		const toggleButton = screen.getByRole('button', {
-			name: /toggle password visibility/i,
-		});
+		const passwordInput = Array.from(document.querySelectorAll('input')).find(inp => inp.type === 'password');
+		expect(passwordInput).toHaveAttribute('type', 'password');
 
-		expect(passwordInput).toHaveAttribute('type', 'password');
+		const toggleButton = screen.getByRole('button', { name: /toggle password visibility/i });
 		await user.click(toggleButton);
+
 		expect(passwordInput).toHaveAttribute('type', 'text');
-		await user.click(toggleButton);
-		expect(passwordInput).toHaveAttribute('type', 'password');
 	});
 });

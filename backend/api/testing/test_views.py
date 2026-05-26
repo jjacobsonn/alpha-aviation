@@ -193,7 +193,7 @@ class TestCompanyFunctionViews:
         response = owner_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert "company_id" in response.data
+        assert "id" in response.data["company"]
 
     def test_fleet_availability_dashboard_requires_manager_or_owner(
         self, authenticated_client

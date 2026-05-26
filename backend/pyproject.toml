@@ -23,7 +23,8 @@ dependencies = [
     "whitenoise (>=6.6.0,<7.0.0)",
     "django-extensions (>=4.1,<5.0)",
     "pytest (>=8.0.0,<9.0.0)",
-    "pytest-django (>=4.8.0,<5.0.0)"
+    "pytest-django (>=4.8.0,<5.0.0)",
+    "pytest-cov (>=7.1.0,<8.0.0)"
 ]
 
 [tool.poetry]
@@ -39,4 +40,17 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 testpaths = ["api/testing"]
-addopts = ["-v"]
+addopts = [
+    "--nomigrations",
+    "-v",  # Verbose output
+]
+
+[tool.coverage.run]
+branch = true
+source = ["api"]
+
+[tool.coverage.report]
+# show only top-level modules directly inside the `api/` folder
+include = ["api/*.py"]
+# optional: show missing line counts in terminal
+show_missing = true

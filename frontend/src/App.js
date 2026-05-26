@@ -1,5 +1,5 @@
 import './App.css';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { AppProvider } from './context/AppContext';
 import CssBaseline from '@mui/material/CssBaseline';

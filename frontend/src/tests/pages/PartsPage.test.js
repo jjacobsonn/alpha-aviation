@@ -40,6 +40,15 @@ jest.mock('../../shared/Api', () => ({
 
 import { render, screen } from '@testing-library/react';
 import PartsPage from '../../pages/PartsPage';
+import * as Api from '../../shared/Api';
+
+jest.mock('../../shared/Api', () => ({
+	fetchCompanyInventoriesDetailed: jest.fn(),
+	fetchCompanyWorkorders: jest.fn(),
+	updateInventory: jest.fn(),
+	deleteInventory: jest.fn(),
+	updatePart: jest.fn(),
+}));
 
 jest.mock('@mui/material', () => {
 	const actual = jest.requireActual('@mui/material');

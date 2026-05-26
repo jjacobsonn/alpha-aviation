@@ -4,7 +4,7 @@ from django.core.checks import run_checks
 from django.urls import reverse
 
 from api.admin import CustomUserAdmin, MechanicInfoInline, PilotInfoInline
-from api.models import Aircraft, Company, Flight, Inventory, Part, Profile
+from api.models import Aircraft, Company, Discrepancy, Flight, Inventory, Part, Profile, Tool, WorkOrder
 
 
 @pytest.mark.django_db
@@ -17,6 +17,9 @@ class TestAdminRegistry:
         assert Aircraft in registry
         assert Part in registry
         assert Flight in registry
+        assert Discrepancy in registry
+        assert Tool in registry
+        assert WorkOrder in registry
         assert Inventory in registry
 
 
