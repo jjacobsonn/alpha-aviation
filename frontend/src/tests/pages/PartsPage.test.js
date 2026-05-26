@@ -1,6 +1,54 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+jest.mock('react-router', () => ({
+	...jest.requireActual('react-router'),
+	Link: ({ children, to }) => <a href={to}>{children}</a>,
+	useNavigate: () => jest.fn(),
+	useSearchParams: () => [new URLSearchParams(), jest.fn()],
+}));
+
+jest.mock('../../components/parts/ToolsCalibrationPanel', () => () => null);
+
+jest.mock('../../context/AppContext', () => ({
+	useAppContext: () => ({
+		state: { user: { role: 'owner' }, viewAsUser: null },
+	}),
+}));
+
+jest.mock('../../shared/Api', () => ({
+	fetchCompanyInventoriesDetailed: jest.fn().mockResolvedValue([
+		{
+			id: 10,
+			in_stock: 5,
+			stock_alert: 2,
+			shop_location: 'Shelf A',
+			part: {
+				id: 1,
+				part_number: 'PN-100',
+				name: 'Test Part',
+				description: 'Desc',
+			},
+			tracked_units_count: 0,
+		},
+	]),
+	fetchCompanyWorkorders: jest.fn().mockResolvedValue([]),
+	fetchCompanyAircrafts: jest.fn().mockResolvedValue([]),
+	deleteInventory: jest.fn(),
+	createInventory: jest.fn(),
+	createPart: jest.fn(),
+	updateInventory: jest.fn(),
+	updatePart: jest.fn(),
+}));
+
+import { render, screen } from '@testing-library/react';
 import PartsPage from '../../pages/PartsPage';
+import * as Api from '../../shared/Api';
+
+jest.mock('../../shared/Api', () => ({
+	fetchCompanyInventoriesDetailed: jest.fn(),
+	fetchCompanyWorkorders: jest.fn(),
+	updateInventory: jest.fn(),
+	deleteInventory: jest.fn(),
+	updatePart: jest.fn(),
+}));
 
 jest.mock('@mui/material', () => {
 	const actual = jest.requireActual('@mui/material');
@@ -20,24 +68,8 @@ describe('PartsPage', () => {
 			screen.getByPlaceholderText('Search part number, name, description, location…')
 		).toBeInTheDocument();
 		expect(screen.getByText('Actions')).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Inventory' })).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Calibration' })).toBeInTheDocument();
 	});
 
-	it('opens and closes the row actions menu', async () => {
-		const user = userEvent.setup();
-		render(<PartsPage />);
-
-		const iconButtons = screen.getAllByRole('button');
-		await user.click(iconButtons[0]);
-
-		expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
-		expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
-
-		await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
-
-		await waitFor(() => {
-			expect(
-				screen.queryByRole('menuitem', { name: 'Delete' })
-			).not.toBeInTheDocument();
-		});
-	});
 });

@@ -248,6 +248,11 @@ export const fetchCurrentUser = async () => {
 	return await makeApiRequest('GET', '/users/me/');
 };
 
+/** Self-service profile fields allowed by PATCH /users/me/ */
+export const patchCurrentUser = async (payload) => {
+	return await makeApiRequest('PATCH', '/users/me/', payload);
+};
+
 export const fetchCompanyInventoriesDetailed = async () => {
 	const data = await makeApiRequest('GET', '/company/inventories/detailed/');
 	if (Array.isArray(data)) return data;
@@ -267,8 +272,70 @@ export const updateInventory = async (id, payload) => {
 	return await makeApiRequest('PATCH', `/inventories/${id}/`, payload);
 };
 
+export const fetchGlobalSearch = async (q) => {
+	return await makeApiRequest('GET', '/search/', null, { q });
+};
+
+export const fetchAnalyticsMaintenance = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/analytics/maintenance/', null, queryParams);
+};
+
+export const fetchAnalyticsFleetPerformance = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/analytics/fleet-performance/', null, queryParams);
+};
+
 export const fetchCompanyWorkorders = async () => {
 	return await makeApiRequest('GET', '/company/workorders/');
+};
+
+export const fetchServiceHistory = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/history/work-orders/', null, queryParams);
+};
+
+export const fetchServiceHistoryDetail = async (id) => {
+	return await makeApiRequest('GET', `/history/work-orders/${id}/`);
+};
+
+export const fetchComponentHistorySearch = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/history/components/', null, queryParams);
+};
+
+export const createTrackedComponent = async (payload) => {
+	return await makeApiRequest('POST', '/history/components/', payload);
+};
+
+export const fetchComponentHistoryDetail = async (id) => {
+	return await makeApiRequest('GET', `/history/components/${id}/`);
+};
+
+export const downloadComponentHistoryExport = async (id) => {
+	const tokens = getTokens();
+	const adminCompanyId = localStorage.getItem('adminCompanyId');
+	const headers = { Accept: 'text/csv' };
+	if (tokens.accessToken) {
+		headers.Authorization = `Bearer ${tokens.accessToken}`;
+	}
+	if (adminCompanyId) {
+		headers['X-Company-Id'] = adminCompanyId;
+	}
+	const base = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+	const response = await axios.get(`${base}/history/components/${id}/export/`, {
+		headers,
+		responseType: 'blob',
+		withCredentials: true,
+	});
+	const blob = new Blob([response.data], { type: 'text/csv' });
+	const url = window.URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	const disposition = response.headers['content-disposition'] || '';
+	const match = disposition.match(/filename="?([^"]+)"?/);
+	const filename = match ? match[1] : `component-${id}.csv`;
+	link.href = url;
+	link.setAttribute('download', filename);
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	window.URL.revokeObjectURL(url);
 };
 
 export const fetchCompanyDiscrepancies = async () => {
@@ -314,6 +381,10 @@ export const updateAircraftInterval = async (id, payload) => {
 	return await makeApiRequest('PATCH', `/fleet/intervals/${id}/`, payload);
 };
 
+export const deleteAircraftInterval = async (id) => {
+	return await makeApiRequest('DELETE', `/fleet/intervals/${id}/`);
+};
+
 export const completeAircraftInterval = async (id, payload) => {
 	return await makeApiRequest('POST', `/fleet/intervals/${id}/complete/`, payload);
 };
@@ -328,6 +399,11 @@ export const patchCompanyFlightDispatch = async (id, payload) => {
 
 export const fetchManagementDashboard = async () => {
 	return await makeApiRequest('GET', '/management/dashboard/');
+};
+
+/** Phase 2 — Fleet availability donut, open WO by priority, trends (manager/owner). */
+export const fetchFleetAvailabilityDashboard = async () => {
+	return await makeApiRequest('GET', '/dashboard/fleet-availability/');
 };
 
 // Site admin (global scope)
@@ -445,4 +521,91 @@ export const deleteFlight = async (id) => {
 
 export const createDiscrepancy = async (payload) => {
 	return await makeApiRequest('POST', '/discrepancies/', payload);
+};
+
+export const adminResetPassword = async (profileId, newPassword) => {
+	return await makeApiRequest('POST', `/profiles/${profileId}/reset-password/`, {
+		new_password: newPassword,
+	});
+};
+
+export const changeOwnPassword = async (newPassword, confirmPassword) => {
+	return await makeApiRequest('POST', '/users/me/change-password/', {
+		new_password: newPassword,
+		confirm_password: confirmPassword,
+	});
+};
+
+export const closeWorkOrder = async (id, { completionNotes = '', laborHours = null, laborNotes = '' } = {}) => {
+	const body = { completion_notes: completionNotes || '' };
+	if (laborHours != null && laborHours !== '') {
+		body.labor_hours = laborHours;
+	}
+	if (laborNotes) {
+		body.labor_notes = laborNotes;
+	}
+	return await makeApiRequest('POST', `/workorders/${id}/close/`, body);
+};
+
+export const fetchLaborEntries = async (workOrderId) => {
+	return await makeApiRequest('GET', `/workorders/${workOrderId}/labor-entries/`);
+};
+
+export const createLaborEntry = async (workOrderId, payload) => {
+	return await makeApiRequest('POST', `/workorders/${workOrderId}/labor-entries/`, payload);
+};
+
+export const updateLaborEntry = async (workOrderId, entryId, payload) => {
+	return await makeApiRequest(
+		'PATCH',
+		`/workorders/${workOrderId}/labor-entries/${entryId}/`,
+		payload
+	);
+};
+
+export const deleteLaborEntry = async (workOrderId, entryId) => {
+	return await makeApiRequest(
+		'DELETE',
+		`/workorders/${workOrderId}/labor-entries/${entryId}/`
+	);
+};
+
+export const openWorkOrderFromDiscrepancy = async (discrepancyId) => {
+	return await makeApiRequest(
+		'POST',
+		`/discrepancies/${discrepancyId}/open_work_order/`
+	);
+};
+
+export const fetchMaintenanceDashboard = async () => {
+	return await makeApiRequest('GET', '/maintenance/dashboard/');
+};
+
+// Tool & equipment calibration
+export const fetchTools = async () => {
+	return await makeApiRequest('GET', '/tools/');
+};
+
+export const fetchTool = async (id) => {
+	return await makeApiRequest('GET', `/tools/${id}/`);
+};
+
+export const createTool = async (payload) => {
+	return await makeApiRequest('POST', '/tools/', payload);
+};
+
+export const updateTool = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/tools/${id}/`, payload);
+};
+
+export const deleteTool = async (id) => {
+	return await makeApiRequest('DELETE', `/tools/${id}/`);
+};
+
+export const fetchToolCalibrationHistory = async (id) => {
+	return await makeApiRequest('GET', `/tools/${id}/calibration_history/`);
+};
+
+export const recordToolCalibration = async (id, payload) => {
+	return await makeApiRequest('POST', `/tools/${id}/record_calibration/`, payload);
 };

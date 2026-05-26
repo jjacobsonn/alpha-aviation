@@ -1,7 +1,8 @@
 // Main React and hooks imports
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import {
+	Alert,
 	Box,
 	Container,
 	Grid,
@@ -13,11 +14,14 @@ import {
 	Chip,
 	Typography,
 	Button,
+	IconButton,
+	InputAdornment,
 	MenuItem,
 	Dialog,
 	DialogActions,
 	DialogContent,
 	DialogTitle,
+	Snackbar,
 	Table,
 	TableBody,
 	TableCell,
@@ -26,6 +30,9 @@ import {
 	Link,
 	TextField,
 } from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import LockResetIcon from '@mui/icons-material/LockReset';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import BuildIcon from '@mui/icons-material/Build';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -40,11 +47,17 @@ import {
 	fetchCompanyDiscrepancies,
 	fetchCompanyUsers,
 	fetchManagementDashboard,
+	fetchFleetAvailabilityDashboard,
+	fetchCompanyAircrafts,
+	createProfile,
 	updateProfile,
+	adminResetPassword,
 } from '../shared/Api';
 // App context and role-based access control helpers
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
+import FleetAvailabilityPanel from '../components/management/FleetAvailabilityPanel';
+import FleetStatusPanel from '../components/management/FleetStatusPanel';
 
 //Local imports
 import RecurringDiscrepancyTable from '../components/RecurringDiscrepancyTable';
@@ -99,11 +112,14 @@ const Management = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [dashboard, setDashboard] = useState(null);
+	const [fleetAvailability, setFleetAvailability] = useState(null);
+	const [companyAircraft, setCompanyAircraft] = useState([]);
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
 	const [companyUsers, setCompanyUsers] = useState([]);
 	// State for editing users
 	const [editUserOpen, setEditUserOpen] = useState(false);
+	const [createUserOpen, setCreateUserOpen] = useState(false);
 	const [editingUserId, setEditingUserId] = useState(null);
 	const [editingUserForm, setEditingUserForm] = useState({
 		first_name: '',
@@ -113,6 +129,22 @@ const Management = () => {
 		company_role: '',
 	});
 	const [savingUser, setSavingUser] = useState(false);
+	const [creatingUser, setCreatingUser] = useState(false);
+	const [newUserForm, setNewUserForm] = useState({
+		username: '',
+		password: '',
+		first_name: '',
+		last_name: '',
+		email: '',
+		phone_number: '',
+		company_role: 'pilot',
+	});
+	const [resetPwUser, setResetPwUser] = useState(null);
+	const [resetPwForm, setResetPwForm] = useState({ password: '', confirm: '' });
+	const [resetPwError, setResetPwError] = useState('');
+	const [resetPwLoading, setResetPwLoading] = useState(false);
+	const [resetPwShowPassword, setResetPwShowPassword] = useState(false);
+	const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
 	// Fetch dashboard, work orders, discrepancies, and users on mount or when context changes
 	useEffect(() => {
@@ -126,14 +158,31 @@ const Management = () => {
 			setError('');
 			try {
 				// Fetch all dashboard data in parallel
-				const [dash, wo, disc, users] = await Promise.all([
+				const [dash, wo, disc, users, fleetAvail, acList] = await Promise.all([
 					fetchManagementDashboard(),
 					fetchCompanyWorkorders(),
 					fetchCompanyDiscrepancies(),
 					fetchCompanyUsers(),
+					(async () => {
+						try {
+							return await fetchFleetAvailabilityDashboard();
+						} catch {
+							return null;
+						}
+					})(),
+					(async () => {
+						try {
+							const raw = await fetchCompanyAircrafts();
+							return Array.isArray(raw) ? raw : [];
+						} catch {
+							return [];
+						}
+					})(),
 				]);
 				if (!mounted) return;
 				setDashboard(dash && typeof dash === 'object' ? dash : null);
+				setFleetAvailability(fleetAvail && typeof fleetAvail === 'object' ? fleetAvail : null);
+				setCompanyAircraft(acList);
 				setWorkOrders(Array.isArray(wo) ? wo : []);
 				setDiscrepancies(Array.isArray(disc) ? disc : []);
 				setCompanyUsers(Array.isArray(users) ? users : []);
@@ -156,6 +205,23 @@ const Management = () => {
 
 	// Dashboard summary counts
 	const counts = dashboard?.counts;
+
+	const openWoByAircraft = useMemo(() => {
+		const m = {};
+		for (const wo of workOrders || []) {
+			if (wo?.status === 'closed') continue;
+			const ac = wo?.aircraft;
+			const id =
+				typeof ac === 'object' && ac != null && ac.id != null
+					? Number(ac.id)
+					: ac != null && ac !== ''
+						? Number(ac)
+						: null;
+			if (id == null || Number.isNaN(id)) continue;
+			m[id] = (m[id] || 0) + 1;
+		}
+		return m;
+	}, [workOrders]);
 
 	// Calculate number of pending tasks (open work orders + pending discrepancies)
 	const pendingTasksCount = useMemo(() => {
@@ -274,6 +340,7 @@ const Management = () => {
 	// Open the edit user dialog and populate form
 	const openEditUser = (u) => {
 		setEditingUserId(u.id);
+		setResetPwUser(u);
 		setEditingUserForm({
 			first_name: u.first_name || '',
 			last_name: u.last_name || '',
@@ -281,6 +348,9 @@ const Management = () => {
 			phone_number: u.phone_number || '',
 			company_role: u.company_role || '',
 		});
+		setResetPwForm({ password: '', confirm: '' });
+		setResetPwError('');
+		setResetPwShowPassword(false);
 		setEditUserOpen(true);
 	};
 
@@ -288,6 +358,23 @@ const Management = () => {
 	const closeEditUser = () => {
 		setEditUserOpen(false);
 		setEditingUserId(null);
+	};
+
+	const openCreateUser = () => {
+		setNewUserForm({
+			username: '',
+			password: '',
+			first_name: '',
+			last_name: '',
+			email: '',
+			phone_number: '',
+			company_role: 'pilot',
+		});
+		setCreateUserOpen(true);
+	};
+
+	const closeCreateUser = () => {
+		setCreateUserOpen(false);
 	};
 
 	// Save the edited user profile and refresh the user list
@@ -304,6 +391,75 @@ const Management = () => {
 			setError(e?.message || 'Failed to update user.');
 		} finally {
 			setSavingUser(false);
+		}
+	};
+
+	const createUser = async () => {
+		if (!newUserForm.username.trim() || !newUserForm.password) {
+			setError('Username and password are required to create a user.');
+			return;
+		}
+		setCreatingUser(true);
+		setError('');
+		try {
+			await createProfile({
+				...newUserForm,
+				username: newUserForm.username.trim(),
+			});
+			const users = await fetchCompanyUsers();
+			setCompanyUsers(Array.isArray(users) ? users : []);
+			closeCreateUser();
+		} catch (e) {
+			setError(e?.message || 'Failed to create user.');
+		} finally {
+			setCreatingUser(false);
+		}
+	};
+
+	const validatePassword = (pw) => {
+		if (pw.length < 8) return 'Password must be at least 8 characters.';
+		if (!/[A-Z]/.test(pw)) return 'Must contain at least one uppercase letter.';
+		if (!/[a-z]/.test(pw)) return 'Must contain at least one lowercase letter.';
+		if (!/\d/.test(pw)) return 'Must contain at least one digit.';
+		if (!/[!@#$%^&*()_+\-=[\]{}|;:',.<>?/`~]/.test(pw))
+			return 'Must contain at least one special character.';
+		return null;
+	};
+
+	const submitResetPw = async () => {
+		setResetPwError('');
+		const pw = resetPwForm.password.trim();
+		const confirm = resetPwForm.confirm.trim();
+		if (!pw || !confirm) {
+			setResetPwError('Both fields are required.');
+			return;
+		}
+		if (pw !== confirm) {
+			setResetPwError('Passwords do not match.');
+			return;
+		}
+		const valError = validatePassword(pw);
+		if (valError) {
+			setResetPwError(valError);
+			return;
+		}
+		setResetPwLoading(true);
+		try {
+			await adminResetPassword(resetPwUser.id, pw);
+			setSnackbar({
+				open: true,
+				message: `Password reset for ${resetPwUser.first_name || resetPwUser.username}. They will be prompted to set a new password on next login.`,
+				severity: 'success',
+			});
+			setResetPwForm({ password: '', confirm: '' });
+			setResetPwError('');
+		} catch (e) {
+			const detail = e?.data?.detail;
+			setResetPwError(
+				Array.isArray(detail) ? detail.join(' ') : detail || e?.message || 'Failed to reset password.',
+			);
+		} finally {
+			setResetPwLoading(false);
 		}
 	};
 
@@ -473,6 +629,31 @@ const Management = () => {
 					))}
 				</Grid>
 
+				{hasCompanyContext && !loading ? (
+					<FleetStatusPanel
+						aircraft={companyAircraft}
+						openWoByAircraft={openWoByAircraft}
+						loading={false}
+					/>
+				) : hasCompanyContext && loading ? (
+					<FleetStatusPanel aircraft={[]} openWoByAircraft={{}} loading />
+				) : null}
+
+				{hasCompanyContext && !loading ? (
+					<FleetAvailabilityPanel data={fleetAvailability} loading={false} />
+				) : hasCompanyContext && loading ? (
+					<FleetAvailabilityPanel data={null} loading />
+				) : null}
+
+				{/* Error */}
+				{error && (
+					<Stack sx={{ mb: 3 }}>
+						<Typography variant="body2" color="error">
+							{error}
+						</Typography>
+					</Stack>
+				)}
+
 				{/* Team by role summary chips */}
 				{!loading && teamByRole && Object.keys(teamByRole).length > 0 && (
 					<Box sx={{ mb: 4 }}>
@@ -500,9 +681,16 @@ const Management = () => {
 
 				{/* Company roster table */}
 				<Box sx={{ mb: 5 }}>
-					<Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-						Company roster
-					</Typography>
+					<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+						<Typography variant="h6" sx={{ fontWeight: 600 }}>
+							Company roster
+						</Typography>
+						{canEditRoster ? (
+							<Button size="small" variant="contained" onClick={openCreateUser}>
+								Add User
+							</Button>
+						) : null}
+					</Stack>
 					<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 						<CardContent sx={{ p: 0 }}>
 							{loading ? (
@@ -535,13 +723,13 @@ const Management = () => {
 													<Chip size="small" label={ROLE_LABELS[u.company_role] || u.company_role || '—'} />
 												</TableCell>
 												<TableCell>{u.email || '—'}</TableCell>
-												{canEditRoster ? (
-													<TableCell>
-														<Button size="small" variant="outlined" onClick={() => openEditUser(u)}>
-															Edit
-														</Button>
-													</TableCell>
-												) : null}
+											{canEditRoster ? (
+												<TableCell>
+													<Button size="small" variant="outlined" onClick={() => openEditUser(u)}>
+														Edit
+													</Button>
+												</TableCell>
+											) : null}
 											</TableRow>
 										))}
 									</TableBody>
@@ -658,6 +846,65 @@ const Management = () => {
 								))}
 							</TextField>
 						</Stack>
+
+						<Divider sx={{ my: 3 }} />
+
+						<Stack spacing={2}>
+							<Stack direction="row" spacing={1} alignItems="center">
+								<LockResetIcon color="warning" fontSize="small" />
+								<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+									Reset Password
+								</Typography>
+							</Stack>
+							<Typography variant="body2" color="text.secondary">
+								Set a temporary password. The user will be required to choose their own on next login.
+							</Typography>
+							{resetPwError && <Alert severity="error">{resetPwError}</Alert>}
+							<TextField
+								label="New password"
+								type={resetPwShowPassword ? 'text' : 'password'}
+								value={resetPwForm.password}
+								onChange={(e) => setResetPwForm((s) => ({ ...s, password: e.target.value }))}
+								autoComplete="new-password"
+								size="small"
+								InputProps={{
+									endAdornment: (
+										<InputAdornment position="end">
+											<IconButton
+												onClick={() => setResetPwShowPassword((v) => !v)}
+												edge="end"
+												size="small"
+											>
+												{resetPwShowPassword ? <VisibilityOff /> : <Visibility />}
+											</IconButton>
+										</InputAdornment>
+									),
+								}}
+							/>
+							<TextField
+								label="Confirm password"
+								type={resetPwShowPassword ? 'text' : 'password'}
+								value={resetPwForm.confirm}
+								onChange={(e) => setResetPwForm((s) => ({ ...s, confirm: e.target.value }))}
+								autoComplete="new-password"
+								size="small"
+							/>
+							<Typography variant="caption" color="text.secondary">
+								Min 8 characters, 1 uppercase, 1 lowercase, 1 digit, 1 special character.
+							</Typography>
+							<Box>
+								<Button
+									variant="outlined"
+									color="warning"
+									startIcon={<LockResetIcon />}
+									onClick={submitResetPw}
+									disabled={resetPwLoading || !resetPwForm.password}
+									size="small"
+								>
+									{resetPwLoading ? 'Resetting…' : 'Reset Password'}
+								</Button>
+							</Box>
+						</Stack>
 					</DialogContent>
 					<DialogActions>
 						<Button onClick={closeEditUser}>Cancel</Button>
@@ -666,6 +913,7 @@ const Management = () => {
 						</Button>
 					</DialogActions>
 				</Dialog>
+				
 			{/* Recurring discrepancy trends table */}
 			<div className='recurring-discrepancy-section'>
 				<RecurringDiscrepancyTable />
@@ -674,7 +922,77 @@ const Management = () => {
 				<FleetUtilizationGraph />
 				<AircraftUptimeDowntimeGraph />
 			</div>
-		</Container>
+
+				<Dialog open={createUserOpen} onClose={closeCreateUser} fullWidth maxWidth="sm">
+					<DialogTitle>Create user</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<TextField
+								label="Username"
+								value={newUserForm.username}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, username: e.target.value }))}
+							/>
+							<TextField
+								label="Temporary password"
+								type="password"
+								value={newUserForm.password}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, password: e.target.value }))}
+							/>
+							<TextField
+								label="First name"
+								value={newUserForm.first_name}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, first_name: e.target.value }))}
+							/>
+							<TextField
+								label="Last name"
+								value={newUserForm.last_name}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, last_name: e.target.value }))}
+							/>
+							<TextField
+								label="Email"
+								value={newUserForm.email}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, email: e.target.value }))}
+							/>
+							<TextField
+								label="Phone number"
+								value={newUserForm.phone_number}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, phone_number: e.target.value }))}
+							/>
+							<TextField
+								select
+								label="Role"
+								value={newUserForm.company_role}
+								onChange={(e) => setNewUserForm((s) => ({ ...s, company_role: e.target.value }))}
+							>
+								{Object.entries(ROLE_LABELS).map(([value, label]) => (
+									<MenuItem key={value} value={value}>{label}</MenuItem>
+								))}
+							</TextField>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button onClick={closeCreateUser}>Cancel</Button>
+						<Button variant="contained" onClick={createUser} disabled={creatingUser}>
+							Create
+						</Button>
+					</DialogActions>
+				</Dialog>
+				<Snackbar
+					open={snackbar.open}
+					autoHideDuration={6000}
+					onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+					anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+				>
+					<Alert
+						onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+						severity={snackbar.severity}
+						variant="filled"
+						sx={{ width: '100%' }}
+					>
+						{snackbar.message}
+					</Alert>
+				</Snackbar>
+			</Container>
 		</Box>
 	);
 };

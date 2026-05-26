@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import '../theme.css';
 
 const WorkOrder = ({
     id, 

@@ -140,7 +140,7 @@ Returns all profiles in the system.
 
 ---
 
-### GET /api/profiles/<id>/
+### GET /api/profiles/\<id\>/
 Returns a single profile by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -236,7 +236,7 @@ Returns all companies in the system.
 
 ---
 
-### GET /api/companies/<id>/
+### GET /api/companies/\<id\>/
 Returns a single company by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -585,7 +585,7 @@ Returns all aircraft in the system.
 
 ---
 
-### GET /api/aircraft/<id>/
+### GET /api/aircraft/\<id\>/
 Returns a single aircraft by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -715,7 +715,7 @@ Returns all parts in the system.
 
 ---
 
-### GET /api/parts/<id>/
+### GET /api/parts/\<id\>/
 Returns a single part by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -792,7 +792,7 @@ Returns all discrepancies ordered by most recently reported.
 
 ---
 
-### GET /api/discrepancies/<id>/
+### GET /api/discrepancies/\<id\>/
 Returns a single discrepancy by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -908,7 +908,7 @@ Returns all work orders ordered by most recently created.
 
 ---
 
-### GET /api/workorders/<id>/
+### GET /api/workorders/\<id\>/
 Returns a single work order by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -1068,7 +1068,7 @@ Returns all flights ordered by most recent departure time.
 
 ---
 
-### GET /api/flights/<id>/
+### GET /api/flights/\<id\>/
 Returns a single flight by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -1150,7 +1150,7 @@ Creates a new flight. Runs full validation on save.
 
 ---
 
-### PUT /api/flights/<id>/
+### PUT /api/flights/\<id\>/
 Full update of a flight. Runs full validation on save.
 * URL Params: `id=[integer]`
 * Data Params: Full Flight object (same as POST)
@@ -1167,7 +1167,7 @@ Full update of a flight. Runs full validation on save.
 
 ---
 
-### PATCH /api/flights/<id>/
+### PATCH /api/flights/\<id\>/
 Partial update of a flight. Runs full validation on save.
 * URL Params: `id=[integer]`
 * Data Params: Any subset of Flight fields
@@ -1184,7 +1184,7 @@ Partial update of a flight. Runs full validation on save.
 
 ---
 
-### DELETE /api/flights/<id>/
+### DELETE /api/flights/\<id\>/
 Deletes a flight.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -1328,7 +1328,7 @@ Creates a new tool for the authenticated user's company.
 
 ---
 
-### GET /api/tools/<id>/
+### GET /api/tools/\<id\>/
 Returns a single tool by ID.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -1358,7 +1358,7 @@ Returns a single tool by ID.
 
 ---
 
-### PUT /api/tools/<id>/
+### PUT /api/tools/\<id\>/
 Full update of a tool.
 * URL Params: `id=[integer]`
 * Data Params: Full Tool object (same fields as POST)
@@ -1376,7 +1376,7 @@ Full update of a tool.
 
 ---
 
-### PATCH /api/tools/<id>/
+### PATCH /api/tools/\<id\>/
 Partial update of a tool.
 * URL Params: `id=[integer]`
 * Data Params: Any subset of Tool fields
@@ -1394,7 +1394,7 @@ Partial update of a tool.
 
 ---
 
-### DELETE /api/tools/<id>/
+### DELETE /api/tools/\<id\>/
 Deletes a tool and all associated calibration records.
 * URL Params: `id=[integer]`
 * Data Params: None
@@ -1410,7 +1410,7 @@ Deletes a tool and all associated calibration records.
 
 ---
 
-### POST /api/tools/<id>/record_calibration/
+### POST /api/tools/\<id\>/record_calibration/
 Logs a calibration event for a tool and updates the tool's next calibration due date.
 * URL Params: `id=[integer]`
 * Data Params:
@@ -1448,7 +1448,7 @@ Logs a calibration event for a tool and updates the tool's next calibration due 
 
 ---
 
-### GET /api/tools/<id>/calibration_history/
+### GET /api/tools/\<id\>/calibration_history/
 Returns all calibration records for a tool, ordered most recent first.
 * URL Params: `id=[integer]`
 * Data Params: None

@@ -1,11 +1,14 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
 import { useEffect, useMemo, useState } from "react";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import {
   Box,
   Chip,
   Divider,
   IconButton,
   Stack,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -31,15 +34,35 @@ import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import HistoryIcon from "@mui/icons-material/History";
 import {
   deleteInventory,
+  createInventory,
+  createPart,
+  fetchCompanyAircrafts,
   fetchCompanyInventoriesDetailed,
   fetchCompanyWorkorders,
   updateInventory,
   updatePart,
 } from "../shared/Api";
+import { useAppContext } from "../context/AppContext";
+import useDebouncedValue from "../shared/useDebouncedValue";
+import {
+  PARTS_STATUS_FILTERS,
+  buildPartsSuggestions,
+  filterPartsRows,
+} from "../shared/moduleSearch";
+import ModuleSearchBar from "../components/search/ModuleSearchBar";
+import ScrollableTableContainer from "../components/ScrollableTableContainer";
+import ToolsCalibrationPanel from "../components/parts/ToolsCalibrationPanel";
 
 function PartsPage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "tools" ? "tools" : "inventory";
+  const { state } = useAppContext();
+  const effectiveRole = state.viewAsUser?.role || state.user?.role;
+  const canDeleteParts = effectiveRole === "owner";
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +70,20 @@ function PartsPage() {
   const [inventories, setInventories] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [search, setSearch] = useState("");
+  const [partsStatus, setPartsStatus] = useState("all");
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const [aircraftOptions, setAircraftOptions] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [isSavingAdd, setIsSavingAdd] = useState(false);
+  const [addValues, setAddValues] = useState({
+    aircraftId: "",
+    partNumber: "",
+    partName: "",
+    partDescription: "",
+    inStock: "1",
+    stockAlert: "1",
+    shopLocation: "",
+  });
   const [editOpen, setEditOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editValues, setEditValues] = useState({
@@ -79,9 +116,11 @@ function PartsPage() {
           fetchCompanyInventoriesDetailed(),
           fetchCompanyWorkorders(),
         ]);
+        const aircraftData = await fetchCompanyAircrafts();
         if (!mounted) return;
         setInventories(Array.isArray(data) ? data : []);
         setWorkOrders(Array.isArray(wos) ? wos : []);
+        setAircraftOptions(Array.isArray(aircraftData) ? aircraftData : []);
       } catch (e) {
         if (!mounted) return;
         setError(e?.message || "Failed to load inventory.");
@@ -140,6 +179,53 @@ function PartsPage() {
       setError(e?.message || "Failed to save.");
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const handleOpenAdd = () => {
+    setAddValues({
+      aircraftId: "",
+      partNumber: "",
+      partName: "",
+      partDescription: "",
+      inStock: "1",
+      stockAlert: "1",
+      shopLocation: "",
+    });
+    setAddOpen(true);
+  };
+
+  const handleSaveAdd = async () => {
+    if (!addValues.aircraftId || !addValues.partNumber.trim() || !addValues.partName.trim()) {
+      setError("Aircraft, part number, and part name are required.");
+      return;
+    }
+    setIsSavingAdd(true);
+    setError("");
+    try {
+      const createdPart = await createPart({
+        aircraft: Number(addValues.aircraftId),
+        part_number: addValues.partNumber.trim(),
+        name: addValues.partName.trim(),
+        description: addValues.partDescription.trim(),
+      });
+      await createInventory({
+        part_id: createdPart?.id,
+        in_stock: Number(addValues.inStock || 0),
+        stock_alert: Number(addValues.stockAlert || 0),
+        shop_location: addValues.shopLocation,
+      });
+      const [data, wos] = await Promise.all([
+        fetchCompanyInventoriesDetailed(),
+        fetchCompanyWorkorders(),
+      ]);
+      setInventories(Array.isArray(data) ? data : []);
+      setWorkOrders(Array.isArray(wos) ? wos : []);
+      setAddOpen(false);
+    } catch (e) {
+      setError(e?.message || "Failed to add part.");
+    } finally {
+      setIsSavingAdd(false);
     }
   };
 
@@ -202,9 +288,22 @@ function PartsPage() {
     "In stock",
     "Reorder at",
     "Location",
+    "Tracked units",
     "Low stock",
     "Actions",
   ];
+
+  const goToComponentHistory = (row, { register = false } = {}) => {
+    const params = new URLSearchParams();
+    if (row?.pn) params.set("q", row.pn);
+    if (register && row?.partId) {
+      params.set("register", "1");
+      params.set("part_id", String(row.partId));
+      params.set("part_number", row.pn);
+      if (row.partName) params.set("part_name", row.partName);
+    }
+    navigate(`/component-history?${params.toString()}`);
+  };
 
   const inventoryData = useMemo(() => {
     return inventories.map((inv) => {
@@ -224,42 +323,84 @@ function PartsPage() {
         location: inv?.shop_location || "—",
         lowStock,
         partId: part?.id ?? null,
+        trackedUnits: Number(inv?.tracked_units_count ?? 0),
       };
     });
   }, [inventories]);
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return inventoryData;
-    return inventoryData.filter((row) => {
-      const blob = [
-        row.pn,
-        row.partName,
-        row.partDescription,
-        row.location,
-        row.shopLocation,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
-    });
-  }, [inventoryData, search]);
+  const partsSuggestions = useMemo(
+    () => buildPartsSuggestions(inventoryData, debouncedSearch),
+    [inventoryData, debouncedSearch]
+  );
+
+  const filteredRows = useMemo(
+    () => filterPartsRows(inventoryData, debouncedSearch, partsStatus),
+    [inventoryData, debouncedSearch, partsStatus]
+  );
+
+  const handleTabChange = (_event, value) => {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (value === "inventory") {
+          params.delete("tab");
+          params.delete("tool");
+        } else {
+          params.set("tab", "tools");
+        }
+        return params;
+      },
+      { replace: true }
+    );
+  };
+
+  const pageTitle = activeTab === "tools" ? "Calibration" : "Parts";
+  const pageSubtitle =
+    activeTab === "tools"
+      ? "Calibration due dates and service records for shop equipment."
+      : "Part numbers, quantities, and reorder levels.";
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
-      <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
         <Stack spacing={3}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "stretch", sm: "center" }}
+            spacing={1.5}
+          >
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                Parts
+                {pageTitle}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Part catalog and quantities for your company.
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {pageSubtitle}
               </Typography>
             </Box>
+            <Button
+              variant="outlined"
+              component={RouterLink}
+              to="/component-history"
+              sx={{ alignSelf: { xs: "stretch", sm: "center" }, whiteSpace: "nowrap" }}
+            >
+              Component history
+            </Button>
           </Stack>
 
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            sx={{ borderBottom: 1, borderColor: "divider" }}
+          >
+            <Tab value="inventory" label="Inventory" />
+            <Tab value="tools" label="Calibration" />
+          </Tabs>
+
+          {activeTab === "tools" ? <ToolsCalibrationPanel /> : null}
+
+          {activeTab === "inventory" ? (
+          <>
           <Grid container spacing={3} sx={{ display: "flex" }}>
             {dashboardNumbers.map((item) => (
               <Grid item sx={{ flex: 1, minWidth: 150 }} key={item.title}>
@@ -282,17 +423,28 @@ function PartsPage() {
             ))}
           </Grid>
 
-          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0 }}>
               <Stack spacing={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  variant="outlined"
-                  placeholder="Search part number, name, description, location…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "flex-start" }}>
+                  <Box sx={{ flex: 1, width: "100%" }}>
+                    <ModuleSearchBar
+                      value={search}
+                      onChange={setSearch}
+                      placeholder="Search part number, name, description, location…"
+                      suggestions={partsSuggestions}
+                      statusOptions={PARTS_STATUS_FILTERS}
+                      statusValue={partsStatus}
+                      onStatusChange={setPartsStatus}
+                      statusVariant="chips"
+                      resultCount={filteredRows.length}
+                      totalCount={inventoryData.length}
+                    />
+                  </Box>
+                  <Button variant="contained" onClick={handleOpenAdd} sx={{ whiteSpace: "nowrap", mt: { xs: 0, md: 0.5 } }}>
+                    Add Part
+                  </Button>
+                </Stack>
 
                 {error && (
                   <Box sx={{ color: 'error.main' }}>
@@ -300,15 +452,16 @@ function PartsPage() {
                   </Box>
                 )}
 
+                <ScrollableTableContainer minWidth={920}>
                 <Table
                   size="small"
                   sx={{
-                    minWidth: '100%',
                     '& .MuiTableCell-head': {
                       bgcolor: 'primary.main',
                       color: 'common.white',
                       fontWeight: 700,
                       borderColor: 'divider',
+                      whiteSpace: 'nowrap',
                     },
                     '& .MuiTableCell-root': { borderColor: 'divider' },
                   }}
@@ -320,25 +473,57 @@ function PartsPage() {
                       ))}
                     </TableRow>
                   </TableHead>
-
+                  <TableBody>
                   {filteredRows.map((item) => (
-                    <TableRow key={item.id ?? item.pn} sx={{ bgcolor: "transparent" }}>
+                    <TableRow
+                      key={item.id ?? item.pn}
+                      hover
+                      onClick={() => handleOpenEdit(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleOpenEdit(item);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      sx={{ cursor: "pointer", bgcolor: "transparent" }}
+                    >
                       <TableCell>{item.pn}</TableCell>
                       <TableCell>{item.partName}</TableCell>
                       <TableCell
                         sx={{
-                          maxWidth: 280,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          minWidth: 220,
+                          maxWidth: 360,
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
                         }}
-                        title={item.partDescription || ""}
                       >
                         {item.partDescription || "—"}
                       </TableCell>
                       <TableCell>{item.inStock}</TableCell>
                       <TableCell>{item.stockAlert}</TableCell>
                       <TableCell>{item.location}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {item.trackedUnits > 0 ? (
+                          <Button
+                            size="small"
+                            variant="text"
+                            startIcon={<HistoryIcon fontSize="small" />}
+                            onClick={() => goToComponentHistory(item)}
+                          >
+                            {item.trackedUnits}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => goToComponentHistory(item, { register: true })}
+                          >
+                            Track
+                          </Button>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {item.lowStock ? (
                           <Chip size="small" color="warning" label="Yes" />
@@ -346,7 +531,7 @@ function PartsPage() {
                           <Chip size="small" variant="outlined" label="No" />
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <IconButton
                           onClick={(e) => openMenu(e, item)}
                           disabled={isLoading}
@@ -356,35 +541,39 @@ function PartsPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  </TableBody>
                 </Table>
+                </ScrollableTableContainer>
 
                 <Menu
                   anchorEl={menuAnchor}
                   open={Boolean(menuAnchor)}
                   onClose={closeMenu}
                 >
-                  <MenuItem
-                    onClick={() => {
-                      if (!selectedPart?.id) {
+                  {canDeleteParts ? (
+                    <MenuItem
+                      onClick={() => {
+                        if (!selectedPart?.id) {
+                          closeMenu();
+                          return;
+                        }
+                        deleteInventory(selectedPart.id)
+                          .then(() => {
+                            setInventories((prev) =>
+                              prev.filter((inv) => inv?.id !== selectedPart.id)
+                            );
+                          })
+                          .catch((e) => {
+                            console.error('Failed to delete inventory', e);
+                            setError(e?.message || 'Failed to delete inventory item.');
+                          })
+                          .finally(() => closeMenu());
                         closeMenu();
-                        return;
-                      }
-                      deleteInventory(selectedPart.id)
-                        .then(() => {
-                          setInventories((prev) =>
-                            prev.filter((inv) => inv?.id !== selectedPart.id)
-                          );
-                        })
-                        .catch((e) => {
-                          console.error('Failed to delete inventory', e);
-                          setError(e?.message || 'Failed to delete inventory item.');
-                        })
-                        .finally(() => closeMenu());
-                      closeMenu();
-                    }}
-                  >
-                    Delete
-                  </MenuItem>
+                      }}
+                    >
+                      Delete
+                    </MenuItem>
+                  ) : null}
 
                   <MenuItem
                     onClick={() => {
@@ -393,7 +582,111 @@ function PartsPage() {
                   >
                     Edit
                   </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      goToComponentHistory(selectedPart);
+                      closeMenu();
+                    }}
+                  >
+                    View component history
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      goToComponentHistory(selectedPart, { register: true });
+                      closeMenu();
+                    }}
+                  >
+                    Register tracked unit
+                  </MenuItem>
                 </Menu>
+
+                <Dialog
+                  open={addOpen}
+                  onClose={() => setAddOpen(false)}
+                  maxWidth="sm"
+                  fullWidth
+                >
+                  <DialogTitle>Add part</DialogTitle>
+                  <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                      <TextField
+                        select
+                        label="Aircraft"
+                        value={addValues.aircraftId}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, aircraftId: e.target.value }))
+                        }
+                        fullWidth
+                      >
+                        {aircraftOptions.map((a) => (
+                          <MenuItem key={a.id} value={String(a.id)}>
+                            {a.registration_number} ({a.model})
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        label="Part number"
+                        value={addValues.partNumber}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, partNumber: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Part name"
+                        value={addValues.partName}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, partName: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Description"
+                        value={addValues.partDescription}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, partDescription: e.target.value }))
+                        }
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                      <TextField
+                        label="In stock"
+                        type="number"
+                        value={addValues.inStock}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, inStock: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Reorder at"
+                        type="number"
+                        value={addValues.stockAlert}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, stockAlert: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Shop location"
+                        value={addValues.shopLocation}
+                        onChange={(e) =>
+                          setAddValues((p) => ({ ...p, shopLocation: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                    </Stack>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setAddOpen(false)} disabled={isSavingAdd}>
+                      Cancel
+                    </Button>
+                    <Button variant="contained" onClick={handleSaveAdd} disabled={isSavingAdd}>
+                      {isSavingAdd ? <CircularProgress size={18} /> : "Create"}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
 
                 <Dialog
                   open={editOpen}
@@ -481,6 +774,8 @@ function PartsPage() {
               </Stack>
             </CardContent>
           </Card>
+          </>
+          ) : null}
         </Stack>
       </Container>
     </Box>

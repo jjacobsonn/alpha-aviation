@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 import { useAppContext } from '../context/AppContext';
 import { CircularProgress, Box } from '@mui/material';
 
@@ -26,6 +26,13 @@ const ProtectedRoute = ({ children, allowedRoles, requirePlatformAdmin = false }
 
   if (!state.isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (
+    realUser?.mustChangePassword &&
+    location.pathname !== '/change-password'
+  ) {
+    return <Navigate to="/change-password" replace />;
   }
 
   if (requirePlatformAdmin) {
