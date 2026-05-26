@@ -43,6 +43,7 @@
 - **Data Structures**: Context state object with authentication flags, user profile fields, page title, site alerts, and monthly stats; request/response payload objects for auth and domain data.
 - **Algorithms/Logic**: Client-side route transitions (SPA), request interceptor to attach bearer token, response interceptor queue for concurrent token refresh retries, reducer-based state transitions.
 - **State Management**: React Context + useReducer for global app state; local component state for page-level forms and filters; persistent auth state via local storage.
+- Token handling: the frontend stores `accessToken` and `refreshToken` in `localStorage` and uses an axios request/response interceptor to attach the bearer token, queue concurrent requests while a refresh is in progress, automatically POST to `/auth/token/refresh/` to rotate tokens, and force a logout on refresh failure.
 - Also see: [Frontend documentation](..\frontend\README.md)
 
 ### API/application
@@ -51,7 +52,7 @@
   - Inputs: HTTP requests (JSON body, query params, auth headers), validated serializer data, authenticated user context.
   - Outputs: JSON responses with resource data, domain summaries, and standardized HTTP status codes (200/201/400/401/403/404).
   - Error Handling: Explicit request validation (missing/invalid params), serializer validation errors, permission failures, invalid credentials/tokens, business-rule checks (for example invalid role or date ranges).
-- **Data Structures**: DRF serializers for Company, Profile, Aircraft, Part, Discrepancy, WorkOrder, Flight, Inventory; URL routing via function endpoints plus ViewSet endpoints.
+- **Data Structures**: DRF serializers for Company, Profile, Aircraft, Part, Discrepancy, WorkOrder, Flight, Inventory and additional models listed below; URL routing via function endpoints plus ViewSet endpoints.
   - See [serializers](..\backend\api\serializers.py), [views](..\backend\api\views.py)
 - **Algorithms/Logic**: Company scoping filters, role-gated endpoint access, date-range parsing and checks, queryset optimization with related-object loading, mixed endpoint style (function-based + class-based APIs).
 - **State Management**: Stateless request/response processing on the server; persistent application state stored in PostgreSQL; authentication state represented by JWT access and refresh tokens.
@@ -77,8 +78,14 @@
   - Error Handling: Structured HTTP errors for auth failures (400 for invalid input, 401 for invalid credentials/tokens, 403 for missing permissions), DRF permission checks plus view-level guard clauses for business-specific auth errors, token paths 
 - **Data Structures**: Relational models for profiles/roles and companies, permissions classes encapsulating reusable policy rules
   - See [permissions](..\backend\api\permissions.py), [serializers](..\backend\api\serializers.py)
-- **Algorithms/Logic**: Layered authorization pattern: authenticate JWT/session -> verify company membership -> authorize by permissible roles -> object-level ownership/company checks if applicable
+- **Algorithms/Logic**: Layered authorization pattern: authenticate JWT/session -> verify company membership -> authorize by permissible roles -> object-level ownership/company checks if applicable. Platform admins can use `X-Company-Id` to act in a selected tenant context for many admin workflows.
 - **State Management**: Primarily stateless backend auth via short-lived access tokens plus refresh token rotation; authorization state (company, role, admin) persisted in DB; frontend maintains current auth/role context in app state and uses route guards plus users/me hydration after login to drive role-based navigation.
+- **Auth endpoints & behavior**: The API exposes explicit auth endpoints used by the frontend:
+  - `POST /auth/login/` — request `{username,password}`; response includes `access` and `refresh` tokens and a small `user` object.
+  - `POST /auth/token/refresh/` — request `{refresh}`; response returns a rotated `access` and `refresh` token pair.
+  - `POST /auth/logout/` — request `{refresh}`; server blacklists the refresh token.
+  Tokens are rotated and refresh tokens are blacklisted on rotation (see backend `SIMPLE_JWT` settings in `backend/config/settings.py`).
+- **Platform-admin tenant selection header**: Platform admins may set `X-Company-Id` to select a tenant context for scoped queries; many endpoints honor this header (the frontend sets `X-Company-Id` when `adminCompanyId` is present in local storage).
 - Also see: [RBAC Plan](RBAC_PLAN.md), [Superuser and admins](SUPERUSER_AND_ADMINS.md), [Role dashboard roadmap](ROLE_DASHBOARD_ROADMAP.md)
 
 ### Data persistence
@@ -121,6 +128,12 @@
   - `WorkOrderPart`: through table with `work_order`, `part`, and `quantity`.
   - `Discrepancy`: aircraft issue record with optional `work_order`, `aircraft`, `reporter`, `date_reported`, `description`, `ata_code`, `tach_time`, and `status`.
   - `Flight`: scheduled flight with `company`, `aircraft`, `flight_number`, `origin`, `destination`, `departure_time`, `arrival_time`, `route`, `flight_type`, `primary_pilot`, `secondary_pilot`, `dispatcher`, `pilot_requirement`, and `status`.
+  - `Tool`: `company`, `name`, `description`, `serial_number`, `calibration_due_date`, `location` and helpers for calibration status.
+  - `CalibrationRecord`: `tool`, `calibration_date`, `performed_by`, `next_due_date`, `notes`.
+  - `AircraftPhoto`: `aircraft`, `image`, `caption`, `sort_order`.
+  - `AircraftMaintenanceInterval`: `aircraft`, `name`, `interval_type`, `due_every_hours`, `due_every_days`, `last_done_tach`, `last_done_hobbs`, `last_done_date`, AD metadata, and an `is_active` flag.
+  - `WorkOrderActivity`: history entries for work order changes (actor, event type, summary, metadata).
+  - `DiscrepancyActivity`: history entries for discrepancy changes (actor, event type, summary, metadata).
 - **Relationships**:
   - One `Company` has many `Profile`, `Aircraft`, `Inventory`, and `Flight` records.
   - Each `Profile` may have one `Pilot` row or one `Mechanic` row, depending on `company_role`.
@@ -130,6 +143,8 @@
   - `Discrepancy` can optionally point to a `WorkOrder` when a defect is being worked.
   - `Flight` points to two pilot users and optionally a dispatcher; model validation enforces company membership, pilot role, medical clearance, and certificate level.
 - **Migration Strategy**: This project uses Django [migrations](..\backend\api\migrations) to manage the relational database schema. Check the official [Django migrations documentation](https://docs.djangoproject.com/en/6.0/topics/migrations/) for more information. Also see the project's [seed command documentation](seed_db.md) for information on seeding the database with dummy testing data.
+
+Note: the backend runs with `TIME_ZONE = 'UTC'` and `USE_TZ = True` — timestamps are stored/timezone-aware in UTC and some endpoints make timezone-aware conversions for datetimes.
 
 ---
 
@@ -147,6 +162,7 @@
 - **Authentication**: JWT access and refresh tokens via `rest_framework_simplejwt`, with short-lived access tokens and refresh token rotation/blacklisting enabled.
 - **Authorization**: Company membership checks plus role-based permissions using custom DRF permission classes and view-level guards for owner, manager, mechanic, and own-profile access.
 - **Data Protection**: Passwords are handled by Django auth, API traffic is designed for HTTPS deployment, CORS is explicitly restricted, CSRF trusted origins are configured for local development, and media files are stored through Django file fields.
+  - Implementation note: the `Profile.role_choices` in the codebase currently contains a duplicated `('dispatcher', 'Dispatcher')` entry (see `backend/api/models.py`) — consider deduplicating this choice in the model.
 
 ---
 
@@ -164,7 +180,7 @@
 ---
 
 ## 10. Testing Strategy
-- **Unit Testing**: Backend tests use pytest with pytest-django; frontend tests use Jest through `react-scripts test` and React Testing Library.
+- **Unit Testing**: Backend tests use `pytest` with `pytest-django`. Frontend tests use Jest through `react-scripts test` and React Testing Library.
 - **Integration Testing**: Backend integration tests live under `backend/api/testing/` and use shared pytest fixtures for models and API clients; frontend integration-style tests cover pages, components, and API flows with mocked network calls.
 - **End-to-End Testing**: [Currently being worked on.]
 

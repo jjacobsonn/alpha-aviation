@@ -28,7 +28,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
 import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
 import { ACTION_TYPES } from "../context/AppContext";

@@ -1,6 +1,7 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AddWorkOrderForm from '../../components/AddWorkOrderForm';
+import { getFieldError } from '../test-utils';
 
 describe('AddWorkOrderForm', () => {
   const mockOnClose = jest.fn();
@@ -30,7 +31,8 @@ describe('AddWorkOrderForm', () => {
       expect(screen.getByLabelText('ATA Code')).toBeInTheDocument();
       expect(screen.getByLabelText('Component Affected')).toBeInTheDocument();
       expect(screen.getByLabelText('Description')).toBeInTheDocument();
-      expect(screen.getByLabelText('Attachment (file)')).toBeInTheDocument();
+      expect(screen.getByText('Attachment (optional)')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /upload file/i })).toBeInTheDocument();
       expect(screen.getByLabelText('Digital Signature')).toBeInTheDocument();
     });
 
@@ -86,9 +88,11 @@ describe('AddWorkOrderForm', () => {
 
     test('should handle file input', async () => {
       const user = userEvent.setup();
-      render(<AddWorkOrderForm isOpen={true} onClose={mockOnClose} />);
+      const { container } = render(<AddWorkOrderForm isOpen={true} onClose={mockOnClose} />);
       
-      const fileInput = screen.getByLabelText('Attachment (file)');
+      const fileInput = container.querySelector('input[type="file"]');
+      expect(fileInput).not.toBeNull();
+
       const file = new File(['test content'], 'work-order.pdf', { type: 'application/pdf' });
       
       await user.upload(fileInput, file);
@@ -129,7 +133,7 @@ describe('AddWorkOrderForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Order number is required')).toBeInTheDocument();
+        expect(getFieldError('Order Number', 'Order number is required')).toBeInTheDocument();
       });
     });
 
@@ -149,7 +153,7 @@ describe('AddWorkOrderForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Part number is required')).toBeInTheDocument();
+        expect(getFieldError('Part Number', 'Part number is required')).toBeInTheDocument();
       });
     });
 
@@ -169,7 +173,7 @@ describe('AddWorkOrderForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Assigned-to is required')).toBeInTheDocument();
+        expect(getFieldError('Assigned To', 'Assigned-to is required')).toBeInTheDocument();
       });
     });
 
@@ -189,7 +193,7 @@ describe('AddWorkOrderForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Description is required')).toBeInTheDocument();
+        expect(getFieldError('Description', 'Description is required')).toBeInTheDocument();
       });
     });
 
@@ -224,10 +228,10 @@ describe('AddWorkOrderForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Order number is required')).toBeInTheDocument();
-        expect(screen.getByText('Part number is required')).toBeInTheDocument();
-        expect(screen.getByText('Assigned-to is required')).toBeInTheDocument();
-        expect(screen.getByText('Description is required')).toBeInTheDocument();
+        expect(getFieldError('Order Number', 'Order number is required')).toBeInTheDocument();
+        expect(getFieldError('Part Number', 'Part number is required')).toBeInTheDocument();
+        expect(getFieldError('Assigned To', 'Assigned-to is required')).toBeInTheDocument();
+        expect(getFieldError('Description', 'Description is required')).toBeInTheDocument();
       });
     });
   });
@@ -294,7 +298,6 @@ describe('AddWorkOrderForm', () => {
     });
 
     test('should handle form submission with all fields populated', async () => {
-      const user = userEvent.setup();
       render(<AddWorkOrderForm isOpen={true} onClose={mockOnClose} />);
       
       const orderNumberInput = screen.getByLabelText('Order Number');
@@ -310,17 +313,17 @@ describe('AddWorkOrderForm', () => {
       const signatureInput = screen.getByLabelText('Digital Signature');
       const submitButton = screen.getByRole('button', { name: /submit/i });
       
-      await user.type(orderNumberInput, 'WO-001');
-      await user.type(partNumberInput, 'PN-12345');
-      await user.type(assignedToInput, 'John Doe');
-      await user.type(dueDateInput, '2026-03-15');
-      await user.type(dateReportedInput, '2026-03-04');
-      await user.type(tachTimeInput, '1500.5');
-      await user.type(hobbsTimeInput, '2000.25');
-      await user.type(ataCodeInput, '71-00-00');
-      await user.type(componentAffectedInput, 'Engine');
-      await user.type(descriptionInput, 'Complete engine inspection');
-      await user.type(signatureInput, 'John Doe');
+      fireEvent.change(orderNumberInput, { target: { value: 'WO-001' } });
+      fireEvent.change(partNumberInput, { target: { value: 'PN-12345' } });
+      fireEvent.change(assignedToInput, { target: { value: 'John Doe' } });
+      fireEvent.change(dueDateInput, { target: { value: '2026-03-15' } });
+      fireEvent.change(dateReportedInput, { target: { value: '2026-03-04' } });
+      fireEvent.change(tachTimeInput, { target: { value: '1500.5' } });
+      fireEvent.change(hobbsTimeInput, { target: { value: '2000.25' } });
+      fireEvent.change(ataCodeInput, { target: { value: '71-00-00' } });
+      fireEvent.change(componentAffectedInput, { target: { value: 'Engine' } });
+      fireEvent.change(descriptionInput, { target: { value: 'Complete engine inspection' } });
+      fireEvent.change(signatureInput, { target: { value: 'John Doe' } });
       
       fireEvent.click(submitButton);
       

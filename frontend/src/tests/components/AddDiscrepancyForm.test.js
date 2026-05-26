@@ -1,6 +1,7 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AddDiscrepancyForm from '../../components/AddDiscrepancyForm';
+import { getFieldError } from '../test-utils';
 
 describe('AddDiscrepancyForm', () => {
   const mockOnClose = jest.fn();
@@ -30,7 +31,8 @@ describe('AddDiscrepancyForm', () => {
       expect(screen.getByLabelText('ATA Code')).toBeInTheDocument();
       expect(screen.getByLabelText('Component Affected')).toBeInTheDocument();
       expect(screen.getByLabelText('Description')).toBeInTheDocument();
-      expect(screen.getByLabelText('Attachment (file)')).toBeInTheDocument();
+      expect(screen.getByText('Attachment (optional)')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /upload file/i })).toBeInTheDocument();
       expect(screen.getByLabelText('Digital Signature')).toBeInTheDocument();
     });
 
@@ -86,9 +88,11 @@ describe('AddDiscrepancyForm', () => {
 
     test('should handle file input', async () => {
       const user = userEvent.setup();
-      render(<AddDiscrepancyForm isOpen={true} onClose={mockOnClose} />);
+      const { container } = render(<AddDiscrepancyForm isOpen={true} onClose={mockOnClose} />);
       
-      const fileInput = screen.getByLabelText('Attachment (file)');
+      const fileInput = container.querySelector('input[type="file"]');
+      expect(fileInput).not.toBeNull();
+
       const file = new File(['test content'], 'test.txt', { type: 'text/plain' });
       
       await user.upload(fileInput, file);
@@ -115,7 +119,7 @@ describe('AddDiscrepancyForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Discrepancy number is required')).toBeInTheDocument();
+        expect(getFieldError('Discrepancy Number', 'Discrepancy number is required')).toBeInTheDocument();
       });
     });
 
@@ -135,7 +139,7 @@ describe('AddDiscrepancyForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Part number is required')).toBeInTheDocument();
+        expect(getFieldError('Part Number', 'Part number is required')).toBeInTheDocument();
       });
     });
 
@@ -155,7 +159,7 @@ describe('AddDiscrepancyForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Assigned-to is required')).toBeInTheDocument();
+        expect(getFieldError('Assigned To', 'Assigned-to is required')).toBeInTheDocument();
       });
     });
 
@@ -175,7 +179,7 @@ describe('AddDiscrepancyForm', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Description is required')).toBeInTheDocument();
+        expect(getFieldError('Description', 'Description is required')).toBeInTheDocument();
       });
     });
 

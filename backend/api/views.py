@@ -359,8 +359,8 @@ def available_aircraft_view(request):
         except ValueError:
             return Response({'error': 'aircraft_id must be an integer'}, status=400)
 
-    start_date = parse_datetime(start_date_str)
-    end_date = parse_datetime(end_date_str)
+    start_date = parse_datetime(start_date_str) if start_date_str not in (None, "") else None
+    end_date = parse_datetime(end_date_str) if end_date_str not in (None, "") else None
 
 
     if start_date and timezone.is_naive(start_date):
@@ -396,8 +396,8 @@ def flight_list_view(request):
         except ValueError:
             return Response({'error': 'aircraft_id must be an integer'}, status=400)
 
-    start_date = parse_date(start_date_str)
-    end_date = parse_date(end_date_str)
+    start_date = parse_date(start_date_str) if start_date_str not in (None, "") else None
+    end_date = parse_date(end_date_str) if end_date_str not in (None, "") else None
     if not start_date or not end_date:
         return Response({'error': 'start_date and end_date are required'}, status=400)
     if start_date > end_date:
@@ -951,23 +951,6 @@ class ToolViewSet(viewsets.ModelViewSet):
         records = tool.calibration_history.order_by("-calibration_date")
         serializer = CalibrationRecordSerializer(records, many=True)
         return Response(serializer.data)
-
-
-class FlightViewSet(viewsets.ModelViewSet):
-    queryset = Flight.objects.all().order_by('-departure_time')
-    serializer_class = FlightSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data = request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        try:
-            self.perform_create(serializer)
-        except ValidationError as e:
-            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
       
       
 class FleetAircraftListView(generics.ListAPIView):
