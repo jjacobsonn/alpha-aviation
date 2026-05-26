@@ -1,3 +1,4 @@
+// Main React and hooks imports
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
 import {
@@ -40,6 +41,7 @@ import RequestPageIcon from '@mui/icons-material/RequestPage';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
+// API functions for fetching and updating management data
 import {
 	fetchCompanyWorkorders,
 	fetchCompanyDiscrepancies,
@@ -51,11 +53,18 @@ import {
 	updateProfile,
 	adminResetPassword,
 } from '../shared/Api';
+// App context and role-based access control helpers
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
 import FleetAvailabilityPanel from '../components/management/FleetAvailabilityPanel';
 import FleetStatusPanel from '../components/management/FleetStatusPanel';
 
+//Local imports
+import RecurringDiscrepancyTable from '../components/RecurringDiscrepancyTable';
+import FleetUtilizationGraph from '../components/FleetUtilizationGraph';
+import AircraftUptimeDowntimeGraph from '../components/UptimeDowntimeGraph';
+
+// Human-readable labels for company roles
 const ROLE_LABELS = {
 	owner: 'Owner',
 	manager: 'Manager',
@@ -64,6 +73,7 @@ const ROLE_LABELS = {
 	dispatcher: 'Dispatcher',
 };
 
+// Returns the correct maintenance page link for a given activity item
 function maintenanceLinkForActivity(item) {
 	if (item.entityType === 'workorder') {
 		return `/maintenance?wo=${item.entityId}`;
@@ -74,6 +84,7 @@ function maintenanceLinkForActivity(item) {
 	return '/maintenance';
 }
 
+// Returns the action label for a given activity item based on its type and status
 function maintenanceActionForActivity(item) {
 	if (item.entityType === 'workorder') {
 		if (!item.assignedToId) return 'Assign';
@@ -89,11 +100,15 @@ function maintenanceActionForActivity(item) {
 	return 'Open';
 }
 
+// Main Management dashboard component
 const Management = () => {
+	// Navigation and context
 	const navigate = useNavigate();
 	const { state } = useAppContext();
+	// Role and company context
 	const platformAdmin = isPlatformAdmin(state.user);
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
+	// State for loading, error, and dashboard data
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [dashboard, setDashboard] = useState(null);
@@ -102,6 +117,7 @@ const Management = () => {
 	const [workOrders, setWorkOrders] = useState([]);
 	const [discrepancies, setDiscrepancies] = useState([]);
 	const [companyUsers, setCompanyUsers] = useState([]);
+	// State for editing users
 	const [editUserOpen, setEditUserOpen] = useState(false);
 	const [createUserOpen, setCreateUserOpen] = useState(false);
 	const [editingUserId, setEditingUserId] = useState(null);
@@ -130,6 +146,7 @@ const Management = () => {
 	const [resetPwShowPassword, setResetPwShowPassword] = useState(false);
 	const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
+	// Fetch dashboard, work orders, discrepancies, and users on mount or when context changes
 	useEffect(() => {
 		let mounted = true;
 		const load = async () => {
@@ -140,6 +157,7 @@ const Management = () => {
 			setLoading(true);
 			setError('');
 			try {
+				// Fetch all dashboard data in parallel
 				const [dash, wo, disc, users, fleetAvail, acList] = await Promise.all([
 					fetchManagementDashboard(),
 					fetchCompanyWorkorders(),
@@ -182,8 +200,10 @@ const Management = () => {
 		};
 	}, [platformAdmin, hasCompanyContext]);
 
+	// Today's date in YYYY-MM-DD format
 	const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
+	// Dashboard summary counts
 	const counts = dashboard?.counts;
 
 	const openWoByAircraft = useMemo(() => {
@@ -203,6 +223,7 @@ const Management = () => {
 		return m;
 	}, [workOrders]);
 
+	// Calculate number of pending tasks (open work orders + pending discrepancies)
 	const pendingTasksCount = useMemo(() => {
 		if (counts) {
 			return (counts.work_orders_open || 0) + (counts.discrepancies_pending || 0);
@@ -212,8 +233,10 @@ const Management = () => {
 		return openWOs + pendingDisc;
 	}, [counts, workOrders, discrepancies]);
 
+	// Number of low stock items
 	const lowStockCount = useMemo(() => counts?.low_stock_items ?? 0, [counts]);
 
+	// Number of work orders completed today
 	const completedTodayCount = useMemo(() => {
 		return (workOrders || []).filter((wo) => {
 			if (wo?.status !== 'closed') return false;
@@ -223,47 +246,49 @@ const Management = () => {
 		}).length;
 	}, [workOrders, todayKey]);
 
+	// Quick stats for dashboard cards
 	const quickStats = useMemo(
 		() => [
 			{
 				label: 'Active Aircraft',
 				value: counts?.aircraft ?? '—',
 				trend: 'Live',
-				icon: <FlightTakeoffIcon sx={{ fontSize: 32 }} />,
+				icon: <FlightTakeoffIcon sx={{ fontSize: 32 }} />, 
 				color: '#2B7FD4',
 			},
 			{
 				label: 'Pending Tasks',
 				value: pendingTasksCount,
 				trend: 'Open',
-				icon: <BuildIcon sx={{ fontSize: 32 }} />,
+				icon: <BuildIcon sx={{ fontSize: 32 }} />, 
 				color: '#FF9800',
 			},
 			{
 				label: 'Low Stock Items',
 				value: lowStockCount,
 				trend: lowStockCount > 0 ? 'Urgent' : 'OK',
-				icon: <WarningIcon sx={{ fontSize: 32 }} />,
+				icon: <WarningIcon sx={{ fontSize: 32 }} />, 
 				color: '#F44336',
 			},
 			{
 				label: 'Completed Today',
 				value: completedTodayCount,
 				trend: completedTodayCount > 0 ? '+ done' : '—',
-				icon: <CheckCircleIcon sx={{ fontSize: 32 }} />,
+				icon: <CheckCircleIcon sx={{ fontSize: 32 }} />, 
 				color: '#4CAF50',
 			},
 		],
 		[counts?.aircraft, completedTodayCount, lowStockCount, pendingTasksCount]
 	);
 
+	// Recent activity list (work orders and discrepancies, sorted by date)
 	const recentActivity = useMemo(() => {
 		const woItems = (workOrders || []).map((wo) => {
 			const when = wo?.updated_at || wo?.created_at || null;
 			return {
 				key: `wo-${wo.id}`,
 				when,
-				icon: wo?.status === 'closed' ? <CheckCircleIcon /> : <BuildIcon />,
+				icon: wo?.status === 'closed' ? <CheckCircleIcon /> : <BuildIcon />, 
 				color: wo?.status === 'closed' ? '#4CAF50' : '#FF9800',
 				title: wo?.status === 'closed' ? 'Work Order Completed' : 'Work Order Updated',
 				detail: wo?.title || `Work Order #${wo.id}`,
@@ -280,7 +305,7 @@ const Management = () => {
 		const discItems = (discrepancies || []).map((d) => ({
 			key: `disc-${d.id}`,
 			when: d?.date_reported || null,
-			icon: <RequestPageIcon />,
+			icon: <RequestPageIcon />, 
 			color: '#f32f21ff',
 			title: 'New Discrepancy',
 			detail: d?.description || `Discrepancy #${d.id}`,
@@ -289,6 +314,7 @@ const Management = () => {
 			status: d?.status,
 		}));
 
+		// Sort all activity by most recent
 		return [...woItems, ...discItems].sort((a, b) => {
 			const aT = a.when ? new Date(a.when).getTime() : 0;
 			const bT = b.when ? new Date(b.when).getTime() : 0;
@@ -296,9 +322,11 @@ const Management = () => {
 		});
 	}, [discrepancies, workOrders]);
 
+	// Team by role and sorted user list for roster
 	const teamByRole = dashboard?.team_by_role || {};
 	const sortedUsers = useMemo(() => {
 		const list = [...(companyUsers || [])];
+		// Sort users by role, then last name
 		list.sort((a, b) => {
 			const r = String(a.company_role || '').localeCompare(String(b.company_role || ''));
 			if (r !== 0) return r;
@@ -306,8 +334,10 @@ const Management = () => {
 		});
 		return list;
 	}, [companyUsers]);
+	// Only platform admins and company owners can edit the roster
 	const canEditRoster = platformAdmin || state.user?.role === 'owner';
 
+	// Open the edit user dialog and populate form
 	const openEditUser = (u) => {
 		setEditingUserId(u.id);
 		setResetPwUser(u);
@@ -324,6 +354,7 @@ const Management = () => {
 		setEditUserOpen(true);
 	};
 
+	// Close the edit user dialog
 	const closeEditUser = () => {
 		setEditUserOpen(false);
 		setEditingUserId(null);
@@ -346,6 +377,7 @@ const Management = () => {
 		setCreateUserOpen(false);
 	};
 
+	// Save the edited user profile and refresh the user list
 	const saveEditedUser = async () => {
 		if (!editingUserId) return;
 		setSavingUser(true);
@@ -431,13 +463,16 @@ const Management = () => {
 		}
 	};
 
+	// Company info block
 	const companyBlock = dashboard?.company;
 	const displayCompanyName =
 		companyBlock?.name || state.user?.companyName || 'Your company';
 
+	// Render the management dashboard UI
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
 			<Container maxWidth="xl" sx={{ py: 4 }}>
+				{/* Show company selection prompt for platform admins */}
 				{platformAdmin && !hasCompanyContext && (
 					<Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
 						<Typography variant="body2" color="text.secondary">
@@ -450,6 +485,7 @@ const Management = () => {
 					</Box>
 				)}
 
+				{/* Welcome header */}
 				<Box sx={{ mb: 4 }}>
 					<Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
 						Welcome Back
@@ -464,6 +500,7 @@ const Management = () => {
 					</Typography>
 				</Box>
 
+				{/* Company info card */}
 				{companyBlock && !loading && (
 					<Card
 						elevation={0}
@@ -524,7 +561,17 @@ const Management = () => {
 					</Card>
 				)}
 
-				<Grid container spacing={3} sx={{ mb: 4 }}>
+				{/* Error message display */}
+				{error && (
+					<Stack sx={{ mb: 3 }}>
+						<Typography variant="body2" color="error">
+							{error}
+						</Typography>
+					</Stack>
+				)}
+
+				{/* Quick stats cards */}
+				<Grid container spacing={3} sx={{ mb: 5 }}>
 					{quickStats.map((stat, index) => (
 						<Grid item xs={12} sm={6} md={3} key={index}>
 							<Card
@@ -607,6 +654,7 @@ const Management = () => {
 					</Stack>
 				)}
 
+				{/* Team by role summary chips */}
 				{!loading && teamByRole && Object.keys(teamByRole).length > 0 && (
 					<Box sx={{ mb: 4 }}>
 						<Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
@@ -631,7 +679,7 @@ const Management = () => {
 					</Box>
 				)}
 
-				{/* Roster */}
+				{/* Company roster table */}
 				<Box sx={{ mb: 5 }}>
 					<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
 						<Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -762,7 +810,8 @@ const Management = () => {
 						</CardContent>
 					</Card>
 				</Box>
-					<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
+				{/* Edit user dialog */}
+				<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
 					<DialogTitle>Edit user</DialogTitle>
 					<DialogContent>
 						<Stack spacing={2} sx={{ mt: 1 }}>
@@ -864,6 +913,16 @@ const Management = () => {
 						</Button>
 					</DialogActions>
 				</Dialog>
+				
+			{/* Recurring discrepancy trends table */}
+			<div className='recurring-discrepancy-section'>
+				<RecurringDiscrepancyTable />
+			</div>
+			<div className='fleet-utilization-section'>
+				<FleetUtilizationGraph />
+				<AircraftUptimeDowntimeGraph />
+			</div>
+
 				<Dialog open={createUserOpen} onClose={closeCreateUser} fullWidth maxWidth="sm">
 					<DialogTitle>Create user</DialogTitle>
 					<DialogContent>

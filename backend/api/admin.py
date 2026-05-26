@@ -5,6 +5,18 @@ from .models import *
 from django.utils.html import format_html
 
 
+class AircraftPartInline(admin.TabularInline):
+    model = AircraftPart
+    extra = 1
+    fields = ('part', 'expiration_date', 'expiration_hobbs')
+    show_change_link = True
+
+
+class AircraftPartAdmin(admin.ModelAdmin):
+    list_display = ('__str__',)
+    list_filter = ('aircraft',)
+    search_fields = ('part__name', 'part__part_number', 'aircraft__registration_number')
+
 class WorkOrderActivityInline(admin.TabularInline):
     model = WorkOrderActivity
     extra = 0
@@ -45,6 +57,11 @@ class WorkOrderAdmin(admin.ModelAdmin):
     list_filter = ('status', 'aircraft')
     inlines = [WorkOrderPartInline, WorkOrderActivityInline]
     search_fields = ('title', 'description')
+    
+    def get_inlines(self, request, obj):
+            if obj is None:
+                  return []
+            return self.inlines
 
 #Inline display used when refrenced on other page for workorders
 class WorkOrderInline(admin.TabularInline):
@@ -60,8 +77,13 @@ class AircraftInline(admin.TabularInline):
 
 #Admin display for Aircrafts
 class AircraftAdmin(admin.ModelAdmin):
-      inlines = [WorkOrderInline, DiscrepancyInline]
+      inlines = [WorkOrderInline, DiscrepancyInline, AircraftPartInline]
       search_fields = ["registration_number", "model"]
+
+      def get_inlines(self, request, obj):
+        if obj is None:
+            return []
+        return self.inlines
 
 #Admin display for users/profiles
 class CustomUserAdmin(UserAdmin):
@@ -187,7 +209,7 @@ class InventoryInline(admin.TabularInline):
 
 #Admin display for flights
 class FlightAdmin(admin.ModelAdmin):
-    fields = ['company', 'aircraft', 'primary_pilot', "secondary_pilot", 'origin', 'destination', 'departure_time', 'arrival_time']
+    fields = ['company', 'aircraft', 'flight_type', 'flight_number', 'primary_pilot', "secondary_pilot", 'origin', 'destination', 'departure_time', 'arrival_time']
     search_fields = ['aircraft__registration_number', 'aircraft__model', 'origin', 'destination']
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
           if db_field.name == "primary_pilot":
@@ -219,6 +241,11 @@ class FlightInline(admin.TabularInline):
 class CompanyAdmin(admin.ModelAdmin):
       inlines = [UserInline, AircraftInline, InventoryInline, FlightInline]
 
+      def get_inlines(self, request, obj):
+            if obj is None:
+                  return []
+            return self.inlines
+      
       class Media:
             css = {
                   'all': ('api/admin.css',)
@@ -257,6 +284,7 @@ class ToolAdmin(admin.ModelAdmin):
 #register all of the admin pages
 admin.site.register(Profile, CustomUserAdmin)
 admin.site.register(Company, CompanyAdmin)
+admin.site.register(AircraftPart, AircraftPartAdmin)
 admin.site.register(Aircraft, AircraftAdmin)
 admin.site.register(Part, PartAdmin)
 admin.site.register(Flight, FlightAdmin)

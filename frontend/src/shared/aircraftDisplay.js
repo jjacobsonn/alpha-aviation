@@ -1,12 +1,18 @@
 /**
  * Format aircraft from API payloads (nested object, numeric id, or string id).
  */
+function normalizeAircraftField(value) {
+	if (typeof value === 'string') return value.trim();
+	if (typeof value === 'number' || typeof value === 'bigint') return String(value).trim();
+	return '';
+}
+
 export function formatAircraftRef(aircraftRef, lookupById) {
 	if (aircraftRef == null || aircraftRef === '') return '—';
 
 	if (typeof aircraftRef === 'object') {
-		const reg = (aircraftRef.registration_number || '').trim();
-		const model = (aircraftRef.model || '').trim();
+		const reg = normalizeAircraftField(aircraftRef.registration_number);
+		const model = normalizeAircraftField(aircraftRef.model);
 		if (reg && model) return `${reg} (${model})`;
 		if (reg) return reg;
 		if (model) return model;
