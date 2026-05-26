@@ -15,11 +15,19 @@ import Maintenance from './pages/Maintenance';
 import WorkOrders from './pages/WorkOrders';
 import PilotDashboard from './pages/PilotDashboard';
 import DispatcherDashboard from './pages/DispatcherDashboard';
+import CalendarPage from './pages/DispatchCalendarPage';
 import SiteAdminPortal from './pages/SiteAdminPortal';
 import FleetPage from './pages/FleetPage';
 import FleetDetailPage from './pages/FleetDetailPage';
+import ServiceHistoryPage from './pages/ServiceHistoryPage';
+import ComponentHistoryPage from './pages/ComponentHistoryPage';
+import ToolsPage from './pages/ToolsPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import AccountPage from './pages/AccountPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import { allowedRolesForModule } from './shared/rbac';
 
 const theme = createTheme({
 	palette: {
@@ -112,6 +120,16 @@ function App() {
 							}
 						/>
 						<Route
+							path="/analytics"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('analytics')}>
+									<Layout>
+										<AnalyticsPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
 							path="/admin/companies"
 							element={
 								<ProtectedRoute allowedRoles={['manager']}>
@@ -144,7 +162,7 @@ function App() {
 						<Route
 							path="/parts"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('parts')}>
 									<Layout>
 										<PartsPage />
 									</Layout>
@@ -154,7 +172,7 @@ function App() {
 						<Route
 							path="/maintenance"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('maintenance')}>
 									<Layout>
 										<Maintenance />
 									</Layout>
@@ -164,7 +182,7 @@ function App() {
 						<Route
 							path="/work-orders"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('workOrders')}>
 									<Layout>
 										<WorkOrders />
 									</Layout>
@@ -172,9 +190,39 @@ function App() {
 							}
 						/>
 						<Route
+							path="/service-history"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('serviceHistory')}>
+									<Layout>
+										<ServiceHistoryPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/component-history"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('componentHistory')}>
+									<Layout>
+										<ComponentHistoryPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/tools"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('tools')}>
+									<Layout>
+										<ToolsPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
 							path="/fleet"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('fleet')}>
 									<Layout>
 										<FleetPage />
 									</Layout>
@@ -184,7 +232,7 @@ function App() {
 						<Route
 							path="/fleet/:id"
 							element={
-								<ProtectedRoute allowedRoles={['owner', 'manager', 'mechanic', 'pilot', 'dispatcher']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('fleetDetail')}>
 									<Layout>
 										<FleetDetailPage />
 									</Layout>
@@ -194,7 +242,7 @@ function App() {
 						<Route
 							path="/pilot-dashboard"
 							element={
-								<ProtectedRoute allowedRoles={['pilot', 'owner']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('pilotDashboard')}>
 									<Layout>
 										<PilotDashboard />
 									</Layout>
@@ -204,9 +252,29 @@ function App() {
 						<Route
 							path="/dispatcher-dashboard"
 							element={
-								<ProtectedRoute allowedRoles={['dispatcher', 'owner']}>
+								<ProtectedRoute allowedRoles={allowedRolesForModule('dispatcherDashboard')}>
 									<Layout>
 										<DispatcherDashboard />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/calendar"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('calendar')}>
+									<Layout>
+										<CalendarPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/dispatch-calendar"
+							element={
+								<ProtectedRoute allowedRoles={allowedRolesForModule('calendar')}>
+									<Layout>
+										<CalendarPage />
 									</Layout>
 								</ProtectedRoute>
 							}
@@ -221,7 +289,25 @@ function App() {
 								</ProtectedRoute>
 							}
 						/>
+						<Route
+							path="/account"
+							element={
+								<ProtectedRoute>
+									<Layout>
+										<AccountPage />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
 
+						<Route
+							path="/change-password"
+							element={
+								<ProtectedRoute>
+									<ChangePasswordPage />
+								</ProtectedRoute>
+							}
+						/>
 
 						{/* 404 - Must be last */}
 						<Route path="*" element={<NotFound />} />

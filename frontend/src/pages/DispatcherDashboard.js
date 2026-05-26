@@ -6,7 +6,12 @@ import {
   CardContent,
   Chip,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -14,19 +19,28 @@ import {
   TableHead,
   TableRow,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
+  deleteFlight,
   fetchCompanyFlights,
   patchCompanyFlightDispatch,
+  updateFlight,
 } from "../shared/Api";
+import { formatAircraftRef } from "../shared/aircraftDisplay";
+import useDebouncedValue from "../shared/useDebouncedValue";
+import {
+  DISPATCH_STATUS_FILTERS,
+  buildDispatchSuggestions,
+  filterDispatchFlights,
+} from "../shared/moduleSearch";
+import ModuleSearchBar from "../components/search/ModuleSearchBar";
+import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
 
@@ -49,10 +63,29 @@ function formatDt(iso) {
   }
 }
 
+function clickableRowProps(onActivate) {
+  return {
+    hover: true,
+    onClick: onActivate,
+    onKeyDown: (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onActivate();
+      }
+    },
+    tabIndex: 0,
+    role: "button",
+    sx: { cursor: "pointer" },
+  };
+}
+
 export default function DispatcherDashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { state } = useAppContext();
   const platformAdmin = isPlatformAdmin(state.user);
+  const effectiveRole = state.viewAsUser?.role || state.user?.role;
+  const canDeleteFlights = effectiveRole === "owner";
   const hasCompanyContext =
     Boolean(state.user?.companyId) || Boolean(localStorage.getItem("adminCompanyId"));
 
@@ -61,7 +94,17 @@ export default function DispatcherDashboard() {
   const [flights, setFlights] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [busyId, setBusyId] = useState(null);
+  const [editingFlight, setEditingFlight] = useState(null);
+  const [editForm, setEditForm] = useState({
+    flight_number: "",
+    origin: "",
+    destination: "",
+    departure_time: "",
+    arrival_time: "",
+    status: "",
+  });
   const aircraftFilterFromQuery = new URLSearchParams(location.search).get("aircraft") || "";
 
   const load = useCallback(async () => {
@@ -109,35 +152,24 @@ export default function DispatcherDashboard() {
     }).length;
   }, [flights, startOfToday, endOfToday]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let list = flights;
-    if (aircraftFilterFromQuery) {
-      list = list.filter((f) => {
-        const aircraftId =
-          typeof f?.aircraft === "object" && f?.aircraft != null ? f.aircraft.id : f?.aircraft;
-        return String(aircraftId) === String(aircraftFilterFromQuery);
-      });
-    }
-    if (filter === "pending") list = list.filter((f) => f?.status === "pending approval");
-    else if (filter === "approved")
-      list = list.filter((f) => f?.status === "approved" || f?.status === "scheduled");
-    else if (filter === "completed") list = list.filter((f) => f?.status === "completed");
-    if (!q) return list;
-    return list.filter((f) => {
-      const blob = [
-        f.flight_number,
-        f.origin,
-        f.destination,
-        f.aircraft_name,
-        f.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
+  const dispatchSuggestions = useMemo(
+    () => buildDispatchSuggestions(flights, debouncedSearch),
+    [flights, debouncedSearch]
+  );
+
+  const aircraftFilteredFlights = useMemo(() => {
+    if (!aircraftFilterFromQuery) return flights;
+    return flights.filter((f) => {
+      const aircraftId =
+        typeof f?.aircraft === "object" && f?.aircraft != null ? f.aircraft.id : f?.aircraft;
+      return String(aircraftId) === String(aircraftFilterFromQuery);
     });
-  }, [flights, search, filter, aircraftFilterFromQuery]);
+  }, [flights, aircraftFilterFromQuery]);
+
+  const filtered = useMemo(
+    () => filterDispatchFlights(aircraftFilteredFlights, debouncedSearch, filter, null),
+    [aircraftFilteredFlights, debouncedSearch, filter]
+  );
 
   const handleApprove = async (id) => {
     setBusyId(id);
@@ -165,6 +197,65 @@ export default function DispatcherDashboard() {
     }
   };
 
+  const openEdit = (flight) => {
+    setEditingFlight(flight);
+    const toLocal = (iso) => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+        d.getHours()
+      )}:${pad(d.getMinutes())}`;
+    };
+    setEditForm({
+      flight_number: flight?.flight_number || "",
+      origin: flight?.origin || "",
+      destination: flight?.destination || "",
+      departure_time: toLocal(flight?.departure_time),
+      arrival_time: toLocal(flight?.arrival_time),
+      status: flight?.status || "pending approval",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingFlight?.id) return;
+    setBusyId(editingFlight.id);
+    setError("");
+    try {
+      await updateFlight(editingFlight.id, {
+        flight_number: editForm.flight_number || null,
+        origin: editForm.origin,
+        destination: editForm.destination,
+        departure_time: editForm.departure_time ? new Date(editForm.departure_time).toISOString() : null,
+        arrival_time: editForm.arrival_time ? new Date(editForm.arrival_time).toISOString() : null,
+        status: editForm.status,
+      });
+      setEditingFlight(null);
+      await load();
+    } catch (e) {
+      setError(e?.message || "Could not save flight updates.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeFlight = async (id) => {
+    if (!canDeleteFlights) {
+      setError("Only owners can delete flights.");
+      return;
+    }
+    setBusyId(id);
+    setError("");
+    try {
+      await deleteFlight(id);
+      await load();
+    } catch (e) {
+      setError(e?.message || "Could not delete flight.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (platformAdmin && !hasCompanyContext) {
     return (
       <Box sx={{ bgcolor: "background.default", minHeight: "100vh", py: 4 }}>
@@ -179,22 +270,41 @@ export default function DispatcherDashboard() {
 
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Stack spacing={3}>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
+        <Stack spacing={3} sx={{ minWidth: 0 }}>
           <Stack spacing={1}>
-            <Typography variant="h4" sx={{ fontWeight: 800 }}>
-              Dispatch
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Review flight requests, approve or cancel, and monitor scheduled flights.
-            </Typography>
+            <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                  Dispatcher
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Review flight requests, approve or cancel, and monitor scheduled flights.
+                </Typography>
+              </Box>
+            </Stack>
             {error ? <Alert severity="error">{error}</Alert> : null}
-            {aircraftFilterFromQuery ? (
-              <Alert severity="info">
-                Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
-              </Alert>
-            ) : null}
           </Stack>
+          {aircraftFilterFromQuery ? (
+            <Stack direction="row">
+              <Chip
+                color="primary"
+                variant="outlined"
+                label={`Aircraft filter: ${aircraftFilterFromQuery}`}
+                onDelete={() => {
+                  const params = new URLSearchParams(location.search);
+                  params.delete("aircraft");
+                  navigate(
+                    {
+                      pathname: "/dispatcher-dashboard",
+                      search: params.toString() ? `?${params.toString()}` : "",
+                    },
+                    { replace: true }
+                  );
+                }}
+              />
+            </Stack>
+          ) : null}
 
           <Grid container spacing={2}>
             <Grid item xs={12} sm={4}>
@@ -244,8 +354,8 @@ export default function DispatcherDashboard() {
             </Grid>
           </Grid>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0, p: { xs: 2, sm: 3 } }}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
                 Pending requests
               </Typography>
@@ -254,29 +364,35 @@ export default function DispatcherDashboard() {
               ) : pending.length === 0 ? (
                 <Typography color="text.secondary">No requests awaiting approval.</Typography>
               ) : (
-                <Table size="small">
+                <ScrollableTableContainer minWidth={1180}>
+                <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Flight #</TableCell>
-                      <TableCell>Aircraft</TableCell>
-                      <TableCell>Route</TableCell>
-                      <TableCell>Departure</TableCell>
-                      <TableCell align="right">Actions</TableCell>
+                      <TableCell sx={{ minWidth: 110 }}>Status</TableCell>
+                      <TableCell sx={{ minWidth: 90 }}>Flight #</TableCell>
+                      <TableCell sx={{ minWidth: 120 }}>Aircraft</TableCell>
+                      <TableCell sx={{ minWidth: 360 }}>Route</TableCell>
+                      <TableCell sx={{ minWidth: 160 }}>Departure</TableCell>
+                      <TableCell align="right" sx={{ minWidth: 200 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {pending.map((f) => (
-                      <TableRow key={f.id}>
+                      <TableRow
+                        key={f.id}
+                        {...clickableRowProps(() => openEdit(f))}
+                      >
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
-                        <TableCell>{f.aircraft_name || f.aircraft || "—"}</TableCell>
                         <TableCell>
+                          {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 360, whiteSpace: "nowrap" }}>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
-                        <TableCell>{formatDt(f.departure_time)}</TableCell>
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.departure_time)}</TableCell>
+                        <TableCell align="right" sx={{ minWidth: 200 }} onClick={(e) => e.stopPropagation()}>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="nowrap">
                             <Button
                               size="small"
                               variant="contained"
@@ -301,12 +417,13 @@ export default function DispatcherDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                </ScrollableTableContainer>
               )}
             </CardContent>
           </Card>
 
-          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent>
+          <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
+            <CardContent sx={{ minWidth: 0, p: { xs: 2, sm: 3 } }}>
               <Stack
                 direction={{ xs: "column", md: "row" }}
                 spacing={2}
@@ -317,69 +434,158 @@ export default function DispatcherDashboard() {
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
                   All flights
                 </Typography>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
-                  <TextField
-                    size="small"
-                    placeholder="Search flight #, route, status…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    sx={{ minWidth: 260 }}
-                  />
-                  <ToggleButtonGroup
-                    size="small"
-                    value={filter}
-                    exclusive
-                    onChange={(_, v) => v != null && setFilter(v)}
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-start">
+                  <Button
+                    variant="outlined"
+                    startIcon={<CalendarMonthIcon />}
+                    onClick={() => navigate("/calendar")}
+                    sx={{ mt: 0.5 }}
                   >
-                    <ToggleButton value="all">All</ToggleButton>
-                    <ToggleButton value="pending">Pending</ToggleButton>
-                    <ToggleButton value="approved">Approved</ToggleButton>
-                    <ToggleButton value="completed">Completed</ToggleButton>
-                  </ToggleButtonGroup>
+                    Calendar
+                  </Button>
+                  <Box sx={{ flex: 1, width: "100%" }}>
+                    <ModuleSearchBar
+                      value={search}
+                      onChange={setSearch}
+                      placeholder="Search flight #, route, aircraft, status…"
+                      suggestions={dispatchSuggestions}
+                      statusOptions={DISPATCH_STATUS_FILTERS}
+                      statusValue={filter}
+                      onStatusChange={setFilter}
+                      statusVariant="toggle"
+                      resultCount={filtered.length}
+                      totalCount={aircraftFilteredFlights.length}
+                    />
+                  </Box>
                 </Stack>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={1320}>
+              <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Flight #</TableCell>
-                    <TableCell>Aircraft</TableCell>
-                    <TableCell>Route</TableCell>
-                    <TableCell>Departure</TableCell>
-                    <TableCell>Arrival</TableCell>
+                    <TableCell sx={{ minWidth: 110 }}>Status</TableCell>
+                    <TableCell sx={{ minWidth: 90 }}>Flight #</TableCell>
+                    <TableCell sx={{ minWidth: 120 }}>Aircraft</TableCell>
+                    <TableCell sx={{ minWidth: 360 }}>Route</TableCell>
+                    <TableCell sx={{ minWidth: 160 }}>Departure</TableCell>
+                    <TableCell sx={{ minWidth: 160 }}>Arrival</TableCell>
+                    <TableCell align="right" sx={{ minWidth: 180 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6}>
+                      <TableCell colSpan={7}>
                         <Typography color="text.secondary">Loading…</Typography>
                       </TableCell>
                     </TableRow>
                   ) : filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6}>
+                      <TableCell colSpan={7}>
                         <Typography color="text.secondary">No flights match.</Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filtered.map((f) => (
-                      <TableRow key={f.id}>
+                      <TableRow
+                        key={f.id}
+                        {...clickableRowProps(() => openEdit(f))}
+                      >
                         <TableCell>{statusChip(f.status)}</TableCell>
                         <TableCell>{f.flight_number || "—"}</TableCell>
-                        <TableCell>{f.aircraft_name || f.aircraft || "—"}</TableCell>
                         <TableCell>
+                          {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 360, whiteSpace: "nowrap" }}>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
-                        <TableCell>{formatDt(f.departure_time)}</TableCell>
-                        <TableCell>{formatDt(f.arrival_time)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.departure_time)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.arrival_time)}</TableCell>
+                        <TableCell align="right" sx={{ minWidth: 180 }} onClick={(e) => e.stopPropagation()}>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="nowrap">
+                            <Button size="small" variant="outlined" onClick={() => openEdit(f)}>
+                              Edit
+                            </Button>
+                            {canDeleteFlights ? (
+                              <Button
+                                size="small"
+                                color="error"
+                                onClick={() => removeFlight(f.id)}
+                                disabled={busyId === f.id}
+                              >
+                                Remove
+                              </Button>
+                            ) : null}
+                          </Stack>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
+              </ScrollableTableContainer>
             </CardContent>
           </Card>
+          <Dialog
+            open={Boolean(editingFlight)}
+            onClose={() => setEditingFlight(null)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>Edit Flight</DialogTitle>
+            <DialogContent>
+              <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                  label="Flight #"
+                  value={editForm.flight_number}
+                  onChange={(e) => setEditForm((s) => ({ ...s, flight_number: e.target.value }))}
+                />
+                <TextField
+                  label="Origin"
+                  value={editForm.origin}
+                  onChange={(e) => setEditForm((s) => ({ ...s, origin: e.target.value }))}
+                />
+                <TextField
+                  label="Destination"
+                  value={editForm.destination}
+                  onChange={(e) => setEditForm((s) => ({ ...s, destination: e.target.value }))}
+                />
+                <TextField
+                  label="Departure"
+                  type="datetime-local"
+                  InputLabelProps={{ shrink: true }}
+                  value={editForm.departure_time}
+                  onChange={(e) => setEditForm((s) => ({ ...s, departure_time: e.target.value }))}
+                />
+                <TextField
+                  label="Arrival"
+                  type="datetime-local"
+                  InputLabelProps={{ shrink: true }}
+                  value={editForm.arrival_time}
+                  onChange={(e) => setEditForm((s) => ({ ...s, arrival_time: e.target.value }))}
+                />
+                <TextField
+                  select
+                  label="Status"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((s) => ({ ...s, status: e.target.value }))}
+                >
+                  <MenuItem value="pending approval">Pending approval</MenuItem>
+                  <MenuItem value="approved">Approved</MenuItem>
+                  <MenuItem value="scheduled">Scheduled</MenuItem>
+                  <MenuItem value="delayed">Delayed</MenuItem>
+                  <MenuItem value="cancelled">Cancelled</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                </TextField>
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEditingFlight(null)}>Cancel</Button>
+              <Button variant="contained" onClick={saveEdit} disabled={Boolean(busyId)}>
+                Save
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Stack>
       </Container>
     </Box>

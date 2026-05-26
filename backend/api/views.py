@@ -1,7 +1,9 @@
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, F, IntegerField, OuterRef, Prefetch, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
+import re
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
@@ -25,22 +27,30 @@ from .models import (
     Inventory,
     Tool,
     CalibrationRecord,
+    InstalledComponent,
     InventoryPart,
     Part,
     Profile,
     WorkOrder,
     WorkOrderActivity,
+    WorkOrderPart,
 )
 
 from .permissions import (
     HasCompanyRole,
     IsCompanyMember,
+    IsOwner,
     IsManagerOrOwner,
     IsMechanicOrManager,
     IsMechanicOrManagerOrPilot,
     IsOwnProfileOrManager,
     CanReportDiscrepancy,
     CanSignWorkOrder,
+)
+from .maintenance_activity import (
+    log_work_order_created,
+    snapshot_discrepancy,
+    log_discrepancy_updated,
 )
 from .serializers import (
     AircraftSerializer,
@@ -55,8 +65,36 @@ from .serializers import (
     CalibrationRecordSerializer,
     PartSerializer,
     ProfileSerializer,
+    SelfProfileUpdateSerializer,
     WorkOrderSerializer,
 )
+
+
+def build_user_me_response(user):
+    """Payload for GET/PATCH /users/me/ (identity + org + read-only role context)."""
+    pilot_info = getattr(user, "pilot_info", None)
+    mechanic_info = getattr(user, "mechanic_info", None)
+    data = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email or "",
+        "first_name": user.first_name or "",
+        "last_name": user.last_name or "",
+        "middle_name": user.middle_name or "",
+        "phone_number": user.phone_number or "",
+        "company_role": getattr(user, "company_role", None),
+        "is_staff": bool(getattr(user, "is_staff", False)),
+        "is_superuser": bool(getattr(user, "is_superuser", False)),
+        "company": getattr(user.company, "id", None) if getattr(user, "company", None) else None,
+        "company_name": getattr(user.company, "name", None) if getattr(user, "company", None) else None,
+        "must_change_password": bool(getattr(user, "must_change_password", False)),
+    }
+    if pilot_info:
+        data["pilot_certificate"] = pilot_info.pilot_certificate
+        data["medically_cleared_until"] = pilot_info.medically_cleared_until
+    if mechanic_info:
+        data["ap_certificate_number"] = mechanic_info.AP_certificate_number
+    return data
 
 
 def _is_platform_admin(user):
@@ -97,6 +135,10 @@ def _optional_company_id_from_header(request):
         return int(raw)
     except (TypeError, ValueError):
         return None
+
+
+def _request_role(user):
+    return getattr(user, "company_role", None)
 
 
 def inventory_parts_queryset_for_request(request):
@@ -181,17 +223,22 @@ def fleet_aircraft_queryset(request):
 def company_scoped_workorder_queryset(request):
     """
     Company (or platform-admin) scope via aircraft.
-
-    Mechanics only see work orders assigned to them (`created_by` is used as assignee).
-    Owners/managers see all work orders for the company aircraft set.
     """
     qs = (
-        WorkOrder.objects.select_related("aircraft", "created_by", "signed_by")
+        WorkOrder.objects.select_related(
+            "aircraft", "created_by", "assignee", "signed_by"
+        )
         .prefetch_related(
             "parts_needed",
             Prefetch(
                 "activities",
-                queryset=WorkOrderActivity.objects.select_related("actor"),
+                queryset=WorkOrderActivity.objects.select_related("actor").order_by(
+                    "-created_at"
+                ),
+            ),
+            Prefetch(
+                "workorderpart_set",
+                queryset=WorkOrderPart.objects.select_related("part"),
             ),
         )
         .order_by("-created_at")
@@ -201,17 +248,21 @@ def company_scoped_workorder_queryset(request):
     user = request.user
     if _is_platform_admin(user):
         return qs
-    if getattr(user, "company_role", None) == "mechanic":
-        return qs.filter(created_by_id=user.id)
     return qs
 
 
 def company_scoped_discrepancy_queryset(request):
     """
-    Mechanics only see discrepancies they reported or linked to their assigned work orders.
+    Company (or platform-admin) scope via aircraft.
     """
     qs = (
-        Discrepancy.objects.select_related("aircraft", "reporter", "work_order")
+        Discrepancy.objects.select_related(
+            "aircraft",
+            "reporter",
+            "work_order",
+            "work_order__created_by",
+            "work_order__assignee",
+        )
         .prefetch_related(
             Prefetch(
                 "activities",
@@ -225,12 +276,6 @@ def company_scoped_discrepancy_queryset(request):
     user = request.user
     if _is_platform_admin(user):
         return qs
-    if getattr(user, "company_role", None) == "mechanic":
-        return qs.filter(
-            Q(reporter_id=user.id) | Q(work_order__created_by_id=user.id)
-        )
-    if getattr(user, "company_role", None) == "pilot":
-        return qs.filter(reporter_id=user.id)
     return qs
 
 
@@ -318,25 +363,118 @@ def logout(request):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
     """
-    Get current authenticated user profile, including role and company info.
+    Current user profile (GET) or self-service contact update (PATCH).
+    Aligns with backlog 1.3.1 — name, email, phone, role display; preferences/notifications later.
     """
     user = request.user
-    return Response({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'first_name': user.first_name,
-        'last_name': user.last_name,
-        'company_role': getattr(user, 'company_role', None),
-        'is_staff': bool(getattr(user, 'is_staff', False)),
-        'is_superuser': bool(getattr(user, 'is_superuser', False)),
-        'company': getattr(user.company, 'id', None) if getattr(user, 'company', None) else None,
-        'company_name': getattr(user.company, 'name', None) if getattr(user, 'company', None) else None,
-    })
+    if request.method == "PATCH":
+        serializer = SelfProfileUpdateSerializer(user, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        user.refresh_from_db()
+
+    return Response(build_user_me_response(user))
+
+
+_PASSWORD_MIN_LENGTH = 8
+_PASSWORD_PATTERN = re.compile(
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{}|;:',.<>?/`~])"
+)
+
+def _validate_password_strength(password):
+    errors = []
+    if len(password) < _PASSWORD_MIN_LENGTH:
+        errors.append(f"Password must be at least {_PASSWORD_MIN_LENGTH} characters.")
+    if not _PASSWORD_PATTERN.search(password):
+        errors.append(
+            "Password must contain at least one uppercase letter, one lowercase letter, "
+            "one digit, and one special character."
+        )
+    return errors
+
+
+_ROLE_HIERARCHY = {"owner": 3, "manager": 2, "dispatcher": 1, "mechanic": 1, "pilot": 1}
+
+
+@api_view(["POST"])
+@permission_classes([IsManagerOrOwner])
+def admin_reset_password(request, pk):
+    """
+    Allow an owner/manager (or platform admin) to reset another user's password.
+    Sets must_change_password so the employee is forced to choose their own on next login.
+    """
+    requester = request.user
+    target = get_object_or_404(Profile, pk=pk)
+
+    if not _is_platform_admin(requester):
+        if getattr(requester, "company_id", None) != getattr(target, "company_id", None):
+            return Response(
+                {"detail": "You can only reset passwords for users in your own company."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        req_rank = _ROLE_HIERARCHY.get(getattr(requester, "company_role", ""), 0)
+        tgt_rank = _ROLE_HIERARCHY.get(getattr(target, "company_role", ""), 0)
+        if tgt_rank >= req_rank:
+            return Response(
+                {"detail": "You cannot reset the password of a user with equal or higher privilege."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    new_password = (request.data.get("new_password") or "").strip()
+    if not new_password:
+        return Response(
+            {"detail": "new_password is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    pw_errors = _validate_password_strength(new_password)
+    if pw_errors:
+        return Response({"detail": pw_errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    target.set_password(new_password)
+    target.must_change_password = True
+    target.save(update_fields=["password", "must_change_password"])
+
+    return Response({"detail": "Password has been reset. The user will be prompted to set a new password on next login."})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_own_password(request):
+    """
+    Authenticated user sets a new password (used after admin-triggered reset).
+    Clears the must_change_password flag.
+    """
+    user = request.user
+    new_password = (request.data.get("new_password") or "").strip()
+    confirm_password = (request.data.get("confirm_password") or "").strip()
+
+    if not new_password or not confirm_password:
+        return Response(
+            {"detail": "new_password and confirm_password are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if new_password != confirm_password:
+        return Response(
+            {"detail": "Passwords do not match."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    pw_errors = _validate_password_strength(new_password)
+    if pw_errors:
+        return Response({"detail": pw_errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(new_password)
+    user.must_change_password = False
+    user.save(update_fields=["password", "must_change_password"])
+
+    return Response({"detail": "Password updated successfully."})
+
 
 #Endpoint to check the availability of aircraft given a start date and end date, and optionally to check a specific aircraft if given aircraft_id. Returns all of the flights that are available. If checking for specifc aircraft, will return just that aircraft or return empty json response if it is not available.
 @api_view(['GET'])
@@ -463,6 +601,103 @@ def management_dashboard_view(request):
             "team_by_role": team_by_role,
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsManagerOrOwner])
+def fleet_availability_dashboard_view(request):
+    """
+    Phase 2 — Fleet availability snapshot for management dashboard.
+    Maps aircraft.fleet_status into Available / In maintenance / Grounded,
+    open work orders by priority, and lightweight 7-day closure trends.
+    """
+    company = get_request_company(request)
+    if company is None:
+        return Response(
+            {"error": "User does not have an associated company"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    now = timezone.now()
+    boundary_7 = now - timedelta(days=7)
+    boundary_14 = now - timedelta(days=14)
+
+    aircraft_qs = Aircraft.objects.filter(company=company)
+    total_aircraft = aircraft_qs.count()
+
+    status_counts = {
+        row["fleet_status"]: row["c"]
+        for row in aircraft_qs.values("fleet_status").annotate(c=Count("id"))
+    }
+    available = status_counts.get("active", 0)
+    in_maintenance = status_counts.get("maintenance_due", 0)
+    grounded = status_counts.get("aog", 0) + status_counts.get("grounded", 0)
+    known_statuses = {"active", "maintenance_due", "aog", "grounded"}
+    for key, val in status_counts.items():
+        if key not in known_statuses:
+            in_maintenance += val
+
+    open_qs = WorkOrder.objects.filter(aircraft__company=company).exclude(
+        status="closed"
+    )
+    open_total = open_qs.count()
+    critical_open = open_qs.filter(priority="critical").count()
+
+    priority_order = ["critical", "high", "medium", "low"]
+    prio_rows = open_qs.values("priority").annotate(c=Count("id"))
+    prio_map = {row["priority"]: row["c"] for row in prio_rows}
+    open_by_priority = {p: prio_map.get(p, 0) for p in priority_order}
+
+    closed_qs = WorkOrder.objects.filter(
+        aircraft__company=company, status="closed"
+    )
+    closures_last_7d = closed_qs.filter(updated_at__gte=boundary_7).count()
+    closures_prior_7d = closed_qs.filter(
+        updated_at__gte=boundary_14, updated_at__lt=boundary_7
+    ).count()
+
+    available_pct = (
+        round(100.0 * available / total_aircraft, 1) if total_aircraft else 0.0
+    )
+
+    return Response(
+        {
+            "as_of": now.isoformat(),
+            "fleet": {
+                "total_aircraft": total_aircraft,
+                "segments": [
+                    {
+                        "key": "available",
+                        "label": "Available",
+                        "count": available,
+                        "color": "#4CAF50",
+                    },
+                    {
+                        "key": "in_maintenance",
+                        "label": "In maintenance",
+                        "count": in_maintenance,
+                        "color": "#FF9800",
+                    },
+                    {
+                        "key": "grounded",
+                        "label": "Grounded",
+                        "count": grounded,
+                        "color": "#E53935",
+                    },
+                ],
+            },
+            "open_work_orders_by_priority": open_by_priority,
+            "open_work_orders_total": open_total,
+            "critical_open_work_orders": critical_open,
+            "available_aircraft_percent": available_pct,
+            "trends": {
+                "closures_last_7d": closures_last_7d,
+                "closures_prior_7d": closures_prior_7d,
+            },
+        }
+    )
+
+
 ###
 #endpoints for all of the company submodels
 ###
@@ -622,18 +857,38 @@ def company_flight_dispatch_view(request, pk):
             {"error": "User does not have an associated company"},
             status=status.HTTP_403_FORBIDDEN,
         )
-    role = getattr(request.user, "company_role", None)
-    if role not in ("dispatcher", "manager", "owner") and not _is_platform_admin(request.user):
+    flight = get_object_or_404(Flight.objects.filter(company=company), pk=pk)
+    role = _request_role(request.user)
+    is_admin = _is_platform_admin(request.user)
+    is_dispatch_ops = role in {"dispatcher", "manager", "owner"} or is_admin
+    is_pilot_owner = role == "pilot" and flight.primary_pilot_id == request.user.id
+    if not (is_dispatch_ops or is_pilot_owner):
         return Response(
-            {"error": "Dispatcher or management role required."},
+            {"error": "Dispatcher/management role required, or pilot can edit own request."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    flight = get_object_or_404(Flight.objects.filter(company=company), pk=pk)
-    serializer = FlightSerializer(flight, data=request.data, partial=True)
+    data = request.data.copy()
+    if is_pilot_owner and not is_dispatch_ops:
+        # Pilot edits are limited to own request details (not operational status changes).
+        allowed_fields = {
+            "departure_time",
+            "arrival_time",
+            "route",
+            "secondary_pilot",
+        }
+        payload_fields = set(data.keys())
+        disallowed = payload_fields - allowed_fields
+        if disallowed:
+            return Response(
+                {"error": f"Pilot cannot edit fields: {', '.join(sorted(disallowed))}."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    serializer = FlightSerializer(flight, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
     inst = serializer.save()
-    new_status = request.data.get("status")
+    new_status = data.get("status")
     if new_status == "approved" and inst.dispatcher_id is None:
         inst.dispatcher = request.user
         inst.save(update_fields=["dispatcher"])
@@ -650,7 +905,7 @@ def company_inventory_view(request):
 
 #endpoint for company's workorders
 @api_view(['GET'])
-@permission_classes([IsMechanicOrManager])
+@permission_classes([IsAuthenticated])
 def company_workorders_view(request):
     company = get_request_company(request)
     if company is None:
@@ -661,7 +916,7 @@ def company_workorders_view(request):
 
 #endpoint for company's discrepancies
 @api_view(['GET'])
-@permission_classes([IsMechanicOrManagerOrPilot])
+@permission_classes([IsAuthenticated])
 def company_discrepancies_view(request):
     company = get_request_company(request)
     if company is None:
@@ -738,10 +993,25 @@ class CompanyInventoryListView(generics.ListCreateAPIView):
         user_company = get_request_company(self.request)
         if not user_company:
             return InventoryPart.objects.none()
+        tracked_count = (
+            InstalledComponent.objects.filter(company_id=user_company.id)
+            .filter(
+                Q(part_id=OuterRef("part_id"))
+                | Q(part_number=OuterRef("part__part_number"))
+            )
+            .values("part_id")
+            .annotate(cnt=Count("id"))
+            .values("cnt")[:1]
+        )
         return (
             super()
             .get_queryset()
             .filter(inventory__company=user_company)
+            .annotate(
+                tracked_units_count=Coalesce(
+                    Subquery(tracked_count, output_field=IntegerField()), 0
+                )
+            )
             .order_by("part__part_number")
         )
 
@@ -801,9 +1071,15 @@ class ProfileViewSet(viewsets.ModelViewSet):
 
 
 class AircraftViewSet(viewsets.ModelViewSet):
-    queryset = Aircraft.objects.all()
     serializer_class = AircraftSerializer
     permission_classes = [IsManagerOrOwner]
+
+    def get_queryset(self):
+        return company_scoped_aircraft_queryset(self.request)
+
+    def perform_create(self, serializer):
+        company = get_request_company(self.request)
+        serializer.save(company=company)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def work_order_history(self, request, pk=None):
@@ -815,7 +1091,12 @@ class AircraftViewSet(viewsets.ModelViewSet):
 class PartViewSet(viewsets.ModelViewSet):
     queryset = Part.objects.all()
     serializer_class = PartSerializer
-    permission_classes = [IsMechanicOrManager]
+    def get_permissions(self):
+        # Allow all authenticated company users to read parts for maintenance/work-order context.
+        # Keep write operations restricted to mechanic/manager/owner via existing permission.
+        if self.action in ("list", "retrieve"):
+            return [IsAuthenticated()]
+        return [IsMechanicOrManager()]
 
 class DiscrepancyViewSet(viewsets.ModelViewSet):
     serializer_class = DiscrepancySerializer
@@ -824,25 +1105,67 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
         return company_scoped_discrepancy_queryset(self.request)
 
     def get_permissions(self):
-        # Pilots/mechanics can create discrepancy reports; only managers/owners delete.
+        # Authenticated company users can create discrepancy reports; only owners delete in MVP.
         if self.action == "create":
             return [IsAuthenticated()]
+        if self.action in {"update", "partial_update"}:
+            return [IsAuthenticated()]
         if self.action == "destroy":
-            return [IsManagerOrOwner()]
-        return [IsMechanicOrManager()]
+            return [IsOwner()]
+        return [IsAuthenticated()]
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        role = _request_role(request.user)
+        is_admin = _is_platform_admin(request.user)
+        can_operate = role in {"mechanic", "dispatcher", "manager", "owner"} or is_admin
+        can_edit_own_report = role == "pilot" and instance.reporter_id == request.user.id
+        if not (can_operate or can_edit_own_report):
+            return Response(
+                {"detail": "You do not have permission to edit this discrepancy."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"], permission_classes=[IsMechanicOrManager])
     def open_work_order(self, request, pk=None):
         discrepancy = self.get_object()
+        before = snapshot_discrepancy(discrepancy)
+        ata_raw = (discrepancy.ata_code or "").strip()
+        try:
+            ata_int = int(ata_raw)
+        except (ValueError, TypeError):
+            ata_int = None
+
+        tach_raw = (str(discrepancy.tach_time) if discrepancy.tach_time else "").strip()
+        try:
+            from decimal import Decimal, InvalidOperation
+            tach_val = Decimal(tach_raw) if tach_raw else None
+        except (InvalidOperation, ValueError, TypeError):
+            tach_val = None
+
+        desc = (discrepancy.description or "").strip()
+        first_line = desc.splitlines()[0].strip() if desc else ""
+        if len(first_line) > 120:
+            first_line = first_line[:117] + "..."
+        wo_title = first_line or f"Discrepancy #{discrepancy.id}"
+
         work_order = WorkOrder.objects.create(
             aircraft=discrepancy.aircraft,
-            ATA_code=discrepancy.ata_code,
-            tach_time=discrepancy.tach_time,
+            title=wo_title,
+            ATA_code=ata_int,
+            tach_time=tach_val,
+            description=discrepancy.description or "",
             status="open",
             created_by=request.user,
         )
+        log_work_order_created(work_order, request)
+
         discrepancy.work_order = work_order
         discrepancy.save()
+        after = snapshot_discrepancy(discrepancy)
+        log_discrepancy_updated(discrepancy, before, after, request)
+
         serializer = WorkOrderSerializer(work_order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
             
@@ -860,10 +1183,26 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         return company_scoped_workorder_queryset(self.request)
 
     def get_permissions(self):
-        # Supervisors (manager/owner) create and delete work orders; mechanics execute assigned work.
-        if self.action in ("create", "destroy"):
-            return [IsManagerOrOwner()]
-        return [IsMechanicOrManager()]
+        # Authenticated company users create; only owners delete in MVP.
+        if self.action == "create":
+            return [IsAuthenticated()]
+        if self.action in {"update", "partial_update"}:
+            return [IsAuthenticated()]
+        if self.action == "destroy":
+            return [IsOwner()]
+        return [IsAuthenticated()]
+
+    def update(self, request, *args, **kwargs):
+        role = _request_role(request.user)
+        if not (
+            role in {"mechanic", "dispatcher", "manager", "owner"}
+            or _is_platform_admin(request.user)
+        ):
+            return Response(
+                {"detail": "You do not have permission to edit work orders."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         created_by = serializer.validated_data.get("created_by")
@@ -875,12 +1214,51 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[CanSignWorkOrder])
     def close(self, request, pk=None):
         work_order = self.get_object()
+        prev_status = work_order.status
         work_order.status = "closed"
         work_order.signed_by = request.user
         work_order.signature_date = date.today()
         work_order.completion_notes = request.data.get("completion_notes")
         work_order.save()
-        work_order.discrepancies.all().update(status="closed")
+
+        from .models import LaborEntry
+
+        raw_labor = request.data.get("labor_hours")
+        if raw_labor not in (None, ""):
+            try:
+                hours = float(raw_labor)
+                if hours > 0:
+                    LaborEntry.objects.create(
+                        work_order=work_order,
+                        mechanic=request.user,
+                        hours=round(hours, 2),
+                        work_date=date.today(),
+                        notes=(request.data.get("labor_notes") or "").strip()[:500],
+                        created_by=request.user,
+                    )
+            except (TypeError, ValueError):
+                pass
+
+        notes = (work_order.completion_notes or "").strip()
+        summary_parts = [f"Status {prev_status.replace('_', ' ').title()} → Closed", "Signed off"]
+        if notes:
+            summary_parts.append(f"Notes: {notes}")
+        WorkOrderActivity.objects.create(
+            work_order=work_order,
+            actor=request.user,
+            event_type=WorkOrderActivity.EventType.UPDATED,
+            summary="; ".join(summary_parts),
+            metadata={"closed_via": "sign_off", "completion_notes": notes},
+        )
+
+        affected_discrepancies = list(work_order.discrepancies.exclude(status="closed"))
+        for disc in affected_discrepancies:
+            before = snapshot_discrepancy(disc)
+            disc.status = "closed"
+            disc.save(update_fields=["status"])
+            after = snapshot_discrepancy(disc)
+            log_discrepancy_updated(disc, before, after, request)
+
         serializer = WorkOrderSerializer(work_order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -1021,7 +1399,7 @@ class FleetAircraftIntervalListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         role = getattr(request.user, "company_role", None)
         if not (
-            role in {"mechanic", "manager", "owner"}
+            role in {"mechanic", "dispatcher", "manager", "owner"}
             or _is_platform_admin(request.user)
         ):
             return Response(
@@ -1034,7 +1412,7 @@ class FleetAircraftIntervalListCreateView(generics.ListCreateAPIView):
         serializer.save(aircraft=self.get_aircraft())
 
 
-class FleetAircraftIntervalUpdateView(generics.UpdateAPIView):
+class FleetAircraftIntervalUpdateView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AircraftMaintenanceIntervalSerializer
     permission_classes = [IsAuthenticated]
     queryset = AircraftMaintenanceInterval.objects.select_related("aircraft")
@@ -1043,7 +1421,7 @@ class FleetAircraftIntervalUpdateView(generics.UpdateAPIView):
     def update(self, request, *args, **kwargs):
         role = getattr(request.user, "company_role", None)
         if not (
-            role in {"mechanic", "manager", "owner"}
+            role in {"mechanic", "dispatcher", "manager", "owner"}
             or _is_platform_admin(request.user)
         ):
             return Response(
@@ -1058,13 +1436,31 @@ class FleetAircraftIntervalUpdateView(generics.UpdateAPIView):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         return super().update(request, *args, **kwargs)
 
+    def destroy(self, request, *args, **kwargs):
+        role = getattr(request.user, "company_role", None)
+        if not (
+            role in {"owner"}
+            or _is_platform_admin(request.user)
+        ):
+            return Response(
+                {"detail": "You do not have permission to delete intervals."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance = self.get_object()
+        allowed_ids = set(
+            fleet_aircraft_queryset(request).values_list("id", flat=True)
+        )
+        if instance.aircraft_id not in allowed_ids:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return super().destroy(request, *args, **kwargs)
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def fleet_interval_complete_view(request, interval_id):
     role = getattr(request.user, "company_role", None)
     if not (
-        role in {"mechanic", "manager", "owner"}
+        role in {"mechanic", "dispatcher", "manager", "owner"}
         or _is_platform_admin(request.user)
     ):
         return Response(

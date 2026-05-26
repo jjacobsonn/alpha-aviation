@@ -6,6 +6,7 @@ import {
 	Button,
 	Card,
 	CardContent,
+	Chip,
 	Container,
 	Dialog,
 	DialogActions,
@@ -30,12 +31,46 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-
 import KPICard from '../components/KPICard';
+import LaborEntriesPanel from '../components/maintenance/LaborEntriesPanel';
+import {
+	MaintenanceActivityTimeline,
+	MaintenanceDescriptionBlock,
+	MaintenanceLinkButton,
+	MaintenanceMetaGrid,
+	MaintenanceOpenRecordButton,
+	MaintenancePanelSection,
+	MaintenancePeopleStrip,
+	MaintenanceRecordHeader,
+	MaintenanceStatusChip,
+	discrepancySummaryLine,
+	parseAircraftFromEntity,
+} from '../components/maintenance/MaintenanceDetailPanel';
+import {
+	profileDisplayName,
+	resolvePersonDisplay,
+	workOrderPeopleLabels,
+} from '../shared/profileDisplay';
+import {
+	discrepancyLinkLabel,
+	workOrderHeadline,
+	workOrderRefId,
+} from '../shared/workOrderDisplay';
+import useDebouncedValue from '../shared/useDebouncedValue';
+import {
+	DISCREPANCY_TABLE_FILTERS,
+	WORK_ORDER_TABLE_FILTERS,
+	buildDiscrepancySuggestions,
+	buildWorkOrderSuggestions,
+	filterMaintenanceDiscrepancies,
+	filterMaintenanceWorkOrders,
+	maintenanceTableEmptyHint,
+} from '../shared/moduleSearch';
+import ModuleSearchBar from '../components/search/ModuleSearchBar';
+import ScrollableTableContainer from '../components/ScrollableTableContainer';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
+	closeWorkOrder,
 	createDiscrepancy,
 	createWorkorder,
 	deleteDiscrepancy,
@@ -44,13 +79,20 @@ import {
 	fetchCompanyDiscrepancies,
 	fetchCompanyUsers,
 	fetchCompanyWorkorders,
+	fetchMaintenanceDashboard,
 	fetchParts,
+	openWorkOrderFromDiscrepancy,
 	updateDiscrepancy,
 	updateWorkorder,
 } from '../shared/Api';
 import AircraftSelector from '../components/AircraftSelector';
 import { useAppContext } from '../context/AppContext';
-import { canSuperviseMaintenance, isMechanicRole, isPlatformAdmin } from '../shared/rbac';
+import {
+	canDeleteWorkOrders,
+	canSuperviseMaintenance,
+	isMechanicRole,
+	isPlatformAdmin,
+} from '../shared/rbac';
 
 /** Matches backend `WorkOrder.STATUS_CHOICES` — value stored, label shown in UI */
 const WORK_ORDER_STATUS_OPTIONS = [
@@ -65,12 +107,7 @@ const WORK_ORDER_PRIORITY_OPTIONS = [
 	{ value: 'high', label: 'High' },
 	{ value: 'critical', label: 'Critical' },
 ];
-const WORK_ORDER_ALLOWED_TRANSITIONS = {
-	open: ['open', 'in_progress', 'awaiting_parts', 'closed'],
-	in_progress: ['in_progress', 'awaiting_parts', 'closed'],
-	awaiting_parts: ['awaiting_parts', 'in_progress', 'closed'],
-	closed: ['closed'],
-};
+const ALL_WORK_ORDER_STATUSES = ['open', 'in_progress', 'awaiting_parts', 'closed'];
 
 /** Matches backend `Discrepancy.STATUS_CHOICES` */
 const DISCREPANCY_STATUS_OPTIONS = [
@@ -88,10 +125,8 @@ function labelForDiscrepancyStatus(value) {
 	return DISCREPANCY_STATUS_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
 }
 
-function getAllowedWorkOrderStatusOptions(currentStatus) {
-	const allowed =
-		WORK_ORDER_ALLOWED_TRANSITIONS[currentStatus] || WORK_ORDER_ALLOWED_TRANSITIONS.open;
-	return WORK_ORDER_STATUS_OPTIONS.filter((opt) => allowed.includes(opt.value));
+function getAllowedWorkOrderStatusOptions() {
+	return WORK_ORDER_STATUS_OPTIONS.filter((opt) => ALL_WORK_ORDER_STATUSES.includes(opt.value));
 }
 
 function humanizeStatusToken(value) {
@@ -106,15 +141,6 @@ function formatActivitySummary(summary) {
 		(_, fromStatus, toStatus) =>
 			`Status ${humanizeStatusToken(fromStatus)} → ${humanizeStatusToken(toStatus)}`
 	);
-}
-
-/** Profile / company user row: prefer real name, fall back to username (no role suffix). */
-function profileDisplayName(u) {
-	if (!u) return '';
-	const fn = (u.first_name || '').trim();
-	const ln = (u.last_name || '').trim();
-	const full = `${fn} ${ln}`.trim();
-	return full || (u.username || '').trim() || '';
 }
 
 function partAircraftId(p) {
@@ -141,23 +167,14 @@ function unwrapApiList(data) {
 }
 
 function MaintenanceActivityList({ items, emptyHint }) {
-	if (!items?.length) {
-		return (
-			<Typography variant="body2" color="text.secondary">{emptyHint}</Typography>
-		);
-	}
 	return (
-		<Stack spacing={1.25} sx={{ maxHeight: 260, overflow: 'auto', pr: 0.5 }}>
-			{items.map((a) => (
-				<Box key={a.id} sx={{ borderLeft: '3px solid', borderColor: 'divider', pl: 1.5, py: 0.25 }}>
-					<Typography variant="caption" color="text.secondary" display="block">
-						{a.created_at ? new Date(a.created_at).toLocaleString() : ''} · {a.actor_display || '—'}
-						{a.event_type ? ` · ${a.event_type}` : ''}
-					</Typography>
-					<Typography variant="body2">{formatActivitySummary(a.summary)}</Typography>
-				</Box>
-			))}
-		</Stack>
+		<MaintenancePanelSection title="Activity log">
+			<MaintenanceActivityTimeline
+				items={items}
+				emptyHint={emptyHint}
+				formatSummary={formatActivitySummary}
+			/>
+		</MaintenancePanelSection>
 	);
 }
 
@@ -184,13 +201,21 @@ const initialDiscrepancyForm = {
 	work_order: '',
 };
 
+const detailDialogActionsSx = {
+	flexWrap: 'wrap',
+	gap: 1,
+	px: { xs: 2, sm: 3 },
+	py: { xs: 1.5, sm: 2 },
+};
+
 const Maintenance = () => {
 	const { state } = useAppContext();
 	const location = useLocation();
 	const navigate = useNavigate();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const mechanicRole = isMechanicRole(state.user);
-	const superviseMaintenance = canSuperviseMaintenance(state.user);
+	const superviseMaintenance = canSuperviseMaintenance(state);
+	const canDeleteMaintenanceRecords = canDeleteWorkOrders(state);
 	const canEditWorkOrderAssignment = superviseMaintenance || platformAdmin;
 	const hasCompanyContext = Boolean(state.user?.companyId) || Boolean(localStorage.getItem('adminCompanyId'));
 	const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false);
@@ -210,12 +235,21 @@ const Maintenance = () => {
 	const [discrepancyForm, setDiscrepancyForm] = useState(initialDiscrepancyForm);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
-	const [expandedWorkOrderId, setExpandedWorkOrderId] = useState(null);
-	const [expandedDiscrepancyId, setExpandedDiscrepancyId] = useState(null);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [deleteConfirmType, setDeleteConfirmType] = useState(null); // 'workorder' or 'discrepancy'
 	const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 	const [didHandleDeepLink, setDidHandleDeepLink] = useState(false);
+	const [woSearch, setWoSearch] = useState('');
+	const [woStatusFilters, setWoStatusFilters] = useState([]);
+	const [discSearch, setDiscSearch] = useState('');
+	const [discStatusFilters, setDiscStatusFilters] = useState([]);
+	const debouncedWoSearch = useDebouncedValue(woSearch, 300);
+	const debouncedDiscSearch = useDebouncedValue(discSearch, 300);
+	const [dashboardKPIs, setDashboardKPIs] = useState(null);
+	const [closeWoDialogOpen, setCloseWoDialogOpen] = useState(false);
+	const [closeWoNotes, setCloseWoNotes] = useState('');
+	const [closeWoLaborHours, setCloseWoLaborHours] = useState('');
+	const [successMessage, setSuccessMessage] = useState('');
 	const aircraftFilterFromQuery = new URLSearchParams(location.search).get('aircraft') || '';
 
 	useEffect(() => {
@@ -263,7 +297,7 @@ const Maintenance = () => {
 			setIsLoading(true);
 			setError('');
 			try {
-				const [woData, discData, aircraftData, userData, partsData] = await Promise.all([
+				const [woRes, discRes, aircraftRes, userRes, partsRes] = await Promise.allSettled([
 					fetchCompanyWorkorders(),
 					fetchCompanyDiscrepancies(),
 					fetchCompanyAircrafts(),
@@ -271,11 +305,23 @@ const Maintenance = () => {
 					fetchParts(),
 				]);
 				if (!mounted) return;
-				setWorkOrders(Array.isArray(woData) ? woData : []);
-				setDiscrepancies(Array.isArray(discData) ? discData : []);
-				setAircraft(Array.isArray(aircraftData) ? aircraftData : []);
-				setCompanyUsers(Array.isArray(userData) ? userData : []);
+				const woData = woRes.status === 'fulfilled' ? woRes.value : [];
+				const discData = discRes.status === 'fulfilled' ? discRes.value : [];
+				const aircraftData = aircraftRes.status === 'fulfilled' ? aircraftRes.value : [];
+				const userData = userRes.status === 'fulfilled' ? userRes.value : [];
+				const partsData = partsRes.status === 'fulfilled' ? partsRes.value : [];
+				setWorkOrders(unwrapApiList(woData));
+				setDiscrepancies(unwrapApiList(discData));
+				setAircraft(unwrapApiList(aircraftData));
+				setCompanyUsers(unwrapApiList(userData));
 				setAllParts(unwrapApiList(partsData));
+				if (woRes.status === 'rejected') {
+					setError(woRes.reason?.message || 'Failed to load work orders.');
+				}
+
+				fetchMaintenanceDashboard()
+					.then((kpis) => mounted && setDashboardKPIs(kpis))
+					.catch(() => {});
 			} catch (e) {
 				if (!mounted) return;
 				setError(e?.message || 'Failed to load maintenance data.');
@@ -299,6 +345,9 @@ const Maintenance = () => {
 		]);
 		setWorkOrders(Array.isArray(woData) ? woData : []);
 		setDiscrepancies(Array.isArray(discData) ? discData : []);
+		fetchMaintenanceDashboard()
+			.then((kpis) => setDashboardKPIs(kpis))
+			.catch(() => {});
 	};
 
 	const today = useMemo(() => new Date(), []);
@@ -321,12 +370,8 @@ const Maintenance = () => {
 		return m;
 	}, [companyUsers]);
 
-	const resolveProfileName = (profileRef) => {
-		if (profileRef == null) return '';
-		if (typeof profileRef === 'object') return profileDisplayName(profileRef);
-		const u = profileById.get(profileRef);
-		return profileDisplayName(u) || String(profileRef);
-	};
+	const resolveProfileName = (profileRef, displayName) =>
+		resolvePersonDisplay(profileRef, displayName, profileById);
 
 	const dueSoonWorkOrders = useMemo(
 		() =>
@@ -357,55 +402,70 @@ const Maintenance = () => {
 		return m;
 	}, [companyParts]);
 
+	const aircraftLabelById = useMemo(() => {
+		const m = new Map();
+		aircraft.forEach((a) => {
+			const label = `${a.registration_number || ''} (${a.model || ''})`.trim();
+			m.set(Number(a.id), label || a.registration_number || a.model || `Aircraft #${a.id}`);
+		});
+		return m;
+	}, [aircraft]);
+
 	const mappedWorkOrders = useMemo(
 		() =>
 			workOrders.map((wo) => {
 				const partIds = Array.isArray(wo.parts_needed) ? wo.parts_needed : [];
-				const parts_summary = partIds.length
-					? partIds
-						.map((raw) => {
+				const part_labels = partIds.length
+					? partIds.map((raw) => {
 							const id = typeof raw === 'object' && raw != null ? raw.id : raw;
 							return partLabelById.get(id) || `#${id}`;
-						})
-						.join(', ')
-					: '';
+					  })
+					: [];
 				return {
 					id: wo.id,
-					order_number: wo.id,
-					parts_summary,
+					work_order_label: wo.title?.trim() || `Work order #${wo.id}`,
+					part_labels,
 					aircraft:
 						typeof wo.aircraft === 'object' && wo.aircraft
 							? `${wo.aircraft.registration_number || ''} ${wo.aircraft.model || ''}`.trim() ||
-							wo.aircraft.model ||
-							wo.aircraft.registration_number
-							: wo.aircraft,
-					assigned_to: resolveProfileName(wo.created_by),
+							  wo.aircraft.model ||
+							  wo.aircraft.registration_number
+							: aircraftLabelById.get(Number(wo.aircraft)) || (wo.aircraft ? `Aircraft #${wo.aircraft}` : '—'),
+					assigned_to: resolveProfileName(wo.assignee, wo.assignee_name),
 					status: wo.status,
 					status_label: labelForWorkOrderStatus(wo.status),
 					due_date: wo.due_by,
 					description: wo.description,
 				};
 			}),
-		[workOrders, profileById, partLabelById]
+		[workOrders, profileById, partLabelById, aircraftLabelById]
 	);
 
 	const mappedDiscrepancies = useMemo(
 		() =>
-			discrepancies.map((d) => ({
-				id: d.id,
-				discrepancy_number: d.id,
-				part_number: d.ata_code || '',
-				aircraft:
-					typeof d.aircraft === 'object' && d.aircraft
-						? `${d.aircraft.registration_number || ''} ${d.aircraft.model || ''}`.trim() ||
-						d.aircraft.model ||
-						d.aircraft.registration_number
-						: d.aircraft,
-				status: d.status,
-				status_label: labelForDiscrepancyStatus(d.status),
-				description: d.description,
-			})),
-		[discrepancies]
+			discrepancies.map((d) => {
+				const description = (d.description || '').trim();
+				return {
+					id: d.id,
+					discrepancy_label: description
+						? description.length > 56
+							? `${description.slice(0, 56)}...`
+							: description
+						: `Discrepancy #${d.id}`,
+					part_number: d.ata_code || '',
+					aircraft:
+						typeof d.aircraft === 'object' && d.aircraft
+							? `${d.aircraft.registration_number || ''} ${d.aircraft.model || ''}`.trim() ||
+							  d.aircraft.model ||
+							  d.aircraft.registration_number
+							: aircraftLabelById.get(Number(d.aircraft)) || (d.aircraft ? `Aircraft #${d.aircraft}` : '—'),
+					status: d.status,
+					status_label: labelForDiscrepancyStatus(d.status),
+					description: d.description,
+					reported_date: d.date_reported || '',
+				};
+			}),
+		[discrepancies, aircraftLabelById]
 	);
 
 	const displayedWorkOrders = useMemo(() => {
@@ -432,6 +492,47 @@ const Maintenance = () => {
 		});
 	}, [aircraftFilterFromQuery, mappedDiscrepancies, discrepancies]);
 
+	const woSuggestions = useMemo(
+		() => buildWorkOrderSuggestions(workOrders, debouncedWoSearch),
+		[workOrders, debouncedWoSearch]
+	);
+
+	const discSuggestions = useMemo(
+		() => buildDiscrepancySuggestions(discrepancies, debouncedDiscSearch),
+		[discrepancies, debouncedDiscSearch]
+	);
+
+	const searchedWorkOrders = useMemo(
+		() =>
+			filterMaintenanceWorkOrders(
+				workOrders,
+				displayedWorkOrders,
+				debouncedWoSearch,
+				woStatusFilters,
+				profileById,
+				partLabelById
+			),
+		[
+			workOrders,
+			displayedWorkOrders,
+			debouncedWoSearch,
+			woStatusFilters,
+			profileById,
+			partLabelById,
+		]
+	);
+
+	const searchedDiscrepancies = useMemo(
+		() =>
+			filterMaintenanceDiscrepancies(
+				discrepancies,
+				displayedDiscrepancies,
+				debouncedDiscSearch,
+				discStatusFilters
+			),
+		[discrepancies, displayedDiscrepancies, debouncedDiscSearch, discStatusFilters]
+	);
+
 	const mechanicUsers = useMemo(
 		() => companyUsers.filter((u) => ['mechanic', 'manager', 'owner'].includes(u?.company_role)),
 		[companyUsers]
@@ -443,8 +544,8 @@ const Maintenance = () => {
 		return companyParts.filter((p) => Number(partAircraftId(p)) === aid);
 	}, [companyParts, workorderForm.aircraft]);
 	const allowedEditStatusOptions = useMemo(
-		() => getAllowedWorkOrderStatusOptions(selectedWorkOrder?.status || 'open'),
-		[selectedWorkOrder?.status]
+		() => getAllowedWorkOrderStatusOptions(),
+		[]
 	);
 
 	const handleWorkorderAircraftChange = (newAc) => {
@@ -568,8 +669,11 @@ const Maintenance = () => {
 				parts_needed: (workorderForm.parts_needed || []).map(Number),
 			};
 			if (workorderForm.created_by) {
-				payload.created_by = Number(workorderForm.created_by);
+				const assigneeId = Number(workorderForm.created_by);
+				payload.assignee = assigneeId;
+				payload.created_by = assigneeId;
 			} else {
+				payload.assignee = null;
 				payload.created_by = null;
 			}
 			await updateWorkorder(selectedWorkOrder.id, payload);
@@ -581,10 +685,14 @@ const Maintenance = () => {
 	};
 
 	const handleDeleteWorkorder = (id) => {
+		if (!canDeleteMaintenanceRecords) {
+			setError('Only owners can delete work orders.');
+			return;
+		}
 		setDeleteConfirmOpen(true);
 		setDeleteConfirmType('workorder');
 		setDeleteConfirmId(id);
-    closeWorkOrderDetail();
+		closeWorkOrderDetail();
 	};
 
 	const populateDiscrepancyFormFromRow = (d) => {
@@ -603,6 +711,30 @@ const Maintenance = () => {
 			status: d?.status || 'pending',
 			work_order: woId === '' ? '' : String(woId),
 		});
+	};
+
+	const linkedDiscrepanciesForSelectedWo = useMemo(() => {
+		if (!selectedWorkOrder?.id) return [];
+		const woId = Number(selectedWorkOrder.id);
+		return discrepancies.filter((d) => workOrderRefId(d.work_order) === woId);
+	}, [discrepancies, selectedWorkOrder?.id]);
+
+	const viewLinkedWorkOrder = (disc) => {
+		const woId = workOrderRefId(disc?.work_order);
+		if (woId == null) return;
+		const wo = workOrders.find((w) => Number(w.id) === woId);
+		if (!wo) {
+			setError('Work order not found. Refresh the page and try again.');
+			return;
+		}
+		closeDiscrepancyDetail();
+		openWorkOrderDetail(wo);
+	};
+
+	const viewSourceDiscrepancy = (disc) => {
+		if (!disc?.id) return;
+		closeWorkOrderDetail();
+		openDiscrepancyDetail(disc);
 	};
 
 	const openDiscrepancyDetail = (d) => {
@@ -658,10 +790,14 @@ const Maintenance = () => {
 	};
 
 	const handleDeleteDiscrepancy = (id) => {
+		if (!canDeleteMaintenanceRecords) {
+			setError('Only owners can delete discrepancies.');
+			return;
+		}
 		setDeleteConfirmOpen(true);
 		setDeleteConfirmType('discrepancy');
 		setDeleteConfirmId(id);
-    closeDiscrepancyDetail();
+		closeDiscrepancyDetail();
 	};
 
 	const confirmDelete = async () => {
@@ -669,10 +805,8 @@ const Maintenance = () => {
 		try {
 			if (deleteConfirmType === 'workorder') {
 				await deleteWorkorder(deleteConfirmId);
-        // closeWorkOrderDetail();  // might be necessary?
 			} else if (deleteConfirmType === 'discrepancy') {
 				await deleteDiscrepancy(deleteConfirmId);
-        // closeDiscrepancyDetail();  // might be necessary?
 			}
 			await refreshMaintenanceData();
 			setDeleteConfirmOpen(false);
@@ -688,6 +822,43 @@ const Maintenance = () => {
 		setDeleteConfirmType(null);
 		setDeleteConfirmId(null);
 	};
+
+	const handleCloseAndSign = async () => {
+		if (!selectedWorkOrder?.id) return;
+		setError('');
+		setSuccessMessage('');
+		try {
+			await closeWorkOrder(selectedWorkOrder.id, {
+				completionNotes: closeWoNotes,
+				laborHours: closeWoLaborHours,
+			});
+			const woLabel = selectedWorkOrder.title || `Work order #${selectedWorkOrder.id}`;
+			setCloseWoDialogOpen(false);
+			setCloseWoNotes('');
+			setCloseWoLaborHours('');
+			closeWorkOrderDetail();
+			await refreshMaintenanceData();
+			setSuccessMessage(`${woLabel} closed and signed off.`);
+		} catch (e) {
+			setError(e?.message || 'Failed to close work order.');
+		}
+	};
+
+	const handleOpenWoFromDiscrepancy = async () => {
+		if (!selectedDiscrepancy?.id) return;
+		setError('');
+		setSuccessMessage('');
+		try {
+			const newWo = await openWorkOrderFromDiscrepancy(selectedDiscrepancy.id);
+			closeDiscrepancyDetail();
+			await refreshMaintenanceData();
+			setSuccessMessage(
+				`Work order #${newWo?.id ?? ''} created from Discrepancy #${selectedDiscrepancy.id}.`
+			);
+		} catch (e) {
+			setError(e?.message || 'Failed to create work order from discrepancy.');
+		}
+	};
   
 	useEffect(() => {
 		if (isLoading || didHandleDeepLink) return;
@@ -699,10 +870,9 @@ const Maintenance = () => {
 		if (woParam) {
 			const woId = Number(woParam);
 			const wo = workOrders.find((w) => Number(w?.id) === woId);
-			if (wo) {
-				openWorkOrderDetail(wo);
-				if (editParam === '1') setWorkOrderDetailEditing(true);
-			}
+			if (!wo) return;
+			openWorkOrderDetail(wo);
+			if (editParam === '1') setWorkOrderDetailEditing(true);
 			setDidHandleDeepLink(true);
 			navigate('/maintenance', { replace: true });
 			return;
@@ -711,10 +881,9 @@ const Maintenance = () => {
 		if (discParam) {
 			const discId = Number(discParam);
 			const d = discrepancies.find((x) => Number(x?.id) === discId);
-			if (d) {
-				openDiscrepancyDetail(d);
-				if (editParam === '1') setDiscrepancyDetailEditing(true);
-			}
+			if (!d) return;
+			openDiscrepancyDetail(d);
+			if (editParam === '1') setDiscrepancyDetailEditing(true);
 			setDidHandleDeepLink(true);
 			navigate('/maintenance', { replace: true });
 			return;
@@ -725,7 +894,7 @@ const Maintenance = () => {
 	
   return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
-			<Container maxWidth="xl" sx={{ py: 4 }}>
+			<Container maxWidth="xl" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 3 }, minWidth: 0 }}>
 				<Box sx={{ mb: 3 }}>
 					<Typography variant="h4" sx={{ fontWeight: 800 }}>
 						Maintenance
@@ -737,11 +906,16 @@ const Maintenance = () => {
 					</Typography>
 				</Box>
 
-				{error ? (
-					<Alert severity="error" sx={{ mb: 2 }}>
-						{error}
-					</Alert>
-				) : null}
+			{error ? (
+				<Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+					{error}
+				</Alert>
+			) : null}
+			{successMessage ? (
+				<Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage('')}>
+					{successMessage}
+				</Alert>
+			) : null}
         {aircraftFilterFromQuery ? (
 					<Alert severity="info" sx={{ mb: 2 }}>
 						Filtered to aircraft ID {aircraftFilterFromQuery} from Fleet detail link.
@@ -751,44 +925,44 @@ const Maintenance = () => {
 				{/* KPI Cards */}
 				<Grid container spacing={3} sx={{ mb: 3, alignItems: 'center' }}>
 					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<WorkHistoryIcon />}
-							label="Pending"
-							value={discrepancies.length}
-							loading={isLoading}
-							iconBgColor="#2196F315"
-							iconColor="#2196F3"
-						/>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<BuildIcon />}
-							label="Open"
-							value={workOrders.length}
-							loading={isLoading}
-							iconBgColor="#FF980015"
-							iconColor="#FF9800"
-						/>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<WarningIcon />}
-							label="Overdue"
-							value={overdueWorkOrders.length}
-							loading={isLoading}
-							iconBgColor="#F4433615"
-							iconColor="#F44336"
-						/>
-					</Grid>
-					<Grid item xs={12} sm={6} md={3}>
-						<KPICard
-							icon={<CheckCircleIcon />}
-							label="Due Soon"
-							value={dueSoonWorkOrders.length}
-							loading={isLoading}
-							iconBgColor="#4CAF5015"
-							iconColor="#4CAF50"
-						/>
+					<KPICard
+						icon={<WorkHistoryIcon />}
+						label="Pending"
+						value={dashboardKPIs?.pending_discrepancies ?? discrepancies.length}
+						loading={isLoading}
+						iconBgColor="#2196F315"
+						iconColor="#2196F3"
+					/>
+				</Grid>
+				<Grid item xs={12} sm={6} md={3}>
+					<KPICard
+						icon={<BuildIcon />}
+						label="Open"
+						value={dashboardKPIs?.open_work_orders ?? workOrders.length}
+						loading={isLoading}
+						iconBgColor="#FF980015"
+						iconColor="#FF9800"
+					/>
+				</Grid>
+				<Grid item xs={12} sm={6} md={3}>
+					<KPICard
+						icon={<WarningIcon />}
+						label="Overdue"
+						value={dashboardKPIs?.overdue ?? overdueWorkOrders.length}
+						loading={isLoading}
+						iconBgColor="#F4433615"
+						iconColor="#F44336"
+					/>
+				</Grid>
+				<Grid item xs={12} sm={6} md={3}>
+					<KPICard
+						icon={<CheckCircleIcon />}
+						label="Due Soon"
+						value={dashboardKPIs?.due_soon ?? dueSoonWorkOrders.length}
+						loading={isLoading}
+						iconBgColor="#4CAF5015"
+						iconColor="#4CAF50"
+					/>
 					</Grid>
 					<Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1 }}>
 						{superviseMaintenance ? (
@@ -815,172 +989,199 @@ const Maintenance = () => {
 				{/* Tables */}
 				<Grid container spacing={3} sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
 					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
-							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%', minWidth: 0 }}>
+							<CardContent sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5 }}>
 									Work Orders
 								</Typography>
+								<Box sx={{ mb: 2 }}>
+									<ModuleSearchBar
+										value={woSearch}
+										onChange={setWoSearch}
+										placeholder="Search work orders (title, tail, parts, assignee)…"
+										suggestions={woSuggestions}
+										statusOptions={WORK_ORDER_TABLE_FILTERS}
+										statusValue={woStatusFilters}
+										onStatusChange={setWoStatusFilters}
+										statusMulti
+										statusVariant="chips"
+										resultCount={searchedWorkOrders.length}
+										totalCount={displayedWorkOrders.length}
+									/>
+								</Box>
 
 								{isLoading ? (
 									<Stack alignItems="center" sx={{ py: 4 }}>
 										<CircularProgress />
 									</Stack>
 								) : (
-									<Table size="small">
+									<ScrollableTableContainer minWidth={1080}>
+									<Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
 										<TableHead>
 											<TableRow>
-												<TableCell></TableCell>
-												<TableCell>ID</TableCell>
-												<TableCell>Parts</TableCell>
-												<TableCell>Aircraft</TableCell>
-												<TableCell>Assigned</TableCell>
-												<TableCell>Status</TableCell>
-												<TableCell>Due</TableCell>
-												<TableCell>Actions</TableCell>
+												<TableCell sx={{ minWidth: 160 }}>Title</TableCell>
+												<TableCell sx={{ minWidth: 200 }}>Parts</TableCell>
+												<TableCell sx={{ minWidth: 140 }}>Aircraft</TableCell>
+												<TableCell sx={{ minWidth: 120 }}>Assigned</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Status</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Due</TableCell>
+												<TableCell sx={{ minWidth: 200 }}>Description</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{displayedWorkOrders.map((order) => ( // merge note: changed mappedWorkOrders to displayedWorkOrders
-												<React.Fragment key={order.id}>
-													<TableRow>
-														<TableCell sx={{ width: 40, padding: '8px 4px' }}>
-														</TableCell>
-														<TableCell>{order.order_number}</TableCell>
-														<TableCell sx={{ maxWidth: 220, whiteSpace: 'normal', wordBreak: 'break-word' }}>
-															{order.parts_summary || '—'}
-														</TableCell>
-														<TableCell>{order.aircraft || '—'}</TableCell>
-														<TableCell>{order.assigned_to || '—'}</TableCell>
-														<TableCell>{order.status_label}</TableCell>
-														<TableCell>{order.due_date || '—'}</TableCell>
-														<TableCell>
-															{superviseMaintenance ? (
-																<>
-																	<Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em' }} onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}>
-																		Edit
-																	</Button>
-																	<Button size="small" sx={{ background: '#D92B2B', color: 'white', borderRadius: '10px', margin: '1em' }} onClick={() => handleDeleteWorkorder(order.id)}>
-																		Delete
-																	</Button>
-																</>
-															) : (
-																<Button size="small" variant="outlined" onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}>
-																	View / log progress
-																</Button>
-															)}
-														</TableCell>
-														<Button
-															size="large"
-															onClick={() => setExpandedWorkOrderId(expandedWorkOrderId === order.id ? null : order.id)}
-															sx={{ minWidth: 0, padding: '4px' }}
-														>
-															{expandedWorkOrderId === order.id ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-														</Button>
-													</TableRow>
-													{expandedWorkOrderId === order.id && (
-														<TableRow sx={{ bgcolor: 'action.hover' }}>
-															<TableCell colSpan={8} sx={{ p: 2 }}>
-																<Stack spacing={1}>
-																	<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Description</Typography>
-																	<Typography variant="body2">{order.description || '—'}</Typography>
-																</Stack>
-															</TableCell>
-														</TableRow>
-													)}
-												</React.Fragment>
+											{searchedWorkOrders.map((order) => (
+												<TableRow
+													key={order.id}
+													hover
+													onClick={() => openWorkOrderDetail(workOrders.find((w) => w.id === order.id))}
+													onKeyDown={(e) => {
+														if (e.key === 'Enter' || e.key === ' ') {
+															e.preventDefault();
+															openWorkOrderDetail(workOrders.find((w) => w.id === order.id));
+														}
+													}}
+													tabIndex={0}
+													role="button"
+													sx={{ cursor: 'pointer' }}
+												>
+													<TableCell sx={{ minWidth: 160, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{order.work_order_label}
+													</TableCell>
+													<TableCell sx={{ maxWidth: 280 }}>
+														{order.part_labels?.length ? (
+															<Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+																{order.part_labels.slice(0, 3).map((label, idx) => (
+																	<Chip
+																		key={`${order.id}-part-${idx}`}
+																		size="small"
+																		label={label}
+																		variant="outlined"
+																		sx={{ maxWidth: 260 }}
+																	/>
+																))}
+																{order.part_labels.length > 3 ? (
+																	<Chip
+																		size="small"
+																		label={`+${order.part_labels.length - 3} more`}
+																		sx={{ bgcolor: 'action.hover' }}
+																	/>
+																) : null}
+															</Stack>
+														) : (
+															'—'
+														)}
+													</TableCell>
+													<TableCell>{order.aircraft || '—'}</TableCell>
+													<TableCell>{order.assigned_to || '—'}</TableCell>
+													<TableCell>{order.status_label}</TableCell>
+													<TableCell sx={{ whiteSpace: 'nowrap' }}>{order.due_date || '—'}</TableCell>
+													<TableCell sx={{ minWidth: 180, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{order.description || '—'}
+													</TableCell>
+												</TableRow>
 											))}
-											{displayedWorkOrders.length === 0 ? (
+											{searchedWorkOrders.length === 0 ? (
 												<TableRow>
-													<TableCell colSpan={8} sx={{ color: 'text.secondary' }}>
-														No work orders found.
+													<TableCell colSpan={7} sx={{ color: 'text.secondary' }}>
+														{maintenanceTableEmptyHint(
+															'workorder',
+															woStatusFilters,
+															displayedWorkOrders.length,
+															searchedWorkOrders.length,
+															Boolean(debouncedWoSearch.trim())
+														)}
 													</TableCell>
 												</TableRow>
 											) : null}
 										</TableBody>
 									</Table>
+									</ScrollableTableContainer>
 								)}
 							</CardContent>
 						</Card>
 					</Grid>
 
 					<Grid item sx={{ width: '100%', flex: '0 0 auto' }}>
-						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
-							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
+						<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%', minWidth: 0 }}>
+							<CardContent sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+								<Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5 }}>
 									Discrepancies
 								</Typography>
+								<Box sx={{ mb: 2 }}>
+									<ModuleSearchBar
+										value={discSearch}
+										onChange={setDiscSearch}
+										placeholder="Search discrepancies (description, tail, ATA)…"
+										suggestions={discSuggestions}
+										statusOptions={DISCREPANCY_TABLE_FILTERS}
+										statusValue={discStatusFilters}
+										onStatusChange={setDiscStatusFilters}
+										statusMulti
+										statusVariant="chips"
+										resultCount={searchedDiscrepancies.length}
+										totalCount={displayedDiscrepancies.length}
+									/>
+								</Box>
 
 								{isLoading ? (
 									<Stack alignItems="center" sx={{ py: 4 }}>
 										<CircularProgress />
 									</Stack>
 								) : (
-									<Table size="small">
+									<ScrollableTableContainer minWidth={880}>
+									<Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
 										<TableHead>
 											<TableRow>
-												<TableCell></TableCell>
-												<TableCell>ID</TableCell>
-												<TableCell>ATA</TableCell>
-												<TableCell>Aircraft</TableCell>
-												<TableCell>Status</TableCell>
-												<TableCell>Actions</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Discrepancy</TableCell>
+												<TableCell sx={{ minWidth: 100 }}>Reported</TableCell>
+												<TableCell sx={{ minWidth: 72 }}>ATA</TableCell>
+												<TableCell sx={{ minWidth: 140 }}>Aircraft</TableCell>
+												<TableCell sx={{ minWidth: 90 }}>Status</TableCell>
+												<TableCell sx={{ minWidth: 200 }}>Description</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{displayedDiscrepancies.map((d) => ( // merge note: changed mappedDiscrepancies to displayedDiscrepancies
-												<React.Fragment key={d.id}>
-													<TableRow>
-														<TableCell sx={{ width: 40, padding: '8px 4px' }}>
-														</TableCell>
-														<TableCell>{d.discrepancy_number}</TableCell>
-														<TableCell>{d.part_number || '—'}</TableCell>
-														<TableCell>{d.aircraft || '—'}</TableCell>
-														<TableCell>{d.status_label}</TableCell>
-														<TableCell>
-															{superviseMaintenance ? (
-																<>
-																	<Button size="small" onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}>
-																		Edit
-																	</Button>
-																	<Button size="small" sx={{ background: '#D92B2B', color: 'white', borderRadius: '10px' }} onClick={() => handleDeleteDiscrepancy(d.id)}>
-																		Delete
-																	</Button>
-																</>
-															) : (
-																<Button size="small" variant="outlined" onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}>
-																	View / update
-																</Button>
-															)}
-														</TableCell>
-														<Button
-															size="large"
-															onClick={() => setExpandedDiscrepancyId(expandedDiscrepancyId === d.id ? null : d.id)}
-															sx={{ minWidth: 0, padding: '4px' }}
-														>
-															{expandedDiscrepancyId === d.id ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-														</Button>
-													</TableRow>
-													{expandedDiscrepancyId === d.id && (
-														<TableRow sx={{ bgcolor: 'action.hover' }}>
-															<TableCell colSpan={6} sx={{ p: 2 }}>
-																<Stack spacing={1}>
-																	<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Description</Typography>
-																	<Typography variant="body2">{d.description || '—'}</Typography>
-																</Stack>
-															</TableCell>
-														</TableRow>
-													)}
-												</React.Fragment>
+											{searchedDiscrepancies.map((d) => (
+												<TableRow
+													key={d.id}
+													hover
+													onClick={() => openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id))}
+													onKeyDown={(e) => {
+														if (e.key === 'Enter' || e.key === ' ') {
+															e.preventDefault();
+															openDiscrepancyDetail(discrepancies.find((x) => x.id === d.id));
+														}
+													}}
+													tabIndex={0}
+													role="button"
+													sx={{ cursor: 'pointer' }}
+												>
+													<TableCell>{d.discrepancy_label}</TableCell>
+													<TableCell>{d.reported_date || '—'}</TableCell>
+													<TableCell>{d.part_number || '—'}</TableCell>
+													<TableCell>{d.aircraft || '—'}</TableCell>
+													<TableCell>{d.status_label}</TableCell>
+													<TableCell sx={{ minWidth: 180, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{d.description || '—'}
+													</TableCell>
+												</TableRow>
 											))}
-											{displayedDiscrepancies.length === 0 ? (
+											{searchedDiscrepancies.length === 0 ? (
 												<TableRow>
 													<TableCell colSpan={6} sx={{ color: 'text.secondary' }}>
-														No discrepancies found.
+														{maintenanceTableEmptyHint(
+															'discrepancy',
+															discStatusFilters,
+															displayedDiscrepancies.length,
+															searchedDiscrepancies.length,
+															Boolean(debouncedDiscSearch.trim())
+														)}
 													</TableCell>
 												</TableRow>
 											) : null}
 										</TableBody>
 									</Table>
+									</ScrollableTableContainer>
 								)}
 							</CardContent>
 						</Card>
@@ -1059,50 +1260,156 @@ const Maintenance = () => {
 					</DialogActions>
 				</Dialog>
 
-				<Dialog open={workOrderDetailOpen} onClose={closeWorkOrderDetail} maxWidth="sm" fullWidth>
-					<DialogTitle>
-						{workOrderDetailEditing
-							? superviseMaintenance
-								? 'Edit work order'
-								: 'Update progress'
-							: 'Work order'}
-					</DialogTitle>
-					<DialogContent>
+				<Dialog
+					open={workOrderDetailOpen}
+					onClose={closeWorkOrderDetail}
+					maxWidth="sm"
+					fullWidth
+				>
+					{selectedWorkOrder && !workOrderDetailEditing ? (
+						<MaintenanceRecordHeader
+							eyebrow={`Work order #${selectedWorkOrder.id}`}
+							primary={workOrderHeadline(selectedWorkOrder, 96)}
+							secondary={parseAircraftFromEntity(selectedWorkOrder).full}
+							status={selectedWorkOrder.status}
+							statusKind="workorder"
+							metaLine={
+								[
+									selectedWorkOrder.due_by ? `Due ${selectedWorkOrder.due_by}` : null,
+									WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)
+										?.label
+										? `${WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)?.label} priority`
+										: null,
+								]
+									.filter(Boolean)
+									.join(' · ') || undefined
+							}
+							actions={
+								<Chip
+									size="small"
+									variant="outlined"
+									color={
+										selectedWorkOrder.priority === 'critical'
+											? 'error'
+											: selectedWorkOrder.priority === 'high'
+												? 'warning'
+												: 'default'
+									}
+									label={
+										WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)
+											?.label || 'Medium'
+									}
+									sx={{ height: 26, fontWeight: 600, fontSize: '0.8125rem' }}
+								/>
+							}
+						/>
+					) : (
+						<DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
+							{workOrderDetailEditing
+								? superviseMaintenance
+									? 'Edit work order'
+									: 'Update progress'
+								: 'Work order'}
+						</DialogTitle>
+					)}
+					<DialogContent dividers sx={{ px: 2, py: 1.5 }}>
 						{selectedWorkOrder ? (
-							<Stack spacing={2} sx={{ mt: 1 }}>
+							<Stack spacing={1.75}>
 								{!workOrderDetailEditing ? (
 									<>
-										<Stack spacing={0.75}>
-											<Typography variant="caption" color="text.secondary">Title</Typography>
-											<Typography variant="body1">{selectedWorkOrder.title || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Aircraft</Typography>
-											<Typography variant="body1">{formatEntityAircraft(selectedWorkOrder)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Assigned to</Typography>
-											<Typography variant="body1">{resolveProfileName(selectedWorkOrder.created_by) || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Parts on order</Typography>
-											<Typography variant="body1">
-												{Array.isArray(selectedWorkOrder.parts_needed) && selectedWorkOrder.parts_needed.length
-													? selectedWorkOrder.parts_needed
-															.map((raw) => {
-																const id = typeof raw === 'object' && raw != null ? raw.id : raw;
-																return partLabelById.get(id) || `#${id}`;
-															})
-															.join(', ')
-													: '—'}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Status</Typography>
-											<Typography variant="body1">{labelForWorkOrderStatus(selectedWorkOrder.status)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Priority</Typography>
-											<Typography variant="body1">
-												{WORK_ORDER_PRIORITY_OPTIONS.find((p) => p.value === selectedWorkOrder.priority)?.label || 'Medium'}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Due</Typography>
-											<Typography variant="body1">{selectedWorkOrder.due_by || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Description</Typography>
-											<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{selectedWorkOrder.description || '—'}</Typography>
-										</Stack>
-										<Divider />
-										<Typography variant="subtitle2">Activity log</Typography>
+										<MaintenancePeopleStrip
+											people={[
+												{
+													role: 'Created by',
+													name: resolveProfileName(
+														selectedWorkOrder.created_by,
+														selectedWorkOrder.created_by_name
+													),
+												},
+												{
+													role: 'Assigned to',
+													name: resolveProfileName(
+														selectedWorkOrder.assignee,
+														selectedWorkOrder.assignee_name
+													),
+												},
+											]}
+										/>
+										<MaintenanceMetaGrid
+											items={[
+												{
+													label: 'Aircraft',
+													value: parseAircraftFromEntity(selectedWorkOrder).full,
+												},
+												{
+													label: 'Parts',
+													value:
+														Array.isArray(selectedWorkOrder.parts_needed) &&
+														selectedWorkOrder.parts_needed.length
+															? selectedWorkOrder.parts_needed
+																	.map((raw) => {
+																		const id =
+																			typeof raw === 'object' && raw != null ? raw.id : raw;
+																		return partLabelById.get(id) || `#${id}`;
+																	})
+																	.join(', ')
+															: 'None',
+												},
+												selectedWorkOrder.ATA_code != null && selectedWorkOrder.ATA_code !== ''
+													? { label: 'ATA', value: selectedWorkOrder.ATA_code }
+													: null,
+												selectedWorkOrder.due_by
+													? { label: 'Due', value: selectedWorkOrder.due_by }
+													: null,
+											].filter(Boolean)}
+										/>
+										{linkedDiscrepanciesForSelectedWo.length > 0 ? (
+											<MaintenancePanelSection
+												title={`Pilot report${linkedDiscrepanciesForSelectedWo.length > 1 ? 's' : ''}`}
+											>
+												<Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+													{linkedDiscrepanciesForSelectedWo.map((d) => (
+														<MaintenanceLinkButton
+															key={d.id}
+															label={discrepancyLinkLabel(d, 40)}
+															onClick={() => viewSourceDiscrepancy(d)}
+														/>
+													))}
+												</Stack>
+											</MaintenancePanelSection>
+										) : null}
+										<MaintenanceDescriptionBlock
+											title="Work scope"
+											text={selectedWorkOrder.description}
+										/>
+										{selectedWorkOrder.signed_by ? (
+											<MaintenanceMetaGrid
+												items={[
+													{
+														label: 'Signed off',
+														value: `${resolveProfileName(selectedWorkOrder.signed_by)}${
+															selectedWorkOrder.signature_date
+																? ` · ${selectedWorkOrder.signature_date}`
+																: ''
+														}`,
+													},
+												]}
+											/>
+										) : null}
+										{selectedWorkOrder.completion_notes ? (
+											<MaintenanceDescriptionBlock
+												title="Completion notes"
+												text={selectedWorkOrder.completion_notes}
+											/>
+										) : null}
+										<LaborEntriesPanel
+											workOrderId={selectedWorkOrder.id}
+											canEdit={mechanicRole || superviseMaintenance || platformAdmin}
+											mechanicUsers={mechanicUsers}
+											currentUserId={state.user?.id}
+											onChanged={refreshMaintenanceData}
+											compact
+										/>
 										<MaintenanceActivityList
 											items={selectedWorkOrder?.activities}
 											emptyHint="No history yet."
@@ -1258,19 +1565,31 @@ const Maintenance = () => {
 							</Stack>
 						) : null}
 					</DialogContent>
-					<DialogActions>
-						{!workOrderDetailEditing ? (
-							<>
-								<Button onClick={closeWorkOrderDetail}>Close</Button>
-								{superviseMaintenance ? (
-									<Button color="error" onClick={() => handleDeleteWorkorder(selectedWorkOrder.id)}>
-										Delete
-									</Button>
-								) : null}
-								<Button variant="contained" onClick={() => setWorkOrderDetailEditing(true)}>
-									Edit
+					<DialogActions sx={detailDialogActionsSx}>
+					{!workOrderDetailEditing ? (
+						<>
+							<Button onClick={closeWorkOrderDetail}>Close</Button>
+							{canDeleteMaintenanceRecords ? (
+								<Button color="error" onClick={() => handleDeleteWorkorder(selectedWorkOrder.id)}>
+									Delete
 								</Button>
-							</>
+							) : null}
+							{selectedWorkOrder?.status !== 'closed' && (superviseMaintenance || mechanicRole) ? (
+								<Button
+									color="success"
+									variant="outlined"
+									onClick={() => {
+										setCloseWoNotes('');
+										setCloseWoDialogOpen(true);
+									}}
+								>
+									Close &amp; Sign Off
+								</Button>
+							) : null}
+							<Button variant="contained" onClick={() => setWorkOrderDetailEditing(true)}>
+								Edit
+							</Button>
+						</>
 						) : (
 							<>
 								<Button onClick={cancelWorkOrderEdit}>Cancel</Button>
@@ -1324,49 +1643,98 @@ const Maintenance = () => {
 					</DialogActions>
 				</Dialog>
 
-				<Dialog open={discrepancyDetailOpen} onClose={closeDiscrepancyDetail} maxWidth="sm" fullWidth>
-					<DialogTitle>
-						{discrepancyDetailEditing
-							? superviseMaintenance
-								? 'Edit discrepancy'
-								: 'Update discrepancy'
-							: 'Discrepancy'}
-					</DialogTitle>
-					<DialogContent>
+				<Dialog
+					open={discrepancyDetailOpen}
+					onClose={closeDiscrepancyDetail}
+					maxWidth="sm"
+					fullWidth
+				>
+					{selectedDiscrepancy && !discrepancyDetailEditing ? (
+						<MaintenanceRecordHeader
+							eyebrow={`Discrepancy #${selectedDiscrepancy.id}`}
+							primary={parseAircraftFromEntity(selectedDiscrepancy).tail}
+							secondary={parseAircraftFromEntity(selectedDiscrepancy).model || undefined}
+							summary={discrepancySummaryLine(selectedDiscrepancy)}
+							status={selectedDiscrepancy.status}
+							statusKind="discrepancy"
+							statusLabel={labelForDiscrepancyStatus(selectedDiscrepancy.status)}
+							metaLine={
+								selectedDiscrepancy.date_reported
+									? `Reported ${selectedDiscrepancy.date_reported}`
+									: undefined
+							}
+							actions={
+								workOrderRefId(selectedDiscrepancy.work_order) != null ? (
+									<MaintenanceOpenRecordButton
+										label="Open work order"
+										onClick={() => viewLinkedWorkOrder(selectedDiscrepancy)}
+									/>
+								) : (
+									<Chip
+										size="small"
+										label="No work order"
+										variant="outlined"
+										sx={{ height: 26, fontSize: '0.75rem' }}
+									/>
+								)
+							}
+						/>
+					) : (
+						<DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
+							{discrepancyDetailEditing
+								? superviseMaintenance
+									? 'Edit discrepancy'
+									: 'Update discrepancy'
+								: 'Discrepancy'}
+						</DialogTitle>
+					)}
+					<DialogContent dividers sx={{ px: 2, py: 1.5 }}>
 						{selectedDiscrepancy ? (
-							<Stack spacing={2} sx={{ mt: 1 }}>
+							<Stack spacing={1.75}>
 								{!discrepancyDetailEditing ? (
 									<>
-										<Stack spacing={0.75}>
-											<Typography variant="caption" color="text.secondary">Aircraft</Typography>
-											<Typography variant="body1">{formatEntityAircraft(selectedDiscrepancy)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Reporter</Typography>
-											<Typography variant="body1">
-												{selectedDiscrepancy.reporter_name || resolveProfileName(selectedDiscrepancy.reporter) || '—'}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Linked work order</Typography>
-											<Typography variant="body1">
-												{(() => {
-													const woRef = selectedDiscrepancy.work_order;
-													if (typeof woRef === 'object' && woRef != null) {
-														return `#${woRef.id} — ${woRef.title || ''}`.trim();
-													}
-													return woRef != null && woRef !== '' ? `#${woRef}` : '—';
-												})()}
-											</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Date reported</Typography>
-											<Typography variant="body1">{selectedDiscrepancy.date_reported || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Status</Typography>
-											<Typography variant="body1">{labelForDiscrepancyStatus(selectedDiscrepancy.status)}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>ATA</Typography>
-											<Typography variant="body1">{selectedDiscrepancy.ata_code || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Tach time</Typography>
-											<Typography variant="body1">{selectedDiscrepancy.tach_time || '—'}</Typography>
-											<Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Description</Typography>
-											<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{selectedDiscrepancy.description || '—'}</Typography>
-										</Stack>
-										<Divider />
-										<Typography variant="subtitle2">Activity log</Typography>
+										{(() => {
+											const woRef = selectedDiscrepancy.work_order;
+											const wo =
+												typeof woRef === 'object' && woRef != null ? woRef : null;
+											const people = wo ? workOrderPeopleLabels(wo, profileById) : null;
+											const personnel = [
+												{
+													role: 'Reported by',
+													name: resolveProfileName(
+														selectedDiscrepancy.reporter,
+														selectedDiscrepancy.reporter_name
+													),
+												},
+											];
+											if (people?.openedBy && people.openedBy !== '—') {
+												personnel.push({ role: 'WO opened by', name: people.openedBy });
+											}
+											if (people?.assignedTo && people.assignedTo !== '—') {
+												personnel.push({ role: 'Assigned to', name: people.assignedTo });
+											}
+											return <MaintenancePeopleStrip people={personnel} />;
+										})()}
+										<MaintenanceMetaGrid
+											items={[
+												selectedDiscrepancy.ata_code
+													? { label: 'ATA', value: selectedDiscrepancy.ata_code }
+													: null,
+												selectedDiscrepancy.tach_time
+													? { label: 'Tach', value: selectedDiscrepancy.tach_time }
+													: null,
+												workOrderRefId(selectedDiscrepancy.work_order)
+													? {
+															label: 'Work order',
+															value: `#${workOrderRefId(selectedDiscrepancy.work_order)}`,
+														}
+													: null,
+											].filter(Boolean)}
+										/>
+										<MaintenanceDescriptionBlock
+											title="Full squawk"
+											text={selectedDiscrepancy.description}
+										/>
 										<MaintenanceActivityList
 											items={selectedDiscrepancy?.activities}
 											emptyHint="No history yet."
@@ -1410,19 +1778,28 @@ const Maintenance = () => {
 							</Stack>
 						) : null}
 					</DialogContent>
-					<DialogActions>
-						{!discrepancyDetailEditing ? (
-							<>
-								<Button onClick={closeDiscrepancyDetail}>Close</Button>
-								{superviseMaintenance ? (
-									<Button color="error" onClick={() => handleDeleteDiscrepancy(selectedDiscrepancy.id)}>
-										Delete
-									</Button>
-								) : null}
-								<Button variant="contained" onClick={() => setDiscrepancyDetailEditing(true)}>
-									Edit
+					<DialogActions sx={detailDialogActionsSx}>
+					{!discrepancyDetailEditing ? (
+						<>
+							<Button onClick={closeDiscrepancyDetail}>Close</Button>
+							{canDeleteMaintenanceRecords ? (
+								<Button color="error" onClick={() => handleDeleteDiscrepancy(selectedDiscrepancy.id)}>
+									Delete
 								</Button>
-							</>
+							) : null}
+							{!selectedDiscrepancy?.work_order && (superviseMaintenance || mechanicRole) ? (
+								<Button
+									color="info"
+									variant="outlined"
+									onClick={handleOpenWoFromDiscrepancy}
+								>
+									Open Work Order
+								</Button>
+							) : null}
+							<Button variant="contained" onClick={() => setDiscrepancyDetailEditing(true)}>
+								Edit
+							</Button>
+						</>
 						) : (
 							<>
 								<Button onClick={cancelDiscrepancyEdit}>Cancel</Button>
@@ -1434,6 +1811,47 @@ const Maintenance = () => {
 								</Button>
 							</>
 						)}
+					</DialogActions>
+				</Dialog>
+
+				<Dialog open={closeWoDialogOpen} onClose={() => setCloseWoDialogOpen(false)} maxWidth="xs" fullWidth>
+					<DialogTitle>Close &amp; Sign Off Work Order</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ mt: 1 }}>
+							<Typography variant="body2" color="text.secondary">
+								This will close the work order, record your sign-off, and automatically close all linked discrepancies.
+							</Typography>
+							<TextField
+								label="Completion Notes (optional)"
+								multiline
+								minRows={3}
+								value={closeWoNotes}
+								onChange={(e) => setCloseWoNotes(e.target.value)}
+								fullWidth
+							/>
+							<TextField
+								label="Labor hours (this visit)"
+								type="number"
+								inputProps={{ min: 0.25, max: 24, step: 0.25 }}
+								value={closeWoLaborHours}
+								onChange={(e) => setCloseWoLaborHours(e.target.value)}
+								helperText="Logged as a labor entry when you sign off"
+								fullWidth
+							/>
+						</Stack>
+					</DialogContent>
+					<DialogActions>
+						<Button
+							onClick={() => {
+								setCloseWoDialogOpen(false);
+								setCloseWoLaborHours('');
+							}}
+						>
+							Cancel
+						</Button>
+						<Button variant="contained" color="success" onClick={handleCloseAndSign}>
+							Close &amp; Sign Off
+						</Button>
 					</DialogActions>
 				</Dialog>
 

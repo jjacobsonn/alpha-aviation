@@ -304,3 +304,105 @@ class Command(BaseCommand):
             pilot_requirement = "private",
             status = "pending approval"
         )
+
+        # Component history (Phase 2 — 3.3.2 demo data)
+        from api.models import InstalledComponent, ComponentEvent
+
+        hydraulic_unit = InstalledComponent.objects.create(
+            company=GammaCorp,
+            part=THydraulic,
+            part_number=THydraulic.part_number,
+            part_name=THydraulic.name,
+            serial_number="HYD-1001",
+            component_type=InstalledComponent.ComponentType.SERIALIZED,
+            aircraft=TPlane,
+            location="Aircraft",
+            limit_type=InstalledComponent.LimitType.HOURS,
+            limit_value=2000,
+            used_value=450,
+            installed_at=date(2024, 6, 1),
+        )
+        brake_unit = InstalledComponent.objects.create(
+            company=EpsilonAir,
+            part=SBrake,
+            part_number=SBrake.part_number,
+            part_name=SBrake.name,
+            serial_number="BRK-4201",
+            component_type=InstalledComponent.ComponentType.SERIALIZED,
+            aircraft=SPlane,
+            location="Aircraft",
+            limit_type=InstalledComponent.LimitType.CYCLES,
+            limit_value=500,
+            used_value=120,
+            installed_at=date(2025, 1, 15),
+        )
+        fuel_filter = InstalledComponent.objects.create(
+            company=EpsilonAir,
+            part=SFuel,
+            part_number=SFuel.part_number,
+            part_name=SFuel.name,
+            serial_number="",
+            component_type=InstalledComponent.ComponentType.CONSUMABLE,
+            aircraft=None,
+            location="Hangar B — Shelf 3",
+        )
+
+        event_base = timezone.now() - timedelta(days=30)
+        ComponentEvent.objects.create(
+            component=hydraulic_unit,
+            event_type=ComponentEvent.EventType.INSTALL,
+            occurred_at=event_base - timedelta(days=400),
+            aircraft=TPlane,
+            summary=f"Installed on tail {TPlane.registration_number}",
+            actor=MechanicProfile,
+        )
+        ComponentEvent.objects.create(
+            component=hydraulic_unit,
+            event_type=ComponentEvent.EventType.INSPECTION,
+            occurred_at=event_base - timedelta(days=60),
+            aircraft=TPlane,
+            work_order=THydraulicWO,
+            summary="Leak check and pressure verification — satisfactory",
+            actor=MechanicProfile,
+        )
+        ComponentEvent.objects.create(
+            component=hydraulic_unit,
+            event_type=ComponentEvent.EventType.WORK_ORDER,
+            occurred_at=event_base - timedelta(days=14),
+            aircraft=TPlane,
+            work_order=THydraulicWO,
+            summary=f"Linked to work order: {THydraulicWO.title}",
+            actor=MechanicProfile,
+        )
+        ComponentEvent.objects.create(
+            component=brake_unit,
+            event_type=ComponentEvent.EventType.INSTALL,
+            occurred_at=event_base - timedelta(days=200),
+            aircraft=SPlane,
+            summary=f"Installed on main landing gear — tail {SPlane.registration_number}",
+            actor=MechanicProfile,
+        )
+        ComponentEvent.objects.create(
+            component=brake_unit,
+            event_type=ComponentEvent.EventType.WORK_ORDER,
+            occurred_at=event_base - timedelta(days=7),
+            aircraft=SPlane,
+            work_order=SBrakeWO,
+            summary=f"Brake replacement WO: {SBrakeWO.title}",
+            actor=MechanicProfile,
+        )
+        ComponentEvent.objects.create(
+            component=fuel_filter,
+            event_type=ComponentEvent.EventType.INSTALL,
+            occurred_at=event_base - timedelta(days=90),
+            aircraft=SPlane,
+            summary="Issued and installed during scheduled fuel system inspection",
+            actor=MechanicProfile,
+        )
+        ComponentEvent.objects.create(
+            component=fuel_filter,
+            event_type=ComponentEvent.EventType.NOTE,
+            occurred_at=event_base - timedelta(days=2),
+            summary="Consumable — reorder when stock at or below alert threshold",
+            actor=MechanicProfile,
+        )

@@ -182,6 +182,6 @@ Note: the backend runs with `TIME_ZONE = 'UTC'` and `USE_TZ = True` — timestam
 ## 10. Testing Strategy
 - **Unit Testing**: Backend tests use `pytest` with `pytest-django`. Frontend tests use Jest through `react-scripts test` and React Testing Library.
 - **Integration Testing**: Backend integration tests live under `backend/api/testing/` and use shared pytest fixtures for models and API clients; frontend integration-style tests cover pages, components, and API flows with mocked network calls.
-- **End-to-End Testing**: [Currently being worked on.]
+- **End-to-End Testing**: Playwright-based E2E tests validate core user flows across the frontend and API; configuration and helpers live in the [e2e](e2e) folder with specs under `tests` (see [e2e/playwright.config.ts](e2e/playwright.config.ts) and [e2e/global-setup.ts](e2e/global-setup.ts)), global setup and scripts provision test accounts and seed data, artifacts (screenshots, traces, JSON results) are written to `test-results/` for debugging/CI, and the suite runs locally or headlessly in CI via the Playwright CLI or npm scripts.
 
 ---

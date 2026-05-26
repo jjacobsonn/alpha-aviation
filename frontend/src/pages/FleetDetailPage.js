@@ -8,8 +8,13 @@ import {
 	CardContent,
 	Chip,
 	Container,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
 	Grid,
 	Link,
+	MenuItem,
 	Skeleton,
 	Stack,
 	Table,
@@ -22,6 +27,8 @@ import {
 } from '@mui/material';
 import {
 	completeAircraftInterval,
+	createAircraftInterval,
+	deleteAircraftInterval,
 	fetchAircraftIntervals,
 	fetchFleetAircraftDetail,
 	updateAircraftInterval,
@@ -35,6 +42,36 @@ function intervalChip(status) {
 	return 'success';
 }
 
+function formatFleetStatusLabel(status) {
+	if (!status) return 'Active';
+	const normalized = String(status).toLowerCase();
+	if (normalized === 'aog') return 'AOG';
+	return normalized
+		.split('_')
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(' ');
+}
+
+function splitIntervalNotes(notesValue) {
+	const raw = String(notesValue || '');
+	const match = raw.match(/^\[Submitted By:\s*(.+?)\]\s*\n?/i);
+	if (!match) {
+		return { submittedBy: '', notes: raw };
+	}
+	return {
+		submittedBy: match[1]?.trim() || '',
+		notes: raw.replace(match[0], '').trimStart(),
+	};
+}
+
+function joinIntervalNotes(submittedBy, notes) {
+	const who = String(submittedBy || '').trim();
+	const body = String(notes || '').trim();
+	if (who && body) return `[Submitted By: ${who}]\n${body}`;
+	if (who) return `[Submitted By: ${who}]`;
+	return body;
+}
+
 const FleetDetailPage = () => {
 	const { id } = useParams();
 	const { state } = useAppContext();
@@ -43,20 +80,31 @@ const FleetDetailPage = () => {
 	const [aircraft, setAircraft] = useState(null);
 	const [intervals, setIntervals] = useState([]);
 	const [savingIntervalId, setSavingIntervalId] = useState(null);
-	const [intervalNotesDraft, setIntervalNotesDraft] = useState({});
+	const [isCreatingInterval, setIsCreatingInterval] = useState(false);
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+	const [editingIntervalId, setEditingIntervalId] = useState(null);
+	const [newInterval, setNewInterval] = useState({
+		name: '',
+		interval_type: 'hours',
+		hours_remaining_input: '',
+		days_remaining_input: '',
+		submitted_by: '',
+		notes: '',
+	});
+	const [editInterval, setEditInterval] = useState({
+		name: '',
+		interval_type: 'hours',
+		hours_remaining_input: '',
+		days_remaining_input: '',
+		submitted_by: '',
+		notes: '',
+	});
 
-	const userRole = state.user?.role;
+	const userRole = state.viewAsUser?.role || state.user?.role || state.user?.company_role;
 	const canEditDetail =
-		isPlatformAdmin(state.user) || ['owner', 'manager', 'mechanic'].includes(userRole);
-
-	const hydrateIntervalDrafts = (rows) => {
-		setIntervalNotesDraft(
-			(rows || []).reduce((acc, row) => {
-				acc[row.id] = row.notes || '';
-				return acc;
-			}, {})
-		);
-	};
+		isPlatformAdmin(state.user) || ['owner', 'manager', 'mechanic', 'dispatcher'].includes(userRole);
+	const canDeleteIntervals = userRole === 'owner';
 
 	useEffect(() => {
 		let mounted = true;
@@ -72,7 +120,6 @@ const FleetDetailPage = () => {
 				setAircraft(detail || null);
 				const rows = Array.isArray(intervalRows) ? intervalRows : [];
 				setIntervals(rows);
-				hydrateIntervalDrafts(rows);
 			} catch (e) {
 				if (!mounted) return;
 				setError(e?.message || 'Failed to load aircraft detail.');
@@ -89,21 +136,6 @@ const FleetDetailPage = () => {
 
 	const specsEntries = Object.entries(aircraft?.specs || {});
 
-	const handleSaveIntervalNotes = async (intervalId) => {
-		try {
-			setSavingIntervalId(intervalId);
-			const payload = { notes: intervalNotesDraft[intervalId] ?? '' };
-			const updated = await updateAircraftInterval(intervalId, payload);
-			setIntervals((prev) =>
-				prev.map((row) => (row.id === intervalId ? { ...row, ...updated } : row))
-			);
-		} catch (e) {
-			setError(e?.message || 'Failed to update interval notes.');
-		} finally {
-			setSavingIntervalId(null);
-		}
-	};
-
 	const handleCompleteInterval = async (intervalId) => {
 		try {
 			setSavingIntervalId(intervalId);
@@ -116,13 +148,160 @@ const FleetDetailPage = () => {
 			setIntervals((prev) =>
 				prev.map((row) => (row.id === intervalId ? { ...row, ...updated } : row))
 			);
-			setIntervalNotesDraft((prev) => ({ ...prev, [intervalId]: updated?.notes || '' }));
 		} catch (e) {
 			setError(e?.message || 'Failed to complete interval.');
 		} finally {
 			setSavingIntervalId(null);
 		}
 	};
+
+	const handleCreateInterval = async () => {
+		if (!newInterval.name.trim()) {
+			setError('Interval name is required.');
+			return false;
+		}
+		if (
+			(newInterval.interval_type === 'hours' || newInterval.interval_type === 'both') &&
+			newInterval.hours_remaining_input === ''
+		) {
+			setError('Due hours is required for hours/both intervals.');
+			return false;
+		}
+		if (
+			(newInterval.interval_type === 'days' || newInterval.interval_type === 'both') &&
+			newInterval.days_remaining_input === ''
+		) {
+			setError('Due days is required for days/both intervals.');
+			return false;
+		}
+		try {
+			setIsCreatingInterval(true);
+			setError('');
+			const today = new Date().toISOString().slice(0, 10);
+			const hoursRemaining =
+				newInterval.hours_remaining_input === '' ? null : Number(newInterval.hours_remaining_input);
+			const daysRemaining =
+				newInterval.days_remaining_input === '' ? null : Number(newInterval.days_remaining_input);
+			const payload = {
+				name: newInterval.name.trim(),
+				interval_type: newInterval.interval_type,
+				due_every_hours: hoursRemaining,
+				due_every_days: daysRemaining,
+				last_done_tach: hoursRemaining === null ? null : aircraft?.tach_current ?? null,
+				last_done_hobbs: hoursRemaining === null ? null : aircraft?.hobbs_current ?? null,
+				last_done_date: daysRemaining === null ? null : today,
+				notes: joinIntervalNotes(newInterval.submitted_by, newInterval.notes),
+			};
+			const created = await createAircraftInterval(id, payload);
+			setIntervals((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+			setNewInterval({
+				name: '',
+				interval_type: 'hours',
+				hours_remaining_input: '',
+				days_remaining_input: '',
+				submitted_by: '',
+				notes: '',
+			});
+			return true;
+		} catch (e) {
+			setError(e?.message || 'Failed to create interval.');
+			return false;
+		} finally {
+			setIsCreatingInterval(false);
+		}
+	};
+
+	const handleDeleteInterval = async (intervalId) => {
+		if (!canDeleteIntervals) {
+			setError('Only owners can delete intervals.');
+			return;
+		}
+		try {
+			setSavingIntervalId(intervalId);
+			setError('');
+			await deleteAircraftInterval(intervalId);
+			setIntervals((prev) => prev.filter((row) => row.id !== intervalId));
+		} catch (e) {
+			setError(e?.message || 'Failed to delete interval.');
+		} finally {
+			setSavingIntervalId(null);
+		}
+	};
+
+	const openEditIntervalDialog = (row) => {
+		const parsed = splitIntervalNotes(row.notes);
+		setEditingIntervalId(row.id);
+		setEditInterval({
+			name: row.name || '',
+			interval_type: row.interval_type || 'hours',
+			hours_remaining_input:
+				row.hours_remaining === null || row.hours_remaining === undefined
+					? ''
+					: String(row.hours_remaining),
+			days_remaining_input:
+				row.days_remaining === null || row.days_remaining === undefined
+					? ''
+					: String(row.days_remaining),
+			submitted_by: parsed.submittedBy,
+			notes: parsed.notes,
+		});
+		setIsEditDialogOpen(true);
+	};
+
+	const handleUpdateIntervalFromDialog = async () => {
+		if (!editingIntervalId) return;
+		if (!editInterval.name.trim()) {
+			setError('Interval name is required.');
+			return;
+		}
+		if (
+			(editInterval.interval_type === 'hours' || editInterval.interval_type === 'both') &&
+			editInterval.hours_remaining_input === ''
+		) {
+			setError('Hours remaining is required for hours/both intervals.');
+			return;
+		}
+		if (
+			(editInterval.interval_type === 'days' || editInterval.interval_type === 'both') &&
+			editInterval.days_remaining_input === ''
+		) {
+			setError('Days remaining is required for days/both intervals.');
+			return;
+		}
+		try {
+			setSavingIntervalId(editingIntervalId);
+			setError('');
+			const today = new Date().toISOString().slice(0, 10);
+			const hoursRemaining =
+				editInterval.hours_remaining_input === '' ? null : Number(editInterval.hours_remaining_input);
+			const daysRemaining =
+				editInterval.days_remaining_input === '' ? null : Number(editInterval.days_remaining_input);
+			const payload = {
+				name: editInterval.name.trim(),
+				interval_type: editInterval.interval_type,
+				due_every_hours: hoursRemaining,
+				due_every_days: daysRemaining,
+				last_done_tach: hoursRemaining === null ? null : aircraft?.tach_current ?? null,
+				last_done_hobbs: hoursRemaining === null ? null : aircraft?.hobbs_current ?? null,
+				last_done_date: daysRemaining === null ? null : today,
+				notes: joinIntervalNotes(editInterval.submitted_by, editInterval.notes),
+			};
+			const updated = await updateAircraftInterval(editingIntervalId, payload);
+			setIntervals((prev) =>
+				prev.map((row) => (row.id === editingIntervalId ? { ...row, ...updated } : row))
+			);
+			setIsEditDialogOpen(false);
+			setEditingIntervalId(null);
+		} catch (e) {
+			setError(e?.message || 'Failed to update interval.');
+		} finally {
+			setSavingIntervalId(null);
+		}
+	};
+
+	const needsHours =
+		newInterval.interval_type === 'hours' || newInterval.interval_type === 'both';
+	const needsDays = newInterval.interval_type === 'days' || newInterval.interval_type === 'both';
 
 	return (
 		<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -163,7 +342,7 @@ const FleetDetailPage = () => {
 												<Typography variant="body2">Type: {aircraft.aircraft_type || '—'}</Typography>
 												<Typography variant="body2">Tach/Hobbs: {aircraft.tach_current ?? '—'} / {aircraft.hobbs_current ?? '—'}</Typography>
 												<Box>
-													<Chip size="small" label={aircraft.fleet_status || 'active'} />
+													<Chip size="small" label={formatFleetStatusLabel(aircraft.fleet_status)} />
 												</Box>
 											</Stack>
 										</CardContent>
@@ -203,33 +382,43 @@ const FleetDetailPage = () => {
 								</Grid>
 							</Grid>
 
-							<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-								<CardContent>
-									<Stack spacing={2}>
-										<Typography variant="h6" sx={{ fontWeight: 700 }}>
-											Specifications
-										</Typography>
-										{specsEntries.length ? (
-											specsEntries.map(([key, value]) => (
+							{specsEntries.length ? (
+								<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+									<CardContent>
+										<Stack spacing={2}>
+											<Typography variant="h6" sx={{ fontWeight: 700 }}>
+												Specifications
+											</Typography>
+											{specsEntries.map(([key, value]) => (
 												<Typography key={key} variant="body2">
 													{key}: {String(value)}
 												</Typography>
-											))
-										) : (
-											<Typography variant="body2" color="text.secondary">
-												No aircraft specs have been configured yet.
-											</Typography>
-										)}
-									</Stack>
-								</CardContent>
-							</Card>
+											))}
+										</Stack>
+									</CardContent>
+								</Card>
+							) : null}
 
 							<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
 								<CardContent>
 									<Stack spacing={2}>
-										<Typography variant="h6" sx={{ fontWeight: 700 }}>
-											Maintenance Intervals
-										</Typography>
+										<Stack direction="row" justifyContent="space-between" alignItems="center">
+											<Typography variant="h6" sx={{ fontWeight: 700 }}>
+												Maintenance Intervals
+											</Typography>
+											{canEditDetail ? (
+												<Button
+													variant="contained"
+													size="small"
+													onClick={() => setIsCreateDialogOpen(true)}
+												>
+													Add Interval
+												</Button>
+											) : null}
+										</Stack>
+										{canEditDetail ? (
+											null
+										) : null}
 										<Table size="small">
 											<TableHead>
 												<TableRow>
@@ -238,12 +427,15 @@ const FleetDetailPage = () => {
 													<TableCell>Hours Remaining</TableCell>
 													<TableCell>Days Remaining</TableCell>
 													<TableCell>Compliance</TableCell>
+												<TableCell>Submitted By</TableCell>
 													<TableCell>Notes</TableCell>
 													{canEditDetail ? <TableCell>Actions</TableCell> : null}
 												</TableRow>
 											</TableHead>
 											<TableBody>
-												{intervals.map((row) => (
+												{intervals.map((row) => {
+													const parsed = splitIntervalNotes(row.notes);
+													return (
 													<TableRow key={row.id}>
 														<TableCell>{row.name}</TableCell>
 														<TableCell>{row.interval_type}</TableCell>
@@ -256,32 +448,19 @@ const FleetDetailPage = () => {
 																label={row.compliance_status || 'ok'}
 															/>
 														</TableCell>
+														<TableCell>{parsed.submittedBy || '—'}</TableCell>
 														<TableCell sx={{ minWidth: 220 }}>
-															{canEditDetail ? (
-																<TextField
-																	size="small"
-																	fullWidth
-																	value={intervalNotesDraft[row.id] ?? ''}
-																	onChange={(e) =>
-																		setIntervalNotesDraft((prev) => ({
-																			...prev,
-																			[row.id]: e.target.value,
-																		}))
-																	}
-																/>
-															) : (
-																row.notes || '—'
-															)}
+															{parsed.notes || '—'}
 														</TableCell>
 														{canEditDetail ? (
 															<TableCell sx={{ whiteSpace: 'nowrap' }}>
 																<Button
 																	size="small"
 																	variant="outlined"
-																	onClick={() => handleSaveIntervalNotes(row.id)}
+																	onClick={() => openEditIntervalDialog(row)}
 																	disabled={savingIntervalId === row.id}
 																>
-																	Save
+																	Edit
 																</Button>
 																<Button
 																	size="small"
@@ -292,13 +471,25 @@ const FleetDetailPage = () => {
 																>
 																	Mark Complete
 																</Button>
+																{canDeleteIntervals ? (
+																	<Button
+																		size="small"
+																		sx={{ ml: 1 }}
+																		color="error"
+																		variant="text"
+																		onClick={() => handleDeleteInterval(row.id)}
+																		disabled={savingIntervalId === row.id}
+																	>
+																		Delete
+																	</Button>
+																) : null}
 															</TableCell>
 														) : null}
 													</TableRow>
-												))}
+												)})}
 												{intervals.length === 0 ? (
 													<TableRow>
-														<TableCell colSpan={canEditDetail ? 7 : 6} sx={{ color: 'text.secondary', py: 3 }}>
+														<TableCell colSpan={canEditDetail ? 8 : 7} sx={{ color: 'text.secondary', py: 3 }}>
 															No maintenance intervals found.
 														</TableCell>
 													</TableRow>
@@ -312,6 +503,213 @@ const FleetDetailPage = () => {
 					) : null}
 				</Stack>
 			</Container>
+			<Dialog
+				open={isCreateDialogOpen}
+				onClose={() => {
+					if (!isCreatingInterval) setIsCreateDialogOpen(false);
+				}}
+				fullWidth
+				maxWidth="sm"
+			>
+				<DialogTitle>Add Maintenance Interval</DialogTitle>
+				<DialogContent>
+					<Stack spacing={2} sx={{ mt: 1 }}>
+						<TextField
+							size="small"
+							label="Interval Name"
+							value={newInterval.name}
+							onChange={(e) => setNewInterval((prev) => ({ ...prev, name: e.target.value }))}
+							fullWidth
+						/>
+						<TextField
+							size="small"
+							select
+							label="Type"
+							value={newInterval.interval_type}
+							onChange={(e) =>
+								setNewInterval((prev) => ({
+									...prev,
+									interval_type: e.target.value,
+								}))
+							}
+							fullWidth
+						>
+							<MenuItem value="hours">hours</MenuItem>
+							<MenuItem value="days">days</MenuItem>
+							<MenuItem value="both">both</MenuItem>
+						</TextField>
+						{needsHours ? (
+							<TextField
+								size="small"
+								type="number"
+								label="Hours Remaining *"
+								value={newInterval.hours_remaining_input}
+								onChange={(e) =>
+									setNewInterval((prev) => ({
+										...prev,
+										hours_remaining_input: e.target.value,
+									}))
+								}
+								fullWidth
+							/>
+						) : null}
+						{needsDays ? (
+							<TextField
+								size="small"
+								type="number"
+								label="Days Remaining *"
+								value={newInterval.days_remaining_input}
+								onChange={(e) =>
+									setNewInterval((prev) => ({
+										...prev,
+										days_remaining_input: e.target.value,
+									}))
+								}
+								fullWidth
+							/>
+						) : null}
+						<TextField
+							size="small"
+							label="Notes"
+							multiline
+							minRows={3}
+							value={newInterval.notes}
+							onChange={(e) =>
+								setNewInterval((prev) => ({
+									...prev,
+									notes: e.target.value,
+								}))
+							}
+							fullWidth
+						/>
+						<TextField
+							size="small"
+							label="Submitted By"
+							value={newInterval.submitted_by}
+							onChange={(e) =>
+								setNewInterval((prev) => ({
+									...prev,
+									submitted_by: e.target.value,
+								}))
+							}
+							fullWidth
+						/>
+					</Stack>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={() => setIsCreateDialogOpen(false)} disabled={isCreatingInterval}>
+						Cancel
+					</Button>
+					<Button
+						variant="contained"
+						onClick={async () => {
+							const created = await handleCreateInterval();
+							if (created) setIsCreateDialogOpen(false);
+						}}
+						disabled={isCreatingInterval}
+					>
+						Add Interval
+					</Button>
+				</DialogActions>
+			</Dialog>
+			<Dialog
+				open={isEditDialogOpen}
+				onClose={() => {
+					if (!savingIntervalId) setIsEditDialogOpen(false);
+				}}
+				fullWidth
+				maxWidth="sm"
+			>
+				<DialogTitle>Edit Maintenance Interval</DialogTitle>
+				<DialogContent>
+					<Stack spacing={2} sx={{ mt: 1 }}>
+						<TextField
+							size="small"
+							label="Interval Name"
+							value={editInterval.name}
+							onChange={(e) => setEditInterval((prev) => ({ ...prev, name: e.target.value }))}
+							fullWidth
+						/>
+						<TextField
+							size="small"
+							select
+							label="Type"
+							value={editInterval.interval_type}
+							onChange={(e) =>
+								setEditInterval((prev) => ({ ...prev, interval_type: e.target.value }))
+							}
+							fullWidth
+						>
+							<MenuItem value="hours">hours</MenuItem>
+							<MenuItem value="days">days</MenuItem>
+							<MenuItem value="both">both</MenuItem>
+						</TextField>
+						{editInterval.interval_type === 'hours' || editInterval.interval_type === 'both' ? (
+							<TextField
+								size="small"
+								type="number"
+								label="Hours Remaining *"
+								value={editInterval.hours_remaining_input}
+								onChange={(e) =>
+									setEditInterval((prev) => ({
+										...prev,
+										hours_remaining_input: e.target.value,
+									}))
+								}
+								fullWidth
+							/>
+						) : null}
+						{editInterval.interval_type === 'days' || editInterval.interval_type === 'both' ? (
+							<TextField
+								size="small"
+								type="number"
+								label="Days Remaining *"
+								value={editInterval.days_remaining_input}
+								onChange={(e) =>
+									setEditInterval((prev) => ({
+										...prev,
+										days_remaining_input: e.target.value,
+									}))
+								}
+								fullWidth
+							/>
+						) : null}
+						<TextField
+							size="small"
+							label="Notes"
+							multiline
+							minRows={3}
+							value={editInterval.notes}
+							onChange={(e) => setEditInterval((prev) => ({ ...prev, notes: e.target.value }))}
+							fullWidth
+						/>
+						<TextField
+							size="small"
+							label="Submitted By"
+							value={editInterval.submitted_by}
+							onChange={(e) =>
+								setEditInterval((prev) => ({
+									...prev,
+									submitted_by: e.target.value,
+								}))
+							}
+							fullWidth
+						/>
+					</Stack>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={() => setIsEditDialogOpen(false)} disabled={Boolean(savingIntervalId)}>
+						Cancel
+					</Button>
+					<Button
+						variant="contained"
+						onClick={handleUpdateIntervalFromDialog}
+						disabled={Boolean(savingIntervalId)}
+					>
+						Save Changes
+					</Button>
+				</DialogActions>
+			</Dialog>
 		</Box>
 	);
 };

@@ -1,15 +1,33 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .labor_views import work_order_labor_entries, work_order_labor_entry_detail
+from .component_history_views import (
+    component_history_detail,
+    component_history_export,
+    component_history_list,
+)
+from .history_views import (
+    service_history_work_order_detail,
+    service_history_work_orders_list,
+)
+from .search_views import global_search_view
+from .analytics_views import (
+    fleet_performance_analytics_view,
+    maintenance_analytics_view,
+)
 from .views import (
     health,
     login,
     token_refresh,
     logout,
     user_profile,
+    admin_reset_password,
+    change_own_password,
     available_aircraft_view,
     flight_list_view,
     management_dashboard_view,
+    fleet_availability_dashboard_view,
     company_user_view,
     company_inventory_view,
     company_aircraft_view,
@@ -58,6 +76,8 @@ urlpatterns = [
     path("auth/token/refresh/", token_refresh, name="token_refresh"),
     path("auth/logout/", logout, name="logout"),
     path("users/me/", user_profile, name="user_profile"),
+    path("users/me/change-password/", change_own_password, name="change_own_password"),
+    path("profiles/<int:pk>/reset-password/", admin_reset_password, name="admin_reset_password"),
     path(
         "aircraft/availability/",
         available_aircraft_view,
@@ -72,6 +92,11 @@ urlpatterns = [
         "management/dashboard/",
         management_dashboard_view,
         name="management-dashboard",
+    ),
+    path(
+        "dashboard/fleet-availability/",
+        fleet_availability_dashboard_view,
+        name="fleet-availability-dashboard",
     ),
     path("company/users/", company_user_view, name="company-users"),
     path("company/inventories/", company_inventory_view, name="company-inventory"),
@@ -129,5 +154,51 @@ urlpatterns = [
     ),
     path("", include(router.urls)),
     path("maintenance/dashboard/", maintenance_dashboard_view, name="maintenance-dashboard"),
+    path(
+        "history/work-orders/",
+        service_history_work_orders_list,
+        name="service-history-work-orders",
+    ),
+    path(
+        "history/work-orders/<int:pk>/",
+        service_history_work_order_detail,
+        name="service-history-work-order-detail",
+    ),
+    path(
+        "history/components/",
+        component_history_list,
+        name="component-history-list",
+    ),
+    path(
+        "history/components/<int:pk>/",
+        component_history_detail,
+        name="component-history-detail",
+    ),
+    path(
+        "history/components/<int:pk>/export/",
+        component_history_export,
+        name="component-history-export",
+    ),
+    path(
+        "workorders/<int:work_order_pk>/labor-entries/",
+        work_order_labor_entries,
+        name="work-order-labor-entries",
+    ),
+    path(
+        "workorders/<int:work_order_pk>/labor-entries/<int:entry_pk>/",
+        work_order_labor_entry_detail,
+        name="work-order-labor-entry-detail",
+    ),
+    path("search/", global_search_view, name="global-search"),
+    path(
+        "analytics/maintenance/",
+        maintenance_analytics_view,
+        name="analytics-maintenance",
+    ),
+    path(
+        "analytics/fleet-performance/",
+        fleet_performance_analytics_view,
+        name="analytics-fleet-performance",
+    ),
 ]
 

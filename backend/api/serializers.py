@@ -17,6 +17,9 @@ from .models import (
     Tool,
     CalibrationRecord,
     InventoryPart,
+    InstalledComponent,
+    ComponentEvent,
+    LaborEntry,
 )
 from .maintenance_activity import (
     log_discrepancy_created,
@@ -26,6 +29,30 @@ from .maintenance_activity import (
     snapshot_discrepancy,
     snapshot_work_order,
 )
+
+
+def profile_display_name(profile):
+    """First + last name, else username — never expose raw username when a name exists."""
+    if not profile:
+        return ""
+    fn = (profile.first_name or "").strip()
+    ln = (profile.last_name or "").strip()
+    full = f"{fn} {ln}".strip()
+    return full or (profile.username or "").strip() or ""
+
+
+def profile_to_dict(profile):
+    if not profile:
+        return None
+    fn = (profile.first_name or "").strip()
+    ln = (profile.last_name or "").strip()
+    return {
+        "id": profile.id,
+        "first_name": fn,
+        "last_name": ln,
+        "username": profile.username or "",
+        "display_name": profile_display_name(profile),
+    }
 
 
 ####
@@ -43,6 +70,24 @@ class CompanySerializer(serializers.ModelSerializer):
             "updated_at",
             "locations",
         ]
+
+class SelfProfileUpdateSerializer(serializers.ModelSerializer):
+    """
+    Fields a signed-in user may change on their own account (task 1.3.1 contact info).
+    """
+
+    class Meta:
+        model = Profile
+        fields = ("first_name", "last_name", "email", "phone_number", "middle_name")
+
+    def validate_phone_number(self, value):
+        if value in (None, ""):
+            return ""
+        s = str(value).strip()
+        if len(s) > 10:
+            raise serializers.ValidationError("Phone number must be at most 10 characters.")
+        return s
+
 
 class ProfileSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
@@ -195,6 +240,12 @@ class AircraftSerializer(serializers.ModelSerializer):
             "manufacturer",
             "engine_type",
             "year_built",
+            "location",
+            "tach_current",
+            "hobbs_current",
+            "fleet_status",
+            "aircraft_type",
+            "specs",
             "company",
             "company_name",
         ]
@@ -214,7 +265,7 @@ class PartSerializer(serializers.ModelSerializer):
         ]
 
 class DiscrepancySerializer(serializers.ModelSerializer):
-    reporter_name = serializers.CharField(source="reporter.username", read_only=True)
+    reporter_name = serializers.SerializerMethodField()
     activities = DiscrepancyActivitySerializer(many=True, read_only=True)
 
     class Meta:
@@ -234,6 +285,36 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             "signature_date",
             "activities",
         ]
+
+    def get_reporter_name(self, obj):
+        return profile_display_name(obj.reporter)
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        ac = instance.aircraft
+        if ac:
+            rep["aircraft"] = {
+                "id": ac.id,
+                "registration_number": ac.registration_number or "",
+                "model": ac.model or "",
+            }
+        rp = instance.reporter
+        if rp:
+            rep["reporter"] = profile_to_dict(rp)
+        rep["reporter_name"] = profile_display_name(rp)
+        wo = instance.work_order
+        if wo:
+            rep["work_order"] = {
+                "id": wo.id,
+                "title": wo.title or "",
+                "status": wo.status or "",
+                "created_by": profile_to_dict(wo.created_by),
+                "assignee": profile_to_dict(wo.assignee),
+                "created_by_name": profile_display_name(wo.created_by),
+                "assignee_name": profile_display_name(wo.assignee)
+                or profile_display_name(wo.created_by),
+            }
+        return rep
 
     def create(self, validated_data):
         instance = super().create(validated_data)
@@ -258,6 +339,57 @@ class DiscrepancySerializer(serializers.ModelSerializer):
         return instance
 
 
+def serialize_work_order_parts(work_order):
+    """Read representation for M2M through WorkOrderPart."""
+    rows = []
+    for link in work_order.workorderpart_set.select_related("part").all():
+        part = link.part
+        rows.append(
+            {
+                "id": part.id,
+                "part_number": part.part_number,
+                "name": part.name,
+                "quantity": link.quantity,
+            }
+        )
+    return rows
+
+
+class LaborEntrySerializer(serializers.ModelSerializer):
+    mechanic_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LaborEntry
+        fields = [
+            "id",
+            "work_order",
+            "mechanic",
+            "mechanic_name",
+            "hours",
+            "work_date",
+            "notes",
+            "created_by",
+            "created_by_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "work_order", "created_by", "created_at", "updated_at"]
+
+    def get_mechanic_name(self, obj):
+        return profile_display_name(obj.mechanic)
+
+    def get_created_by_name(self, obj):
+        return profile_display_name(obj.created_by)
+
+    def validate_hours(self, value):
+        if value is None or float(value) <= 0:
+            raise serializers.ValidationError("Hours must be greater than zero.")
+        if float(value) > 24:
+            raise serializers.ValidationError("Hours cannot exceed 24 per entry.")
+        return value
+
+
 class WorkOrderSerializer(serializers.ModelSerializer):
     """
     `parts_needed` is a M2M through `WorkOrderPart` (each row requires a quantity).
@@ -268,12 +400,7 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         many=True, queryset=Part.objects.all(), required=False, allow_empty=True
     )
     activities = WorkOrderActivitySerializer(many=True, read_only=True)
-    ALLOWED_STATUS_TRANSITIONS = {
-        "open": {"open", "in_progress", "awaiting_parts", "closed"},
-        "in_progress": {"in_progress", "awaiting_parts", "closed"},
-        "awaiting_parts": {"awaiting_parts", "in_progress", "closed"},
-        "closed": {"closed"},
-    }
+    ALL_VALID_STATUSES = {"open", "in_progress", "awaiting_parts", "closed"}
 
     class Meta:
         model = WorkOrder
@@ -303,6 +430,48 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             "activities",
         ]
 
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        ac = instance.aircraft
+        if ac:
+            rep["aircraft"] = {
+                "id": ac.id,
+                "registration_number": ac.registration_number or "",
+                "model": ac.model or "",
+            }
+        cb = instance.created_by
+        if cb:
+            rep["created_by"] = profile_to_dict(cb)
+        assignee = instance.assignee
+        if assignee:
+            rep["assignee"] = profile_to_dict(assignee)
+        rep["created_by_name"] = profile_display_name(cb)
+        rep["assignee_name"] = profile_display_name(assignee) or profile_display_name(cb)
+        sb = instance.signed_by
+        if sb:
+            rep["signed_by"] = profile_to_dict(sb)
+        rep["parts_needed"] = serialize_work_order_parts(instance)
+        latest = instance.activities.first()
+        if latest:
+            actor = latest.actor
+            if actor:
+                fn = (actor.first_name or "").strip()
+                ln = (actor.last_name or "").strip()
+                rep["last_edited_by"] = f"{fn} {ln}".strip() or (actor.username or "")
+            else:
+                rep["last_edited_by"] = "System"
+            rep["last_edited_at"] = latest.created_at
+        else:
+            rep["last_edited_by"] = None
+            rep["last_edited_at"] = None
+        from .labor_utils import work_order_labor_total
+
+        entries = instance.labor_entries.select_related("mechanic", "created_by").all()
+        rep["labor_entries"] = LaborEntrySerializer(entries, many=True).data
+        total = work_order_labor_total(instance)
+        rep["labor_hours_total"] = round(total, 2) if total else None
+        return rep
+
     def validate(self, data):
         aircraft = data.get("aircraft") or getattr(self.instance, "aircraft", None)
         parts = data.get("parts_needed")
@@ -317,14 +486,9 @@ class WorkOrderSerializer(serializers.ModelSerializer):
 
         current_status = getattr(self.instance, "status", None) or "open"
         next_status = data.get("status", current_status)
-        allowed = self.ALLOWED_STATUS_TRANSITIONS.get(current_status, {current_status})
-        if next_status not in allowed:
+        if next_status not in self.ALL_VALID_STATUSES:
             raise serializers.ValidationError(
-                {
-                    "status": (
-                        f"Invalid status transition from '{current_status}' to '{next_status}'."
-                    )
-                }
+                {"status": f"'{next_status}' is not a valid work order status."}
             )
 
         request = self.context.get("request")
@@ -334,13 +498,21 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             if request_user is not None and getattr(request_user, "is_authenticated", False)
             else None
         )
-        assignee = data.get(
-            "created_by",
-            getattr(self.instance, "created_by", None) or default_assignee,
-        )
-        if next_status != "open" and assignee is None:
+        effective_assignee = data.get("assignee")
+        if effective_assignee is None and "created_by" in data:
+            effective_assignee = data.get("created_by")
+        if effective_assignee is None:
+            inst = self.instance
+            effective_assignee = (
+                getattr(inst, "assignee", None) if inst else None
+            ) or (getattr(inst, "created_by", None) if inst else None)
+        if effective_assignee is None:
+            effective_assignee = default_assignee
+        if next_status != "open" and effective_assignee is None:
             raise serializers.ValidationError(
-                {"created_by": "Assign a mechanic before moving work order out of Open."}
+                {
+                    "assignee": "Assign a mechanic before moving work order out of Open."
+                }
             )
         return data
 
@@ -352,21 +524,35 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         log_work_order_created(work_order, self.context.get("request"))
         return work_order
 
+    _WO_SUPERVISOR_ONLY_FIELDS = (
+        "created_by",
+        "aircraft",
+        "title",
+        "ATA_code",
+        "components_affected",
+        "components_image",
+        "tach_time",
+        "hobbs_time",
+        "signed_by",
+        "signature",
+        "signature_date",
+    )
+
     def update(self, instance, validated_data):
         before = snapshot_work_order(instance)
         parts = validated_data.pop("parts_needed", None)
         request = self.context.get("request")
         user = getattr(request, "user", None) if request else None
-        if (
+        role = getattr(user, "company_role", None) if user else None
+        is_admin = bool(
             user
             and user.is_authenticated
-            and getattr(user, "company_role", None) == "mechanic"
-            and not (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
-        ):
-            # Mechanics update execution (progress, parts, dates); supervisors own assignment & structure.
-            validated_data.pop("created_by", None)
-            validated_data.pop("aircraft", None)
-            validated_data.pop("title", None)
+            and (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+        )
+        if user and user.is_authenticated and not is_admin and role not in {"owner", "manager"}:
+            # Mechanics/dispatchers: progress, parts, dates, description only.
+            for field in self._WO_SUPERVISOR_ONLY_FIELDS:
+                validated_data.pop(field, None)
         work_order = super().update(instance, validated_data)
         if parts is not None:
             WorkOrderPart.objects.filter(work_order=work_order).delete()
@@ -441,6 +627,7 @@ class InventorySerializer(serializers.ModelSerializer):
     )
     # Read/write `in_stock` maps to model `quantity` for API compatibility.
     in_stock = serializers.IntegerField(source="quantity", required=False)
+    tracked_units_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = InventoryPart
@@ -454,6 +641,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "stock_alert",
             "stock_alert_percentage",
             "shop_location",
+            "tracked_units_count",
         ]
 
 
@@ -647,4 +835,232 @@ class FleetAircraftDetailSerializer(serializers.ModelSerializer):
             "open_discrepancies_count": obj.discrepancies.exclude(status="closed").count(),
             "recent_flights_count": obj.flights.count(),
         }
+
+
+class WorkOrderHistoryListSerializer(serializers.ModelSerializer):
+    """Slim row for service history search results."""
+
+    aircraft = serializers.SerializerMethodField()
+    signed_by_name = serializers.SerializerMethodField()
+    assignee_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    parts_summary = serializers.SerializerMethodField()
+    last_edited_by = serializers.SerializerMethodField()
+    last_edited_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkOrder
+        fields = [
+            "id",
+            "title",
+            "description",
+            "status",
+            "priority",
+            "aircraft",
+            "ATA_code",
+            "components_affected",
+            "created_at",
+            "updated_at",
+            "due_by",
+            "signature_date",
+            "signed_by_name",
+            "assignee_name",
+            "created_by_name",
+            "parts_summary",
+            "last_edited_by",
+            "last_edited_at",
+        ]
+
+    def get_aircraft(self, obj):
+        ac = obj.aircraft
+        if not ac:
+            return None
+        return {
+            "id": ac.id,
+            "registration_number": ac.registration_number or "",
+            "model": ac.model or "",
+        }
+
+    def _profile_name(self, profile):
+        if not profile:
+            return ""
+        fn = (profile.first_name or "").strip()
+        ln = (profile.last_name or "").strip()
+        return f"{fn} {ln}".strip() or (profile.username or "")
+
+    def get_signed_by_name(self, obj):
+        return self._profile_name(obj.signed_by)
+
+    def get_assignee_name(self, obj):
+        return self._profile_name(getattr(obj, "assignee", None)) or self._profile_name(
+            getattr(obj, "created_by", None)
+        )
+
+    def get_created_by_name(self, obj):
+        return self._profile_name(getattr(obj, "created_by", None))
+
+    def get_parts_summary(self, obj):
+        parts = serialize_work_order_parts(obj)
+        if not parts:
+            return ""
+        return ", ".join(
+            f"{p['part_number']} — {p['name']} (×{p['quantity']})" for p in parts
+        )
+
+    def get_last_edited_by(self, obj):
+        act = obj.activities.first()
+        if not act:
+            return ""
+        a = act.actor
+        if not a:
+            return "System"
+        return self._profile_name(a)
+
+    def get_last_edited_at(self, obj):
+        act = obj.activities.first()
+        return act.created_at if act else None
+
+
+class InstalledComponentListSerializer(serializers.ModelSerializer):
+    aircraft_label = serializers.SerializerMethodField()
+    remaining_value = serializers.SerializerMethodField()
+    event_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = InstalledComponent
+        fields = [
+            "id",
+            "part",
+            "part_number",
+            "part_name",
+            "serial_number",
+            "component_type",
+            "aircraft",
+            "aircraft_label",
+            "location",
+            "limit_type",
+            "limit_value",
+            "used_value",
+            "remaining_value",
+            "limit_due_date",
+            "installed_at",
+            "event_count",
+        ]
+
+    def get_aircraft_label(self, obj):
+        ac = obj.aircraft
+        if not ac:
+            return ""
+        reg = ac.registration_number or ""
+        model = (ac.model or "").strip()
+        return f"{reg} {model}".strip() if model else reg
+
+    def get_remaining_value(self, obj):
+        rem = obj.remaining_value
+        return rem
+
+
+class ComponentEventSerializer(serializers.ModelSerializer):
+    aircraft_label = serializers.SerializerMethodField()
+    work_order_label = serializers.SerializerMethodField()
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComponentEvent
+        fields = [
+            "id",
+            "event_type",
+            "occurred_at",
+            "summary",
+            "metadata",
+            "aircraft",
+            "aircraft_label",
+            "work_order",
+            "work_order_label",
+            "actor_name",
+        ]
+
+    def _profile_name(self, profile):
+        if not profile:
+            return ""
+        fn = (profile.first_name or "").strip()
+        ln = (profile.last_name or "").strip()
+        return f"{fn} {ln}".strip() or (profile.username or "")
+
+    def get_aircraft_label(self, obj):
+        ac = obj.aircraft
+        if not ac:
+            return ""
+        return ac.registration_number or ""
+
+    def get_work_order_label(self, obj):
+        wo = obj.work_order
+        if not wo:
+            return ""
+        return wo.title or f"Work order #{wo.id}"
+
+    def get_actor_name(self, obj):
+        return self._profile_name(obj.actor)
+
+
+class InstalledComponentDetailSerializer(InstalledComponentListSerializer):
+    notes = serializers.CharField()
+
+    class Meta(InstalledComponentListSerializer.Meta):
+        fields = InstalledComponentListSerializer.Meta.fields + ["notes"]
+
+
+class InstalledComponentCreateSerializer(serializers.ModelSerializer):
+    """Register a tracked component (rotable or consumable) for lifecycle history."""
+
+    part_id = serializers.PrimaryKeyRelatedField(
+        queryset=Part.objects.all(), required=False, allow_null=True, source="part"
+    )
+    initial_event_summary = serializers.CharField(
+        required=False, allow_blank=True, max_length=500
+    )
+
+    class Meta:
+        model = InstalledComponent
+        fields = [
+            "part_number",
+            "part_name",
+            "serial_number",
+            "component_type",
+            "aircraft",
+            "location",
+            "limit_type",
+            "limit_value",
+            "used_value",
+            "limit_due_date",
+            "installed_at",
+            "notes",
+            "part_id",
+            "initial_event_summary",
+        ]
+
+    def validate(self, data):
+        sn = (data.get("serial_number") or "").strip()
+        data["serial_number"] = sn
+        ctype = data.get("component_type") or InstalledComponent.ComponentType.SERIALIZED
+        if sn:
+            data["component_type"] = InstalledComponent.ComponentType.SERIALIZED
+        elif ctype == InstalledComponent.ComponentType.SERIALIZED:
+            raise serializers.ValidationError(
+                {"serial_number": "Enter a serial number for serialized (rotable) parts."}
+            )
+        else:
+            data["component_type"] = InstalledComponent.ComponentType.CONSUMABLE
+        part = data.get("part")
+        if part:
+            if not (data.get("part_number") or "").strip():
+                data["part_number"] = part.part_number
+            if not (data.get("part_name") or "").strip():
+                data["part_name"] = part.name or ""
+        if not (data.get("part_number") or "").strip():
+            raise serializers.ValidationError(
+                {"part_number": "Part number is required."}
+            )
+        data["part_number"] = data["part_number"].strip()
+        return data
 

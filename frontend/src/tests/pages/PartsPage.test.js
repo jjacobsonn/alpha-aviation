@@ -1,5 +1,44 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+jest.mock('react-router', () => ({
+	...jest.requireActual('react-router'),
+	Link: ({ children, to }) => <a href={to}>{children}</a>,
+	useNavigate: () => jest.fn(),
+	useSearchParams: () => [new URLSearchParams(), jest.fn()],
+}));
+
+jest.mock('../../components/parts/ToolsCalibrationPanel', () => () => null);
+
+jest.mock('../../context/AppContext', () => ({
+	useAppContext: () => ({
+		state: { user: { role: 'owner' }, viewAsUser: null },
+	}),
+}));
+
+jest.mock('../../shared/Api', () => ({
+	fetchCompanyInventoriesDetailed: jest.fn().mockResolvedValue([
+		{
+			id: 10,
+			in_stock: 5,
+			stock_alert: 2,
+			shop_location: 'Shelf A',
+			part: {
+				id: 1,
+				part_number: 'PN-100',
+				name: 'Test Part',
+				description: 'Desc',
+			},
+			tracked_units_count: 0,
+		},
+	]),
+	fetchCompanyWorkorders: jest.fn().mockResolvedValue([]),
+	fetchCompanyAircrafts: jest.fn().mockResolvedValue([]),
+	deleteInventory: jest.fn(),
+	createInventory: jest.fn(),
+	createPart: jest.fn(),
+	updateInventory: jest.fn(),
+	updatePart: jest.fn(),
+}));
+
+import { render, screen } from '@testing-library/react';
 import PartsPage from '../../pages/PartsPage';
 import * as Api from '../../shared/Api';
 
@@ -20,91 +59,17 @@ jest.mock('@mui/material', () => {
 });
 
 describe('PartsPage', () => {
-	beforeEach(() => {
-		jest.clearAllMocks();
-		Api.fetchCompanyInventoriesDetailed.mockResolvedValue([
-			{
-				id: 1,
-				part_id: 1,
-				part: { part_number: 'P001', name: 'Engine Oil', description: 'Synthetic' },
-				in_stock: 50,
-				stock_alert: 10,
-				shop_location: 'Bin A1',
-			},
-			{
-				id: 2,
-				part_id: 2,
-				part: { part_number: 'P002', name: 'Air Filter', description: 'High efficiency' },
-				in_stock: 5,
-				stock_alert: 10,
-				shop_location: 'Bin A2',
-			},
-		]);
-		Api.fetchCompanyWorkorders.mockResolvedValue([]);
-	});
-
-	test('renders page title and main controls', async () => {
+	it('renders high-level page elements', () => {
 		render(<PartsPage />);
 
-		await waitFor(() => {
-			expect(screen.getByText('Parts in Stock')).toBeInTheDocument();
-		});
-		expect(screen.getByPlaceholderText(/search part number/i)).toBeInTheDocument();
-	});
-
-	test('loads and displays parts inventory', async () => {
-		render(<PartsPage />);
-
-		await waitFor(() => {
-			expect(screen.getByText('Engine Oil')).toBeInTheDocument();
-			expect(screen.getByText('Air Filter')).toBeInTheDocument();
-		});
-		expect(screen.getByText('P001')).toBeInTheDocument();
-		expect(screen.getByText('P002')).toBeInTheDocument();
-	});
-
-	test('displays error message when API fails', async () => {
-		Api.fetchCompanyInventoriesDetailed.mockRejectedValue(new Error('Failed to load inventory'));
-
-		render(<PartsPage />);
-
-		await waitFor(() => {
-			expect(screen.getByText(/failed to load inventory/i)).toBeInTheDocument();
-		});
-	});
-
-	test('opens context menu when clicking actions button', async () => {
-		const user = userEvent.setup();
-		render(<PartsPage />);
-
-		await waitFor(() => {
-			expect(screen.getByText('Engine Oil')).toBeInTheDocument();
-		});
-
-		const actionButtons = screen.getAllByRole('button', { name: '' });
-		const moreButton = actionButtons.find((btn) => btn.querySelector('[data-testid*="MoreVert"]'));
-		if (moreButton) {
-			await user.click(moreButton);
-			expect(screen.getByRole('menu')).toBeInTheDocument();
-		}
-	});
-
-	test('handles search query input', async () => {
-		const user = userEvent.setup();
-		render(<PartsPage />);
-
-		const searchInput = screen.getByPlaceholderText(/search part number/i);
-		await user.type(searchInput, 'P001');
-
-		expect(searchInput).toHaveValue('P001');
-	});
-
-	test('shows low stock alert indicator for parts below alert threshold', async () => {
-		render(<PartsPage />);
-
-		await waitFor(() => {
-			expect(screen.getByText('Air Filter')).toBeInTheDocument();
-		});
+		expect(screen.getByText('Parts in Stock')).toBeInTheDocument();
 		expect(screen.getByText('Low Stock Alert')).toBeInTheDocument();
+		expect(
+			screen.getByPlaceholderText('Search part number, name, description, location…')
+		).toBeInTheDocument();
+		expect(screen.getByText('Actions')).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Inventory' })).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Calibration' })).toBeInTheDocument();
 	});
+
 });

@@ -26,6 +26,8 @@ import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import { useEffect, useMemo, useState } from "react";
 import StatCard from "../components/StatCard";
 import DeleteConfirmationDialog from "../components/DeleteConfirmationDialog";
+import { aircraftRefId, formatAircraftRef } from "../shared/aircraftDisplay";
+import { resolvePersonDisplay } from "../shared/profileDisplay";
 import {
   createCompany,
   createAircraft,
@@ -58,6 +60,12 @@ import {
   updateProfile,
   updateWorkorder,
 } from "../shared/Api";
+
+function profileRefId(ref) {
+  if (ref == null || ref === "") return "";
+  if (typeof ref === "object") return ref.id != null ? String(ref.id) : "";
+  return String(ref);
+}
 
 export default function SiteAdminPortal() {
   const [companies, setCompanies] = useState([]);
@@ -108,10 +116,10 @@ export default function SiteAdminPortal() {
     departure_time: "",
     arrival_time: "",
     route: "",
-    flight_type: "",
+    flight_type: "training",
     primary_pilot: "",
     secondary_pilot: "",
-    pilot_requirement: "none",
+    pilot_requirement: "private",
     approved: false,
   });
   const [editFlightForm, setEditFlightForm] = useState({
@@ -123,10 +131,10 @@ export default function SiteAdminPortal() {
     departure_time: "",
     arrival_time: "",
     route: "",
-    flight_type: "",
+    flight_type: "training",
     primary_pilot: "",
     secondary_pilot: "",
-    pilot_requirement: "none",
+    pilot_requirement: "private",
     approved: false,
   });
   const [editAircraftForm, setEditAircraftForm] = useState({
@@ -254,6 +262,20 @@ export default function SiteAdminPortal() {
       const key = a?.company;
       if (!key) return;
       map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, [aircraft]);
+
+  const aircraftLookup = useMemo(() => {
+    const map = new Map();
+    aircraft.forEach((a) => {
+      if (a?.id == null) return;
+      const reg = (a.registration_number || "").trim();
+      const model = (a.model || "").trim();
+      map.set(
+        Number(a.id),
+        reg && model ? `${reg} (${model})` : reg || model || `Aircraft #${a.id}`
+      );
     });
     return map;
   }, [aircraft]);
@@ -446,17 +468,17 @@ export default function SiteAdminPortal() {
     setSelectedFlight(f);
     setEditFlightForm({
       company: f?.company || "",
-      aircraft: f?.aircraft || "",
+      aircraft: aircraftRefId(f?.aircraft) || "",
       flight_number: f?.flight_number || "",
       origin: f?.origin || "",
       destination: f?.destination || "",
       departure_time: f?.departure_time || "",
       arrival_time: f?.arrival_time || "",
       route: f?.route || "",
-      flight_type: f?.flight_type || "",
+      flight_type: f?.flight_type || "training",
       primary_pilot: f?.primary_pilot || "",
       secondary_pilot: f?.secondary_pilot || "",
-      pilot_requirement: f?.pilot_requirement || "none",
+      pilot_requirement: f?.pilot_requirement || "private",
       approved: Boolean(f?.approved),
     });
     setEditFlightOpen(true);
@@ -474,7 +496,7 @@ export default function SiteAdminPortal() {
     flight_type: form.flight_type,
     primary_pilot: form.primary_pilot ? Number(form.primary_pilot) : null,
     secondary_pilot: form.secondary_pilot ? Number(form.secondary_pilot) : null,
-    pilot_requirement: form.pilot_requirement || "none",
+    pilot_requirement: form.pilot_requirement || "private",
     approved: Boolean(form.approved),
   });
 
@@ -497,10 +519,10 @@ export default function SiteAdminPortal() {
         departure_time: "",
         arrival_time: "",
         route: "",
-        flight_type: "",
+        flight_type: "training",
         primary_pilot: "",
         secondary_pilot: "",
-        pilot_requirement: "none",
+        pilot_requirement: "private",
         approved: false,
       });
       await refresh();
@@ -556,7 +578,7 @@ export default function SiteAdminPortal() {
       part_number: p?.part_number || "",
       name: p?.name || "",
       description: p?.description || "",
-      aircraft: p?.aircraft || "",
+      aircraft: aircraftRefId(p?.aircraft) || "",
     });
     setEditPartOpen(true);
   };
@@ -701,7 +723,7 @@ export default function SiteAdminPortal() {
     setSelectedWorkorder(wo);
     setWorkorderForm({
       title: wo?.title || "",
-      aircraft: wo?.aircraft || "",
+      aircraft: aircraftRefId(wo?.aircraft) || "",
       description: wo?.description || "",
       status: wo?.status || "open",
       due_by: wo?.due_by || "",
@@ -761,8 +783,8 @@ export default function SiteAdminPortal() {
   const handleOpenEditDiscrepancy = (d) => {
     setSelectedDiscrepancy(d);
     setDiscrepancyForm({
-      aircraft: d?.aircraft || "",
-      reporter: d?.reporter || "",
+      aircraft: aircraftRefId(d?.aircraft) || "",
+      reporter: profileRefId(d?.reporter) || "",
       description: d?.description || "",
       ata_code: d?.ata_code || "",
       tach_time: d?.tach_time || "",
@@ -1047,9 +1069,7 @@ export default function SiteAdminPortal() {
                         {companies.find((c) => Number(c.id) === Number(f.company))?.name || "—"}
                       </TableCell>
                       <TableCell>
-                        {aircraft.find((a) => Number(a.id) === Number(f.aircraft))?.registration_number ||
-                          f.aircraft_name ||
-                          "—"}
+                        {formatAircraftRef(f.aircraft, aircraftLookup) || f.aircraft_name || "—"}
                       </TableCell>
                       <TableCell>{f.origin || "—"}</TableCell>
                       <TableCell>{f.destination || "—"}</TableCell>
@@ -1098,7 +1118,9 @@ export default function SiteAdminPortal() {
                     <TableRow key={p.id}>
                       <TableCell>{p.part_number || "—"}</TableCell>
                       <TableCell>{p.name || "—"}</TableCell>
-                      <TableCell>{p.aircraft_name || p.aircraft || "—"}</TableCell>
+                      <TableCell>
+                        {p.aircraft_name || formatAircraftRef(p.aircraft, aircraftLookup)}
+                      </TableCell>
                       <TableCell>
                         <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditPart(p)}>Edit</Button>
                         <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeletePart(p.id)}>Delete</Button>
@@ -1181,7 +1203,7 @@ export default function SiteAdminPortal() {
                       <TableCell>{wo.id}</TableCell>
                       <TableCell>{wo.title || "—"}</TableCell>
                       <TableCell>{wo.status || "—"}</TableCell>
-                      <TableCell>{wo.aircraft || "—"}</TableCell>
+                      <TableCell>{formatAircraftRef(wo.aircraft, aircraftLookup)}</TableCell>
                       <TableCell>{wo.due_by || "—"}</TableCell>
                       <TableCell>
                         <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
@@ -1223,8 +1245,10 @@ export default function SiteAdminPortal() {
                       <TableCell>{d.id}</TableCell>
                       <TableCell>{d.status || "—"}</TableCell>
                       <TableCell>{d.ata_code || "—"}</TableCell>
-                      <TableCell>{d.aircraft || "—"}</TableCell>
-                      <TableCell>{d.reporter_name || d.reporter || "—"}</TableCell>
+                      <TableCell>{formatAircraftRef(d.aircraft, aircraftLookup)}</TableCell>
+                      <TableCell>
+                        {resolvePersonDisplay(d.reporter, d.reporter_name) || "—"}
+                      </TableCell>
                       <TableCell>
                         <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
                         <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>
@@ -1365,7 +1389,28 @@ export default function SiteAdminPortal() {
             <TextField type="datetime-local" label="Departure Time" InputLabelProps={{ shrink: true }} value={newFlightForm.departure_time} onChange={(e) => setNewFlightForm((s) => ({ ...s, departure_time: e.target.value }))} />
             <TextField type="datetime-local" label="Arrival Time" InputLabelProps={{ shrink: true }} value={newFlightForm.arrival_time} onChange={(e) => setNewFlightForm((s) => ({ ...s, arrival_time: e.target.value }))} />
             <TextField label="Route" value={newFlightForm.route} onChange={(e) => setNewFlightForm((s) => ({ ...s, route: e.target.value }))} />
-            <TextField label="Flight Type" value={newFlightForm.flight_type} onChange={(e) => setNewFlightForm((s) => ({ ...s, flight_type: e.target.value }))} />
+            <TextField
+              select
+              label="Flight Type"
+              value={newFlightForm.flight_type}
+              onChange={(e) => setNewFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
+            >
+              {["training", "charter", "positioning", "maintenance ferry"].map((type) => (
+                <MenuItem key={type} value={type}>{type}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Pilot Requirement"
+              value={newFlightForm.pilot_requirement}
+              onChange={(e) =>
+                setNewFlightForm((s) => ({ ...s, pilot_requirement: e.target.value }))
+              }
+            >
+              {["student", "private", "commercial", "airline"].map((req) => (
+                <MenuItem key={req} value={req}>{req}</MenuItem>
+              ))}
+            </TextField>
             <TextField select label="Primary Pilot" value={newFlightForm.primary_pilot} onChange={(e) => setNewFlightForm((s) => ({ ...s, primary_pilot: e.target.value }))}>
               <MenuItem value="">None</MenuItem>
               {pilotOptionsForCompany(newFlightForm.company).map((p) => (
@@ -1406,7 +1451,28 @@ export default function SiteAdminPortal() {
             <TextField type="datetime-local" label="Departure Time" InputLabelProps={{ shrink: true }} value={editFlightForm.departure_time} onChange={(e) => setEditFlightForm((s) => ({ ...s, departure_time: e.target.value }))} />
             <TextField type="datetime-local" label="Arrival Time" InputLabelProps={{ shrink: true }} value={editFlightForm.arrival_time} onChange={(e) => setEditFlightForm((s) => ({ ...s, arrival_time: e.target.value }))} />
             <TextField label="Route" value={editFlightForm.route} onChange={(e) => setEditFlightForm((s) => ({ ...s, route: e.target.value }))} />
-            <TextField label="Flight Type" value={editFlightForm.flight_type} onChange={(e) => setEditFlightForm((s) => ({ ...s, flight_type: e.target.value }))} />
+            <TextField
+              select
+              label="Flight Type"
+              value={editFlightForm.flight_type}
+              onChange={(e) => setEditFlightForm((s) => ({ ...s, flight_type: e.target.value }))}
+            >
+              {["training", "charter", "positioning", "maintenance ferry"].map((type) => (
+                <MenuItem key={type} value={type}>{type}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Pilot Requirement"
+              value={editFlightForm.pilot_requirement}
+              onChange={(e) =>
+                setEditFlightForm((s) => ({ ...s, pilot_requirement: e.target.value }))
+              }
+            >
+              {["student", "private", "commercial", "airline"].map((req) => (
+                <MenuItem key={req} value={req}>{req}</MenuItem>
+              ))}
+            </TextField>
             <TextField select label="Primary Pilot" value={editFlightForm.primary_pilot} onChange={(e) => setEditFlightForm((s) => ({ ...s, primary_pilot: e.target.value }))}>
               <MenuItem value="">None</MenuItem>
               {pilotOptionsForCompany(editFlightForm.company).map((p) => (

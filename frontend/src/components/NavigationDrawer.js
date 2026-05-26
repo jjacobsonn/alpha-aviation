@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Box,
   IconButton,
-  Menu,
-  MenuItem,
   Divider,
   Stack,
   Drawer,
@@ -14,6 +12,8 @@ import {
   ListItemText,
   Typography,
   Tooltip,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -21,40 +21,59 @@ import InventoryIcon from "@mui/icons-material/Inventory";
 import AirlinesIcon from "@mui/icons-material/Airlines";
 import BuildIcon from "@mui/icons-material/Build";
 import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
+import HistoryIcon from "@mui/icons-material/History";
+import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
+import InsightsIcon from "@mui/icons-material/Insights";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import NotificationsIcon from "@mui/icons-material/Notifications";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import SettingsIcon from "@mui/icons-material/Settings";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DomainIcon from "@mui/icons-material/Domain";
 import LogoutIcon from "@mui/icons-material/Logout";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { useNavigate, useLocation } from "react-router";
 import { useAppContext } from "../context/AppContext";
 import { logoutUser } from "../shared/Api";
 import { ACTION_TYPES } from "../context/AppContext";
-import { isPlatformAdmin } from "../shared/rbac";
+import {
+  allowedRolesForModule,
+  getDefaultRouteForUser,
+  isPlatformAdmin,
+} from "../shared/rbac";
 
 const drawerWidthExpanded = 260;
 const drawerWidthCollapsed = 72;
 
 function NavigationDrawer() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedTab, setSelectedTab] = useState("dashboard");
-  const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { state, dispatch } = useAppContext();
 
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
+  /** Phones/tablets: always icon rail. Desktop: user can expand/collapse. */
+  const isCompact = isMobile || !sidebarOpen;
+  const drawerWidth = isCompact ? drawerWidthCollapsed : drawerWidthExpanded;
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [isMobile]);
 
   const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    if (!isMobile) {
+      setSidebarOpen((open) => !open);
+    }
+  };
+
+  const goToAppHome = () => {
+    const home = getDefaultRouteForUser(state.user);
+    if (home && home !== "/login") {
+      navigate(home);
+    }
   };
 
   const handleLogout = async () => {
@@ -66,8 +85,6 @@ function NavigationDrawer() {
     } finally {
       // Clear context state
       dispatch({ type: ACTION_TYPES.LOGGED_OUT });
-      // Close menu
-      handleMenuClose();
       // Navigate to login
       navigate("/login");
     }
@@ -86,7 +103,7 @@ function NavigationDrawer() {
     {
       id: "site-admin",
       title: "Site Admin",
-      icon: <SettingsIcon />,
+      icon: <AdminPanelSettingsIcon />,
       color: "#455a64",
       allowedRoles: [],
       onlyPlatformAdmin: true,
@@ -98,6 +115,14 @@ function NavigationDrawer() {
       icon: <DashboardIcon />,
       color: "#2B7FD4",
       allowedRoles: ["owner", "manager"],
+    },
+    {
+      id: "analytics",
+      title: "Analytics",
+      icon: <InsightsIcon />,
+      color: "#6a1b9a",
+      allowedRoles: allowedRolesForModule("analytics"),
+      to: "/analytics",
     },
     {
       id: "admin",
@@ -112,46 +137,70 @@ function NavigationDrawer() {
       title: "Fleet",
       icon: <AirlinesIcon />,
       color: "#1976d2",
-      allowedRoles: ["owner", "manager", "mechanic", "pilot", "dispatcher"],
+      allowedRoles: allowedRolesForModule("fleet"),
       to: "/fleet",
     },
     {
       id: "parts",
       title: "Parts",
       icon: <InventoryIcon />,
-      color: "#2B7FD4",
-      allowedRoles: ["owner", "manager", "mechanic"],
+      color: "#2196F3",
+      allowedRoles: allowedRolesForModule("parts"),
     },
     {
       id: "maintenance",
       title: "Maintenance",
       icon: <BuildIcon />,
       color: "#FF9800",
-      allowedRoles: ["owner", "manager", "mechanic"],
+      allowedRoles: allowedRolesForModule("maintenance"),
     },
     {
       id: "work-orders",
       title: "Work Orders",
       icon: <WorkOutlineIcon />,
       color: "#fb8c00",
-      allowedRoles: ["owner", "manager", "mechanic"],
+      allowedRoles: allowedRolesForModule("workOrders"),
       to: "/work-orders",
     },
     {
+      id: "service-history",
+      title: "Service History",
+      icon: <HistoryIcon />,
+      color: "#5c6bc0",
+      allowedRoles: allowedRolesForModule("serviceHistory"),
+      to: "/service-history",
+    },
+    {
+      id: "component-history",
+      title: "Component History",
+      icon: <PrecisionManufacturingIcon />,
+      color: "#6d4c41",
+      allowedRoles: allowedRolesForModule("componentHistory"),
+      to: "/component-history",
+    },
+    {
       id: "pilot-dashboard",
-      title: "Pilot Dashboard",
+      title: "Pilot",
       icon: <FlightTakeoffIcon />,
       color: "#7b1fa2",
-      allowedRoles: ["pilot", "owner"],
+      allowedRoles: allowedRolesForModule("pilotDashboard"),
       to: "/pilot-dashboard",
     },
     {
       id: "dispatcher-dashboard",
-      title: "Dispatcher Dashboard",
+      title: "Dispatcher",
       icon: <DashboardIcon />,
       color: "#00897b",
-      allowedRoles: ["dispatcher", "owner"],
+      allowedRoles: allowedRolesForModule("dispatcherDashboard"),
       to: "/dispatcher-dashboard",
+    },
+    {
+      id: "calendar",
+      title: "Calendar",
+      icon: <CalendarMonthIcon />,
+      color: "#2e7d32",
+      allowedRoles: allowedRolesForModule("calendar"),
+      to: "/calendar",
     },
   ];
 
@@ -167,60 +216,83 @@ function NavigationDrawer() {
     <Drawer
       variant="permanent"
       sx={{
-        width: sidebarOpen ? drawerWidthExpanded : drawerWidthCollapsed,
+        width: drawerWidth,
         flexShrink: 0,
+        display: { xs: "block" },
         "& .MuiDrawer-paper": {
-          width: sidebarOpen ? drawerWidthExpanded : drawerWidthCollapsed,
+          width: drawerWidth,
           boxSizing: "border-box",
           bgcolor: "white",
           borderRight: "1px solid",
           borderColor: "divider",
-          transition: "width 0.3s",
+          transition: theme.transitions.create("width", {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
           overflowX: "hidden",
         },
       }}
     >
-      {/* ... existing code ... */}
-
       {/* Header Section */}
       <Box
         sx={{
-          p: 2,
+          px: isCompact ? 1 : 2,
+          py: 1.5,
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          minHeight: 64,
+          justifyContent: isCompact ? "center" : "space-between",
+          minHeight: 56,
+          flexDirection: isCompact ? "column" : "row",
+          gap: isCompact ? 0.5 : 0,
         }}
       >
-        {sidebarOpen && (
+        {!isCompact && (
           <Stack
             direction="row"
             alignItems="center"
             spacing={1.5}
-            onClick={() => navigate("/")}
-            sx={{ cursor: "pointer" }}
+            onClick={goToAppHome}
+            sx={{ cursor: "pointer", minWidth: 0 }}
           >
             <img src="/logo.png" alt="AIMS" style={{ height: 28, width: 28 }} />
             <Typography
               variant="h6"
-              sx={{ fontWeight: 600, color: "primary.main" }}
+              noWrap
+              sx={{ fontWeight: 600, color: "primary.main", fontSize: "1rem" }}
             >
               Alpha Aviation
             </Typography>
           </Stack>
         )}
-        {!sidebarOpen && (
-          <img
-            src="/logo.png"
-            alt="AIMS"
-            style={{ height: 28, width: 28, cursor: "pointer" }}
-            onClick={() => navigate("/")}
-          />
+        {isCompact && (
+          <Tooltip title="Home" placement="right">
+            <Box
+              component="button"
+              type="button"
+              onClick={goToAppHome}
+              aria-label="Go to home dashboard"
+              sx={{
+                border: 0,
+                p: 0.5,
+                bgcolor: "transparent",
+                cursor: "pointer",
+                borderRadius: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                "&:hover": { bgcolor: "action.hover" },
+              }}
+            >
+              <img src="/logo.png" alt="AIMS" style={{ height: 28, width: 28 }} />
+            </Box>
+          </Tooltip>
         )}
 
-        <IconButton onClick={toggleSidebar} size="small">
-          {sidebarOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
-        </IconButton>
+        {!isMobile && (
+          <IconButton onClick={toggleSidebar} size="small" aria-label="Toggle sidebar">
+            {sidebarOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+          </IconButton>
+        )}
       </Box>
 
       <Divider />
@@ -230,7 +302,7 @@ function NavigationDrawer() {
         {menuItems.map((item) => (
           <Tooltip
             key={item.id}
-            title={!sidebarOpen ? item.title : ""}
+            title={isCompact ? item.title : ""}
             placement="right"
           >
             <ListItem disablePadding sx={{ mb: 1 }}>
@@ -244,8 +316,8 @@ function NavigationDrawer() {
                 sx={{
                   borderRadius: 2,
                   minHeight: 48,
-                  justifyContent: sidebarOpen ? "initial" : "center",
-                  px: 2.5,
+                  justifyContent: isCompact ? "center" : "initial",
+                  px: isCompact ? 1 : 2.5,
                   "&.Mui-selected": {
                     bgcolor: `${item.color}15`,
                     color: item.color,
@@ -261,7 +333,7 @@ function NavigationDrawer() {
                 <ListItemIcon
                   sx={{
                     minWidth: 0,
-                    mr: sidebarOpen ? 2 : "auto",
+                    mr: isCompact ? "auto" : 2,
                     justifyContent: "center",
                     color:
                       selectedTab === item.id ? item.color : "text.secondary",
@@ -269,7 +341,7 @@ function NavigationDrawer() {
                 >
                   {item.icon}
                 </ListItemIcon>
-                {sidebarOpen && (
+                {!isCompact && (
                   <ListItemText
                     primary={item.title}
                     primaryTypographyProps={{
@@ -286,118 +358,80 @@ function NavigationDrawer() {
 
       <Divider />
 
-      {/* Bottom Navigation Items */}
+      {/* Footer: account & session (backlog 1.3.1 — profile from Account, not dead nav) */}
       <List sx={{ px: 1, py: 2 }}>
-        <Tooltip
-          title={!sidebarOpen ? "Notifications" : ""}
-          placement="right"
-        >
+        <Tooltip title={isCompact ? "Account" : ""} placement="right">
           <ListItem disablePadding sx={{ mb: 1 }}>
             <ListItemButton
+              selected={location.pathname.startsWith("/account")}
+              onClick={() => {
+                navigate("/account");
+                setSelectedTab("account");
+              }}
               sx={{
                 borderRadius: 2,
                 minHeight: 48,
-                justifyContent: sidebarOpen ? "initial" : "center",
-                px: 2.5,
+                justifyContent: isCompact ? "center" : "initial",
+                px: isCompact ? 1 : 2.5,
+                "&.Mui-selected": {
+                  bgcolor: "rgba(92, 107, 192, 0.12)",
+                  color: "#3949ab",
+                  "&:hover": { bgcolor: "rgba(92, 107, 192, 0.18)" },
+                },
               }}
             >
               <ListItemIcon
                 sx={{
                   minWidth: 0,
-                  mr: sidebarOpen ? 2 : "auto",
+                  mr: isCompact ? "auto" : 2,
                   justifyContent: "center",
-                }}
-              >
-                <NotificationsIcon />
-              </ListItemIcon>
-              {sidebarOpen && <ListItemText primary="Notifications" />}
-            </ListItemButton>
-          </ListItem>
-        </Tooltip>
-
-        <Tooltip title={!sidebarOpen ? "Settings" : ""} placement="right">
-          <ListItem disablePadding sx={{ mb: 1 }}>
-            <ListItemButton
-              sx={{
-                borderRadius: 2,
-                minHeight: 48,
-                justifyContent: sidebarOpen ? "initial" : "center",
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: sidebarOpen ? 2 : "auto",
-                  justifyContent: "center",
-                }}
-              >
-                <SettingsIcon />
-              </ListItemIcon>
-              {sidebarOpen && <ListItemText primary="Settings" />}
-            </ListItemButton>
-          </ListItem>
-        </Tooltip>
-
-        <Tooltip title={!sidebarOpen ? "Account" : ""} placement="right">
-          <ListItem disablePadding>
-            <ListItemButton
-              onClick={handleMenuOpen}
-              sx={{
-                borderRadius: 2,
-                minHeight: 48,
-                justifyContent: sidebarOpen ? "initial" : "center",
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: sidebarOpen ? 2 : "auto",
-                  justifyContent: "center",
+                  color: location.pathname.startsWith("/account")
+                    ? "#3949ab"
+                    : "text.secondary",
                 }}
               >
                 <AccountCircleIcon />
               </ListItemIcon>
-              {sidebarOpen && <ListItemText primary="Account" />}
+              {!isCompact && (
+                <ListItemText
+                  primary="Account"
+                  primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
+                />
+              )}
+            </ListItemButton>
+          </ListItem>
+        </Tooltip>
+
+        <Tooltip title={isCompact ? "Logout" : ""} placement="right">
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={handleLogout}
+              sx={{
+                borderRadius: 2,
+                minHeight: 48,
+                justifyContent: isCompact ? "center" : "initial",
+                px: isCompact ? 1 : 2.5,
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: isCompact ? "auto" : 2,
+                  justifyContent: "center",
+                }}
+              >
+                <LogoutIcon />
+              </ListItemIcon>
+              {!isCompact && (
+                <ListItemText
+                  primary="Logout"
+                  primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
+                />
+              )}
             </ListItemButton>
           </ListItem>
         </Tooltip>
       </List>
-
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        anchorOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-      >
-        <MenuItem onClick={handleMenuClose}>
-          <ListItemIcon>
-            <AccountCircleIcon fontSize="small" />
-          </ListItemIcon>
-          Profile
-        </MenuItem>
-        <MenuItem onClick={handleMenuClose}>
-          <ListItemIcon>
-            <SettingsIcon fontSize="small" />
-          </ListItemIcon>
-          Settings
-        </MenuItem>
-        <Divider />
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon>
-            <LogoutIcon fontSize="small" />
-          </ListItemIcon>
-          Logout
-        </MenuItem>
-      </Menu>
     </Drawer>
   );
 }
