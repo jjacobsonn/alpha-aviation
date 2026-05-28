@@ -12,9 +12,7 @@ jest.mock('../../context/AppContext', () => ({
 jest.mock('../../shared/Api', () => ({
 	fetchTools: jest.fn(),
 	fetchToolCalibrationHistory: jest.fn(),
-	fetchCompanyUsers: jest.fn().mockResolvedValue([
-		{ id: 1, first_name: 'Pat', last_name: 'Smith', company_role: 'mechanic' },
-	]),
+	fetchCompanyUsers: jest.fn(),
 	createTool: jest.fn(),
 	updateTool: jest.fn(),
 	deleteTool: jest.fn(),
@@ -26,6 +24,7 @@ import userEvent from '@testing-library/user-event';
 import ToolsCalibrationPanel from '../../components/parts/ToolsCalibrationPanel';
 
 const { fetchTools } = require('../../shared/Api');
+const { fetchCompanyUsers } = require('../../shared/Api');
 
 const sampleTools = [
 	{
@@ -49,9 +48,12 @@ const sampleTools = [
 describe('ToolsCalibrationPanel', () => {
 	beforeEach(() => {
 		fetchTools.mockResolvedValue(sampleTools);
+	fetchCompanyUsers.mockResolvedValue([
+		{ id: 1, first_name: 'Pat', last_name: 'Smith', company_role: 'mechanic' },
+	]);
 	});
 
-	it('renders tools table', async () => {
+	test('renders tools table', async () => {
 		render(<ToolsCalibrationPanel />);
 		await waitFor(() => {
 			expect(screen.getByText('Torque Wrench')).toBeInTheDocument();
@@ -59,7 +61,7 @@ describe('ToolsCalibrationPanel', () => {
 		expect(screen.getByText('Add tool')).toBeInTheDocument();
 	});
 
-	it('filters to overdue via stat card', async () => {
+	test('filters to overdue via stat card', async () => {
 		const user = userEvent.setup();
 		render(<ToolsCalibrationPanel />);
 		await waitFor(() => {

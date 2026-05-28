@@ -31,7 +31,7 @@ import AssignmentIcon from "@mui/icons-material/Assignment";
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 import CloseIcon from "@mui/icons-material/Close";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import {
   createCompanyFlightRequest,
   createDiscrepancy,

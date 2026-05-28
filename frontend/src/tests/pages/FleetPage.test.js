@@ -11,6 +11,15 @@ jest.mock('../../shared/Api', () => ({
  	fetchFleetAircraft: jest.fn(),
 }));
 
+jest.mock('../../context/AppContext', () => ({
+	useAppContext: () => ({
+		state: {
+			user: { role: 'manager', companyId: 1 },
+			viewAsUser: null,
+		},
+	}),
+}));
+
 const { fetchFleetAircraft } = require('../../shared/Api');
 
 test('Fleet page renders and displays aircraft rows', async () => {

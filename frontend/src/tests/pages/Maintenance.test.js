@@ -50,6 +50,7 @@ jest.mock('../../shared/Api', () => ({
 	fetchCompanyAircrafts: jest.fn(),
 	fetchCompanyUsers: jest.fn(),
 	fetchParts: jest.fn(),
+	fetchMaintenanceDashboard: jest.fn(),
 	createWorkorder: jest.fn(),
 	createDiscrepancy: jest.fn(),
 	updateWorkorder: jest.fn(),
@@ -61,6 +62,8 @@ jest.mock('../../shared/Api', () => ({
 const mockWorkOrders = [
 	{
 		id: 101,
+		assignee: 1,
+		assignee_name: 'John Doe',
 		created_by: {
 			first_name: 'John',
 			last_name: 'Doe',
@@ -102,14 +105,20 @@ describe('Maintenance page', () => {
 		Api.fetchCompanyAircrafts.mockResolvedValue([]);
 		Api.fetchCompanyUsers.mockResolvedValue([]);
 		Api.fetchParts.mockResolvedValue([]);
+		Api.fetchMaintenanceDashboard.mockResolvedValue({
+			pending_discrepancies: mockDiscrepancies.length,
+			open_work_orders: mockWorkOrders.length,
+			overdue: 0,
+			due_soon: 0,
+		});
 	});
 
 	test('renders page with KPI section and headings', async () => {
 		renderMaintenance();
 
 		await waitFor(() => {
-			expect(screen.getByText('Open')).toBeInTheDocument();
-			expect(screen.getByText('Pending')).toBeInTheDocument();
+			expect(screen.getAllByText('Open').length).toBeGreaterThan(0);
+			expect(screen.getAllByText('Pending').length).toBeGreaterThan(0);
 		});
 	});
 

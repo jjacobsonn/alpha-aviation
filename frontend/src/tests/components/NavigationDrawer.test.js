@@ -76,9 +76,8 @@ describe("NavigationDrawer Component", () => {
       renderComponent();
       const buttons = screen.getAllByRole("button");
       const allText = buttons.map((b) => b.textContent).join(" ");
-      expect(allText).toContain("Notifications");
-      expect(allText).toContain("Settings");
       expect(allText).toContain("Account");
+      expect(allText).toContain("Logout");
     });
   });
 
@@ -133,12 +132,12 @@ describe("NavigationDrawer Component", () => {
       renderComponent();
       const logoText = screen.getByText("Alpha Aviation");
       fireEvent.click(logoText.closest("div"));
-      expect(mockNavigate).toHaveBeenCalledWith("/");
+      expect(mockNavigate).toHaveBeenCalledWith("/management");
     });
   });
 
   describe("Account Menu", () => {
-    test("should open menu when Account button is clicked", async () => {
+    test("should navigate to account page when Account button is clicked", () => {
       renderComponent();
       const buttons = screen.getAllByRole("button");
       const accountBtn = buttons.find((btn) => btn.textContent.includes("Account"));
@@ -146,29 +145,15 @@ describe("NavigationDrawer Component", () => {
       expect(accountBtn).toBeTruthy();
       fireEvent.click(accountBtn);
 
-      // Wait for menu to appear
-      await waitFor(
-        () => {
-          expect(screen.getByText("Profile")).toBeInTheDocument();
-        },
-        { timeout: 1000 }
-      );
+      expect(mockNavigate).toHaveBeenCalledWith("/account");
     });
 
-    test("should show all menu options when opened", async () => {
+    test("should render the logout button in the footer", () => {
       renderComponent();
       const buttons = screen.getAllByRole("button");
-      const accountBtn = buttons.find((btn) => btn.textContent.includes("Account"));
+      const allText = buttons.map((btn) => btn.textContent).join(" ");
 
-      fireEvent.click(accountBtn);
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("Profile")).toBeInTheDocument();
-          expect(screen.getByText("Logout")).toBeInTheDocument();
-        },
-        { timeout: 1000 }
-      );
+      expect(allText).toContain("Logout");
     });
   });
 

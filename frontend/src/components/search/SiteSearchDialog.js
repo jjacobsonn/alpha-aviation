@@ -20,7 +20,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
 import EventIcon from '@mui/icons-material/Event';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { fetchGlobalSearch } from '../../shared/Api';
 import useDebouncedValue from '../../shared/useDebouncedValue';
 import {
