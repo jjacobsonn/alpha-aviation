@@ -390,6 +390,132 @@ Returns all inventories belonging to the authenticated user's company
     * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
 ---
 
+
+GET /api/company/inventories/detailed/
+Returns all inventory line items for the authenticated user's company with full part and company detail.
+
+URL Params: None
+Data Params: None
+Headers:
+
+Content-Type: application/json
+Authorization: Bearer <access_token>
+
+
+Permission: Mechanic, Manager, or Owner
+Success Response:
+
+Code: 200
+Content:
+
+
+
+json        [
+            {
+                "id": 1,
+                "inventory": 1,
+                "company": {
+                    "id": 1,
+                    "name": "Acme Aviation",
+                    "created_at": "2024-01-01T00:00:00Z",
+                    "updated_at": "2024-06-01T00:00:00Z",
+                    "locations": "Salt Lake City, UT"
+                },
+                "part": {
+                    "id": 1,
+                    "part_number": "PN-1234",
+                    "name": "Oil Filter",
+                    "description": "Standard oil filter for Lycoming engines",
+                    "aircraft": 1,
+                    "aircraft_name": "Cessna 172"
+                },
+                "in_stock": 5,
+                "stock_alert": 2,
+                "stock_alert_percentage": 0.1,
+                "shop_location": "Shelf A3"
+            }
+        ]
+* Notes:
+    * `in_stock` maps to the model's `quantity` field
+    * `part_id` is a write-only field used when creating records (see POST below); it is not present in GET responses
+
+Error Response:
+
+Code: 400 BAD REQUEST — { "detail": "No company context for inventory. ..." } (platform admin only, when no company is resolvable)
+Code: 401 UNAUTHORIZED — { "detail": "Authentication credentials were not provided." }
+Code: 403 FORBIDDEN — insufficient role
+
+
+---
+
+POST /api/company/inventories/detailed/
+Creates a new inventory line item for the authenticated user's company.
+
+URL Params: None
+Data Params:
+
+json    {
+        "part_id": 1,
+        "in_stock": 5,
+        "stock_alert": 2,
+        "stock_alert_percentage": 0.1,
+        "shop_location": "Shelf A3"
+    }
+* `part_id` — required; the ID of the Part to add
+* `in_stock` — maps to `quantity` on the model
+* `stock_alert`, `stock_alert_percentage`, `shop_location` — optional
+
+Headers:
+
+Content-Type: application/json
+Authorization: Bearer <access_token>
+
+
+Permission: Mechanic, Manager, or Owner
+Success Response:
+
+Code: 201
+Content: InventoryPart object (same shape as GET /api/company/inventories/detailed/)
+
+
+Error Response:
+
+Code: 400 BAD REQUEST — validation errors or missing company context
+Code: 401 UNAUTHORIZED — { "detail": "Authentication credentials were not provided." }
+Code: 403 FORBIDDEN — insufficient role
+
+
+---
+
+
+GET /api/company/inventories/detailed/low-stock/
+Returns all inventory line items for the authenticated user's company where the quantity is at or below the stock alert threshold.
+
+URL Params: None
+Data Params: None
+Headers:
+
+Content-Type: application/json
+Authorization: Bearer <access_token>
+
+
+Permission: Mechanic, Manager, or Owner
+Success Response:
+
+Code: 200
+Content: Array of InventoryPart objects (same shape as GET /api/company/inventories/detailed/)
+Returns [] if no items are below the stock alert threshold
+A line item is considered low stock when stock_alert >= quantity * (1 + stock_alert_percentage) or stock_alert >= quantity
+
+
+Error Response:
+
+Code: 401 UNAUTHORIZED — { "detail": "Authentication credentials were not provided." }
+Code: 403 FORBIDDEN — insufficient role
+
+
+---
+
 ### GET /api/company/workorders/
 Returns all workorders belonging to the authenticated user's company
 * URL Params: None
@@ -978,6 +1104,89 @@ Returns all work orders for a specific aircraft ordered by most recently created
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 404 NOT FOUND — `{ "detail": "No Aircraft matches the given query." }`
 
+---
+
+###GET /api/management/dashboard/
+Returns aggregated analytics and KPIs for the authenticated user's company.
+
+URL Params: None
+Data Params: None
+Headers:
+
+Content-Type: application/json
+Authorization: Bearer <access_token>
+
+
+Permission: Manager or Owner
+Success Response:
+
+Code: 200
+Content:
+
+
+
+json        {
+            "company": {
+                "id": 1,
+                "name": "Acme Aviation",
+                "locations": "Salt Lake City, UT"
+            },
+            "counts": {
+                "aircraft": 4,
+                "flights": 38,
+                "work_orders_open": 3,
+                "discrepancies_pending": 5,
+                "low_stock_items": 2
+            },
+            "team_by_role": {
+                "owner": 1,
+                "manager": 2,
+                "mechanic": 4,
+                "dispatcher": 1,
+                "pilot": 6
+            },
+            "aircraft_analytics": {
+                "workorder_analytics": {
+                    "N12345": {
+                        "total_workorders": 3,
+                        "high_priority_workorders": 1,
+                        "medium_priority_workorders": 1,
+                        "low_priority_workorders": 1,
+                        "critical_priority_workorders": 0
+                    }
+                },
+                "remaining_hobbs": {
+                    "N12345": 42.5
+                },
+                "recuring_discrepancies": {
+                    "32": [3, ["N12345", "N67890"]]
+                },
+                "monthly_flight_hours": {
+                    "Cessna 172": {
+                        "2026-05": 14.5,
+                        "2026-04": 22.0,
+                        "2026-03": 18.75
+                    }
+                },
+                "uptime_downtime": {
+                    "Cessna 172": {
+                        "total_time_hours": 2160.0,
+                        "down_time_hours": 48.5
+                    }
+                }
+            }
+        }
+* Notes on dynamic keys:
+    * `workorder_analytics` — keyed by aircraft **registration number**; value is work order counts for the past 100 hobbs hours
+    * `remaining_hobbs` — keyed by aircraft **registration number**; value is hours remaining until the next part expiration, or `null` if no tracked parts
+    * `recuring_discrepancies` — keyed by **ATA code** (string); value is a two-element array: `[count, [registration_numbers]]`
+    * `monthly_flight_hours` — keyed by aircraft **model**; value is a dict of `"YYYY-MM"` → total flight hours (float), covering the past 12 months. Multiple aircraft of the same model are summed together
+    * `uptime_downtime` — keyed by aircraft **model**; value contains `total_time_hours` (hours since the aircraft was added to the system) and `down_time_hours` (hours spent in closed work orders). Multiple aircraft of the same model are summed together
+
+Error Response:
+
+Code: 401 UNAUTHORIZED — { "detail": "Authentication credentials were not provided." }
+Code: 403 FORBIDDEN — { "error": "User does not have an associated company" } or insufficient role
 ---
 
 ### GET /api/maintenance/dashboard/
