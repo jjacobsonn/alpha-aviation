@@ -43,12 +43,12 @@ class TestSeedCommand:
 		from api.models import Profile
 		
 		profiles = Profile.objects.all()
-		assert profiles.count() == 7
+		assert profiles.count() == 8
 		
 		# Check each role exists
 		assert Profile.objects.filter(company_role="pilot").count() == 4
 		assert Profile.objects.filter(company_role="mechanic").count() == 1
-		assert Profile.objects.filter(company_role="owner").count() == 1
+		assert Profile.objects.filter(company_role="owner").count() == 2
 		assert Profile.objects.filter(company_role="manager").count() == 1
 
 	def test_pilot_created(self, seeded_db):

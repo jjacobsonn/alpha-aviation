@@ -33,6 +33,7 @@ def main() -> None:
     user_model = get_user_model()
     user, _ = user_model.objects.get_or_create(
         username=USERNAME,
+        password=PASSWORD,
         defaults={
             'email': EMAIL,
             'first_name': 'E2E',

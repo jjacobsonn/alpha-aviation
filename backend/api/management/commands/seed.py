@@ -31,6 +31,17 @@ class Command(BaseCommand):
             locations = "SLC, Chicago, NYC, Seattle"
         )
 
+        # Superuser
+        Profile.objects.create_superuser(
+            username="admin",
+            email="admin@admin.com",
+            password="admin",
+            first_name="Super",
+            last_name="Admin",
+            company=None,
+            company_role="owner",
+        )
+
         # Profile
         PilotProfile = Profile.objects.create(
             username = "pilot.hart",
