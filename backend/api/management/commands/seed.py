@@ -34,6 +34,7 @@ class Command(BaseCommand):
         # Profile
         PilotProfile = Profile.objects.create(
             username = "pilot.hart",
+            password = "pilot_password100",
             first_name = "Amy",
             last_name = "Hart",
             company = GammaCorp,
@@ -43,8 +44,45 @@ class Command(BaseCommand):
             phone_number = "1011011001"
         )
 
+        SecondaryPilotProfile = Profile.objects.create(
+            username = "pilot.james",
+            password = "pilot_password200",
+            first_name = "Gary",
+            last_name = "James",
+            company = GammaCorp,
+            company_role = "pilot",
+            middle_name = "H",
+            employee_id = 9988,
+            phone_number = "1239874560"
+        )
+
+        EpsilonPilotProfile = Profile.objects.create(
+            username = "pilot.lee",
+            password = "pilot_password300",
+            first_name = "Jordan",
+            last_name = "Lee",
+            company = EpsilonAir,
+            company_role = "pilot",
+            middle_name = "A",
+            employee_id = 5566,
+            phone_number = "2223334444"
+        )
+
+        EpsilonSecondaryPilotProfile = Profile.objects.create(
+            username = "pilot.nguyen",
+            password = "pilot_password400",
+            first_name = "Mina",
+            last_name = "Nguyen",
+            company = EpsilonAir,
+            company_role = "pilot",
+            middle_name = "T",
+            employee_id = 7788,
+            phone_number = "3334445555"
+        )
+
         MechanicProfile = Profile.objects.create(
             username = "mechanic.fiennes",
+            password = "mechanic_password100",
             first_name = "Felicia",
             last_name = "Fiennes",
             company = EpsilonAir,
@@ -55,6 +93,7 @@ class Command(BaseCommand):
 
         OwnerProfile = Profile.objects.create(
             username = "owner.johnson",
+            password = "owner_password100",
             first_name = "Jonathan",
             last_name = "Johnson",
             company = GammaCorp,
@@ -65,6 +104,7 @@ class Command(BaseCommand):
 
         ManagerProfile = Profile.objects.create(
             username = "manager.boris",
+            password = "manager_password100",
             first_name = "Riley",
             last_name = "Boris",
             company = EpsilonAir,
@@ -73,22 +113,26 @@ class Command(BaseCommand):
         )
 
         # Pilot
-        Pilot.objects.update_or_create(
-            profile = PilotProfile,
-            defaults = {
-                "medically_cleared_until": date(2026, 10, 1),
-                "pilot_certificate": "private"
-            }
-        )
+        PilotProfile.pilot_info.medically_cleared_until = date(2026, 10, 1)
+        PilotProfile.pilot_info.pilot_certificate = "private"
+        PilotProfile.pilot_info.save()
+
+        SecondaryPilotProfile.pilot_info.medically_cleared_until = date(2026, 10, 1)
+        SecondaryPilotProfile.pilot_info.pilot_certificate = "commercial"
+        SecondaryPilotProfile.pilot_info.save()
+
+        EpsilonPilotProfile.pilot_info.medically_cleared_until = date(2026, 10, 1)
+        EpsilonPilotProfile.pilot_info.pilot_certificate = "private"
+        EpsilonPilotProfile.pilot_info.save()
+
+        EpsilonSecondaryPilotProfile.pilot_info.medically_cleared_until = date(2026, 10, 1)
+        EpsilonSecondaryPilotProfile.pilot_info.pilot_certificate = "commercial"
+        EpsilonSecondaryPilotProfile.pilot_info.save()
 
         # Mechanic
-        Mechanic.objects.update_or_create(
-            profile = MechanicProfile,
-            defaults = {
-                "AP_certificate_number": 242526,
-                "inspector_authentication": True
-            }
-        )
+        MechanicProfile.mechanic_info.AP_certificate_number = 242526
+        MechanicProfile.mechanic_info.inspector_authentication = True
+        MechanicProfile.mechanic_info.save()
 
         # Aircraft
         TPlane = Aircraft.objects.create(
@@ -107,6 +151,73 @@ class Command(BaseCommand):
             engine_type = "Turbojet",
             year_built = 2020,
             company = EpsilonAir
+        )
+
+        # Flight
+        base_time = timezone.now() + timedelta(days=1)
+
+        Flight.objects.create(
+            company = GammaCorp,
+            aircraft = TPlane,
+            flight_number = "GC101",
+            origin = "SLC",
+            destination = "PVU",
+            departure_time = base_time,
+            arrival_time = base_time + timedelta(hours=1, minutes=10),
+            route = "SLC-PVU",
+            flight_type = "training",
+            primary_pilot = PilotProfile,
+            secondary_pilot = SecondaryPilotProfile,
+            pilot_requirement = "private",
+            status = "approved"
+        )
+
+        Flight.objects.create(
+            company = GammaCorp,
+            aircraft = TPlane,
+            flight_number = "GC205",
+            origin = "PVU",
+            destination = "SLC",
+            departure_time = base_time + timedelta(days=2),
+            arrival_time = base_time + timedelta(days=2, hours=1, minutes=5),
+            route = "PVU-SLC",
+            flight_type = "charter",
+            primary_pilot = PilotProfile,
+            secondary_pilot = SecondaryPilotProfile,
+            pilot_requirement = "private",
+            status = "pending approval"
+        )
+
+        Flight.objects.create(
+            company = EpsilonAir,
+            aircraft = SPlane,
+            flight_number = "EA330",
+            origin = "SLC",
+            destination = "SEA",
+            departure_time = base_time + timedelta(days=3),
+            arrival_time = base_time + timedelta(days=3, hours=2, minutes=40),
+            route = "SLC-SEA",
+            flight_type = "positioning",
+            primary_pilot = EpsilonPilotProfile,
+            secondary_pilot = EpsilonSecondaryPilotProfile,
+            pilot_requirement = "private",
+            status = "approved"
+        )
+
+        Flight.objects.create(
+            company = EpsilonAir,
+            aircraft = SPlane,
+            flight_number = "EA331",
+            origin = "SEA",
+            destination = "SLC",
+            departure_time = base_time + timedelta(days=4),
+            arrival_time = base_time + timedelta(days=4, hours=2, minutes=30),
+            route = "SEA-SLC",
+            flight_type = "maintenance ferry",
+            primary_pilot = EpsilonPilotProfile,
+            secondary_pilot = EpsilonSecondaryPilotProfile,
+            pilot_requirement = "private",
+            status = "pending approval"
         )
 
         # Part
@@ -242,67 +353,6 @@ class Command(BaseCommand):
             ata_code = "32",
             tach_time = "980.2",
             status = "pending"
-        )
-
-        # Flight
-        base_time = timezone.now() + timedelta(days=1)
-
-        Flight.objects.create(
-            company = GammaCorp,
-            aircraft = TPlane,
-            flight_number = "GC101",
-            origin = "SLC",
-            destination = "PVU",
-            departure_time = base_time,
-            arrival_time = base_time + timedelta(hours=1, minutes=10),
-            route = "SLC-PVU",
-            flight_type = "training",
-            primary_pilot = PilotProfile,
-            pilot_requirement = "private",
-            status = "approved"
-        )
-
-        Flight.objects.create(
-            company = GammaCorp,
-            aircraft = TPlane,
-            flight_number = "GC205",
-            origin = "PVU",
-            destination = "SLC",
-            departure_time = base_time + timedelta(days=2),
-            arrival_time = base_time + timedelta(days=2, hours=1, minutes=5),
-            route = "PVU-SLC",
-            flight_type = "charter",
-            primary_pilot = PilotProfile,
-            pilot_requirement = "private",
-            status = "pending approval"
-        )
-
-        Flight.objects.create(
-            company = EpsilonAir,
-            aircraft = SPlane,
-            flight_number = "EA330",
-            origin = "SLC",
-            destination = "SEA",
-            departure_time = base_time + timedelta(days=3),
-            arrival_time = base_time + timedelta(days=3, hours=2, minutes=40),
-            route = "SLC-SEA",
-            flight_type = "positioning",
-            pilot_requirement = "private",
-            status = "approved"
-        )
-
-        Flight.objects.create(
-            company = EpsilonAir,
-            aircraft = SPlane,
-            flight_number = "EA331",
-            origin = "SEA",
-            destination = "SLC",
-            departure_time = base_time + timedelta(days=4),
-            arrival_time = base_time + timedelta(days=4, hours=2, minutes=30),
-            route = "SEA-SLC",
-            flight_type = "maintenance ferry",
-            pilot_requirement = "private",
-            status = "pending approval"
         )
 
         # Component history (Phase 2 — 3.3.2 demo data)

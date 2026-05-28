@@ -7,7 +7,7 @@ from datetime import timedelta
 @pytest.mark.django_db
 class TestModelIntegration:
     def test_company_management_dashboard_counts(
-        self, sample_company, sample_aircraft, sample_work_order, sample_discrepancy, sample_flight
+        self, sample_company, sample_aircraft, sample_flight, sample_work_order, sample_discrepancy
     ):
         data = sample_company.get_management_dashboard_data()
 

@@ -540,9 +540,9 @@ class TestOwnershipRbacRules:
         assert deny.status_code == status.HTTP_403_FORBIDDEN
 
     def test_pilot_cannot_edit_other_users_flight_request(
-        self, api_client, sample_flight, sample_pilot_profile
+        self, api_client, sample_flight, sample_pilot_profile_secondary
     ):
-        api_client.force_authenticate(user=sample_pilot_profile)
+        api_client.force_authenticate(user=sample_pilot_profile_secondary)
         url = reverse("company-flight-dispatch", kwargs={"pk": sample_flight.id})
         response = api_client.patch(url, {"route": "SHOULD-NOT-WORK"}, format="json")
 

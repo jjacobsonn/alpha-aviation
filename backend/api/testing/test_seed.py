@@ -43,10 +43,10 @@ class TestSeedCommand:
 		from api.models import Profile
 		
 		profiles = Profile.objects.all()
-		assert profiles.count() == 4
+		assert profiles.count() == 7
 		
 		# Check each role exists
-		assert Profile.objects.filter(company_role="pilot").count() == 1
+		assert Profile.objects.filter(company_role="pilot").count() == 4
 		assert Profile.objects.filter(company_role="mechanic").count() == 1
 		assert Profile.objects.filter(company_role="owner").count() == 1
 		assert Profile.objects.filter(company_role="manager").count() == 1
@@ -200,7 +200,7 @@ class TestSeedCommand:
 		assert Aircraft.objects.filter(company=gamma_corp).count() == 1
 		
 		# Check that profiles are linked to correct company
-		assert Profile.objects.filter(company=gamma_corp).count() == 2
+		assert Profile.objects.filter(company=gamma_corp).count() == 3
 		
 		# Check that work orders are linked to correct aircraft
 		gamma_aircraft = Aircraft.objects.filter(company=gamma_corp).first()

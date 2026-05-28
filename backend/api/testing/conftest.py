@@ -57,6 +57,20 @@ def sample_pilot_profile(db, sample_company, django_user_model):
 
 
 @pytest.fixture
+def sample_pilot_profile_secondary(db, sample_company, django_user_model):
+    """Create a second pilot profile"""
+    return django_user_model.objects.create_user(
+        username="pilot.user2",
+        email="pilot2@example.com",
+        password="pilotpass123",
+        first_name="Pilot",
+        last_name="User2",
+        company=sample_company,
+        company_role="pilot",
+    )
+
+
+@pytest.fixture
 def sample_user(db, sample_company, django_user_model):
     """Create a test user"""
     return django_user_model.objects.create_user(
@@ -74,6 +88,16 @@ def sample_user(db, sample_company, django_user_model):
 def sample_pilot(db, sample_pilot_profile):
     """Create/update pilot info model"""
     pilot = sample_pilot_profile.pilot_info
+    pilot.medically_cleared_until = timezone.now().date() + timedelta(days=60)
+    pilot.pilot_certificate = "private"
+    pilot.save()
+    return pilot
+
+
+@pytest.fixture
+def sample_pilot_secondary(db, sample_pilot_profile_secondary):
+    """Create/update second pilot info model"""
+    pilot = sample_pilot_profile_secondary.pilot_info
     pilot.medically_cleared_until = timezone.now().date() + timedelta(days=60)
     pilot.pilot_certificate = "private"
     pilot.save()
@@ -140,7 +164,7 @@ def sample_inventory_item(sample_inventory_part):
 
 
 @pytest.fixture
-def sample_flight(db, sample_company, sample_aircraft, sample_pilot):
+def sample_flight(db, sample_company, sample_aircraft, sample_pilot, sample_pilot_secondary):
     """Create a flight"""
     from api.models import Flight
 
@@ -158,6 +182,7 @@ def sample_flight(db, sample_company, sample_aircraft, sample_pilot):
         route="SLC-PVU",
         flight_type="training",
         primary_pilot=sample_pilot.profile,
+        secondary_pilot=sample_pilot_secondary.profile,
         pilot_requirement="private",
         status="scheduled",
     )

@@ -73,8 +73,9 @@ class TestInventoryModel:
 
     def test_inventory_str(self, sample_inventory_part):
         text = str(sample_inventory_part.inventory)
-        assert "Test Part" in text
-        assert "Qty: 10" in text
+        assert "Inventory Main" in text
+        assert "Test Company" in text
+        assert "1 items" in text
 
 
 @pytest.mark.django_db
