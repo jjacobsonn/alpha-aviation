@@ -105,11 +105,26 @@ class TestAuthenticatedUserViews:
             status.HTTP_403_FORBIDDEN,
         }
 
-    def test_logout_authenticated(self, authenticated_client):
-        url = reverse("logout")
-        response = authenticated_client.post(url, {})
+    def test_logout_authenticated(self, api_client, sample_user):
+        """Matches frontend: POST /auth/logout/ with refresh token in body."""
+        login_response = api_client.post(
+            reverse("login"),
+            {"username": "testuser", "password": "testpass123"},
+        )
+        refresh = login_response.data["refresh"]
+        access = login_response.data["access"]
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
+        url = reverse("logout")
+        response = api_client.post(url, {"refresh": refresh}, format="json")
         assert response.status_code == status.HTTP_200_OK
+
+        refresh_response = api_client.post(
+            reverse("token_refresh"),
+            {"refresh": refresh},
+            format="json",
+        )
+        assert refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.django_db
@@ -338,6 +353,8 @@ class TestViewSetEndpoints:
         response = owner_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
+        ids = [row["id"] for row in response.data]
+        assert ids == [sample_company.id]
 
     def test_companies_list_mechanic_forbidden(self, authenticated_client):
         url = reverse("companies-list")
@@ -610,14 +627,17 @@ class TestServiceHistoryViews:
 @pytest.mark.django_db
 class TestComponentHistoryViews:
     @pytest.fixture
-    def sample_installed_component(self, db, sample_company, sample_aircraft, sample_user):
+    def sample_installed_component(
+        self, db, sample_company, sample_aircraft, sample_user, sample_part
+    ):
         from api.models import InstalledComponent, ComponentEvent
         from django.utils import timezone
 
         comp = InstalledComponent.objects.create(
             company=sample_company,
-            part_number="P-TEST",
-            part_name="Test Pump",
+            part=sample_part,
+            part_number=sample_part.part_number,
+            part_name=sample_part.name,
             serial_number="SN-001",
             component_type=InstalledComponent.ComponentType.SERIALIZED,
             aircraft=sample_aircraft,
@@ -854,3 +874,54 @@ class TestAnalyticsViews:
         assert with_ata.status_code == status.HTTP_200_OK
         assert bogus.status_code == status.HTTP_200_OK
         assert bogus.data["filters"]["ata"] is None
+
+
+@pytest.mark.django_db
+class TestTenantIsolation:
+    """Cross-tenant access must return 404 (not found), not another company's data."""
+
+    def test_owner_cannot_retrieve_other_company(
+        self, owner_client, other_company
+    ):
+        url = reverse("companies-detail", kwargs={"pk": other_company.id})
+        response = owner_client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_owner_cannot_retrieve_other_company_flight(
+        self, owner_client, other_company_flight
+    ):
+        url = reverse("flights-detail", kwargs={"pk": other_company_flight.id})
+        response = owner_client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_owner_flights_list_excludes_other_company(
+        self, owner_client, sample_flight, other_company_flight
+    ):
+        url = reverse("flights-list")
+        response = owner_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        ids = [row["id"] for row in response.data]
+        assert sample_flight.id in ids
+        assert other_company_flight.id not in ids
+
+    def test_owner_cannot_retrieve_other_company_profile(
+        self, owner_client, other_company_profile
+    ):
+        url = reverse("profiles-detail", kwargs={"pk": other_company_profile.id})
+        response = owner_client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_owner_profiles_list_excludes_other_company(
+        self, owner_client, sample_profile, other_company_profile
+    ):
+        url = reverse("profiles-list")
+        response = owner_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        ids = [row["id"] for row in response.data]
+        assert sample_profile.id in ids
+        assert other_company_profile.id not in ids
+
+    def test_mechanic_cannot_list_companies(self, authenticated_client):
+        url = reverse("companies-list")
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN

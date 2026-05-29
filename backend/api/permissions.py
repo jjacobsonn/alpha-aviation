@@ -9,6 +9,27 @@ def _is_platform_admin(user):
     )
 
 
+def _company_for_object(obj):
+    """Resolve tenant company from an object or common relations (aircraft, inventory)."""
+    direct = getattr(obj, "company", None)
+    if direct is not None:
+        return direct
+    aircraft = getattr(obj, "aircraft", None)
+    if aircraft is not None:
+        return getattr(aircraft, "company", None)
+    inventory = getattr(obj, "inventory", None)
+    if inventory is not None:
+        return getattr(inventory, "company", None)
+    return None
+
+
+class IsPlatformAdmin(BasePermission):
+    """Staff/superuser only — global company admin, site-admin flows."""
+
+    def has_permission(self, request, view):
+        return _is_platform_admin(getattr(request, "user", None))
+
+
 class IsCompanyMember(BasePermission):
     """
     Allows access only to authenticated users that belong to a company.
@@ -32,10 +53,14 @@ class IsCompanyMember(BasePermission):
         if obj_company is not None:
             return obj_company == getattr(user, "company", None)
 
-        # Fallback: if the object has a related company through a known relation
-        # (e.g., obj.aircraft.company), individual views can implement more
-        # specific checks or override this method.
-        return True
+        if _is_platform_admin(user):
+            return True
+
+        obj_company = _company_for_object(obj)
+        user_company = getattr(user, "company", None)
+        if obj_company is None or user_company is None:
+            return False
+        return obj_company == user_company
 
 
 class HasCompanyRole(BasePermission):
@@ -192,9 +217,15 @@ class IsOwnProfileOrManager(BasePermission):
         if not (user and user.is_authenticated):
             return False
 
-        if getattr(user, "company_role", None) in {"manager", "owner"} or _is_platform_admin(
-            user
-        ):
+        if _is_platform_admin(user):
+            return True
+
+        obj_company = getattr(obj, "company", None)
+        user_company = getattr(user, "company", None)
+        if obj_company is None or user_company is None or obj_company != user_company:
+            return False
+
+        if getattr(user, "company_role", None) in {"manager", "owner"}:
             return True
 
         return getattr(obj, "id", None) == getattr(user, "id", None)

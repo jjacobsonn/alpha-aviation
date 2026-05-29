@@ -258,3 +258,67 @@ def authenticated_client(api_client, sample_user):
     """Provide authenticated API client"""
     api_client.force_authenticate(user=sample_user)
     return api_client
+
+
+@pytest.fixture
+def other_company(db):
+    """Second tenant for cross-company isolation tests."""
+    from api.models import Company
+
+    return Company.objects.create(name="Other Company")
+
+
+@pytest.fixture
+def other_company_owner(db, other_company, django_user_model):
+    return django_user_model.objects.create_user(
+        username="other.owner",
+        email="other.owner@example.com",
+        password="otherpass123",
+        company=other_company,
+        company_role="owner",
+    )
+
+
+@pytest.fixture
+def other_company_flight(db, other_company, django_user_model):
+    """Flight belonging to other_company only."""
+    from api.models import Aircraft, Flight
+
+    aircraft = Aircraft.objects.create(
+        registration_number="N999OTHER",
+        model="Piper",
+        manufacturer="Piper",
+        engine_type="Piston",
+        year_built=2010,
+        company=other_company,
+    )
+    pilot = django_user_model.objects.create_user(
+        username="other.pilot",
+        email="other.pilot@example.com",
+        password="otherpass123",
+        company=other_company,
+        company_role="pilot",
+    )
+    departure = timezone.now() + timedelta(days=2)
+    return Flight.objects.create(
+        company=other_company,
+        aircraft=aircraft,
+        flight_number="OTH100",
+        origin="AAA",
+        destination="BBB",
+        departure_time=departure,
+        arrival_time=departure + timedelta(hours=1),
+        primary_pilot=pilot,
+        status="scheduled",
+    )
+
+
+@pytest.fixture
+def other_company_profile(db, other_company, django_user_model):
+    return django_user_model.objects.create_user(
+        username="other.profile",
+        email="other.profile@example.com",
+        password="otherpass123",
+        company=other_company,
+        company_role="mechanic",
+    )

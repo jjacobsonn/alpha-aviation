@@ -7,14 +7,17 @@ This folder is now modular and organized by topic:
 - `rbac/` - role/permission strategy and validation docs
 - `features/` - feature-specific implementation docs
 - `architecture/` - API/data/design technical references
-- `operations/` - maintenance and process docs
+- `operations/` - maintenance, process, and production readiness docs
 - `reference/` - external stakeholder materials/assets
 
 ## Start Here
 
 - New teammate setup: [setup/DEVELOPMENT.md](setup/DEVELOPMENT.md)
-- Deployment updates: [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md)
+- Deployment updates: [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md) (includes env reference + readiness checklist)
 - RBAC decisions: [rbac/RBAC_MVP_MATRIX.md](rbac/RBAC_MVP_MATRIX.md)
+- Production go-live bar: [operations/PRODUCTION_READINESS_ROADMAP.md](operations/PRODUCTION_READINESS_ROADMAP.md)
+- Full codebase audit & QA inventory: [operations/CODEBASE_AUDIT_AND_QA_INVENTORY.md](operations/CODEBASE_AUDIT_AND_QA_INVENTORY.md)
+- Final QA report (blockers, media, closeout): [operations/FINAL_QA_REPORT.md](operations/FINAL_QA_REPORT.md)
 
 ## Core Docs (Current)
 
@@ -25,6 +28,9 @@ This folder is now modular and organized by topic:
 | [architecture/APIContract.md](architecture/APIContract.md) | Backend API endpoint contract/reference. |
 | [rbac/RBAC_MVP_MATRIX.md](rbac/RBAC_MVP_MATRIX.md) | Current RBAC source-of-truth for MVP behavior. |
 | [rbac/SUPERUSER_AND_ADMINS.md](rbac/SUPERUSER_AND_ADMINS.md) | Platform admin/superuser policy and operations. |
+| [operations/PRODUCTION_READINESS_ROADMAP.md](operations/PRODUCTION_READINESS_ROADMAP.md) | Ordered phases and release gate before multi-tenant production (not the Phase 2 feature checklist). |
+| [operations/CODEBASE_AUDIT_AND_QA_INVENTORY.md](operations/CODEBASE_AUDIT_AND_QA_INVENTORY.md) | Full inventory, architecture, endpoints, user flows, test checklist, and risk assessment (May 2026). |
+| [operations/FINAL_QA_REPORT.md](operations/FINAL_QA_REPORT.md) | Closeout QA: JWT fix status, media/demo verdict, Render free-tier limits, deployment checklist. |
 
 ## Reference Docs (Feature + Domain)
 

@@ -44,6 +44,7 @@ from .permissions import (
     IsMechanicOrManager,
     IsMechanicOrManagerOrPilot,
     IsOwnProfileOrManager,
+    IsPlatformAdmin,
     CanReportDiscrepancy,
     CanSignWorkOrder,
 )
@@ -249,6 +250,71 @@ def company_scoped_workorder_queryset(request):
     if _is_platform_admin(user):
         return qs
     return qs
+
+
+def company_scoped_flight_queryset(request):
+    """Flights for the requester's company; platform admins may narrow via X-Company-Id."""
+    qs = Flight.objects.all().select_related(
+        "company", "aircraft", "primary_pilot", "secondary_pilot"
+    ).order_by("-departure_time")
+    user = request.user
+    if _is_platform_admin(user):
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
+        return qs
+    company = getattr(user, "company", None)
+    if company is None:
+        return qs.none()
+    return qs.filter(company=company)
+
+
+def company_scoped_profile_queryset(request):
+    """Profiles in the requester's company only (platform admin: all or header filter)."""
+    qs = Profile.objects.all().order_by("username")
+    user = request.user
+    if _is_platform_admin(user):
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
+        return qs
+    company = getattr(user, "company", None)
+    if company is None:
+        return qs.none()
+    return qs.filter(company=company)
+
+
+def company_scoped_company_queryset(request):
+    """Tenant users see only their company; platform admins see all (optional header filter)."""
+    qs = Company.objects.all().order_by("name")
+    user = request.user
+    if _is_platform_admin(user):
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            qs = qs.filter(pk=cid)
+        return qs
+    company = getattr(user, "company", None)
+    if company is None:
+        return qs.none()
+    return qs.filter(pk=company.pk)
+
+
+def company_scoped_part_queryset(request):
+    """Parts tied to tenant aircraft or inventory lines."""
+    user = request.user
+    if _is_platform_admin(user):
+        cid = _optional_company_id_from_header(request)
+        if cid is not None:
+            return Part.objects.filter(
+                Q(aircraft__company_id=cid) | Q(inventories__company_id=cid)
+            ).distinct()
+        return Part.objects.all()
+    company = getattr(user, "company", None)
+    if company is None:
+        return Part.objects.none()
+    return Part.objects.filter(
+        Q(aircraft__company=company) | Q(inventories__company=company)
+    ).distinct()
 
 
 def company_scoped_discrepancy_queryset(request):
@@ -1121,14 +1187,35 @@ def company_tools_view(request):
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
-    queryset = Company.objects.all()
     serializer_class = CompanySerializer
-    permission_classes = [IsManagerOrOwner]
+
+    def get_queryset(self):
+        return company_scoped_company_queryset(self.request)
+
+    def get_permissions(self):
+        if self.action in ("create", "destroy"):
+            return [IsAuthenticated(), IsPlatformAdmin()]
+        return [IsAuthenticated(), IsManagerOrOwner()]
+
+    def perform_create(self, serializer):
+        serializer.save()
+
 
 class ProfileViewSet(viewsets.ModelViewSet):
-    queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
     permission_classes = [IsOwnProfileOrManager]
+
+    def get_queryset(self):
+        return company_scoped_profile_queryset(self.request)
+
+    def perform_create(self, serializer):
+        company = get_request_company(self.request)
+        if company is None and not _is_platform_admin(self.request.user):
+            raise DRFValidationError({"detail": "No company context for new profile."})
+        if company is not None:
+            serializer.save(company=company)
+        else:
+            serializer.save()
 
 
 
@@ -1151,14 +1238,30 @@ class AircraftViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class PartViewSet(viewsets.ModelViewSet):
-    queryset = Part.objects.all()
     serializer_class = PartSerializer
+
+    def get_queryset(self):
+        return company_scoped_part_queryset(self.request)
+
     def get_permissions(self):
         # Allow all authenticated company users to read parts for maintenance/work-order context.
         # Keep write operations restricted to mechanic/manager/owner via existing permission.
         if self.action in ("list", "retrieve"):
             return [IsAuthenticated()]
         return [IsMechanicOrManager()]
+
+    def perform_create(self, serializer):
+        company = get_request_company(self.request)
+        aircraft = serializer.validated_data.get("aircraft")
+        if (
+            aircraft is not None
+            and company is not None
+            and getattr(aircraft, "company_id", None) != company.id
+        ):
+            raise DRFValidationError(
+                {"aircraft": "Aircraft must belong to your company."}
+            )
+        serializer.save()
 
 class DiscrepancyViewSet(viewsets.ModelViewSet):
     serializer_class = DiscrepancySerializer
@@ -1391,8 +1494,8 @@ class ToolViewSet(viewsets.ModelViewSet):
         records = tool.calibration_history.order_by("-calibration_date")
         serializer = CalibrationRecordSerializer(records, many=True)
         return Response(serializer.data)
-      
-      
+
+
 class FleetAircraftListView(generics.ListAPIView):
     serializer_class = FleetAircraftListSerializer
     permission_classes = [IsAuthenticated]

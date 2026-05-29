@@ -64,15 +64,21 @@ The backend and database should be in the **same region** (e.g. Oregon) so they 
      ```bash
      python manage.py collectstatic --noinput && python manage.py migrate && gunicorn config.wsgi:application
      ```
-4. **Environment variables** (backend service → Environment):
+4. **Environment variables** (backend service → **Environment**). Set exactly these keys:
 
-   | Key | Value |
-   |-----|--------|
-   | `DATABASE_URL` | Paste the **Internal Database URL** from the Postgres service (Info/Connect). |
-   | `SECRET_KEY` | Long random string, e.g. from `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. |
-   | `DEBUG` | `False` |
-   | `ALLOWED_HOSTS` | Backend hostname only, e.g. `alpha-aviation-dev.onrender.com` (no `https://`). |
-   | `CORS_ALLOWED_ORIGINS` | Frontend URL only, e.g. `https://alpha-aviation-dev-1.onrender.com` (add this after the frontend is created). |
+   | Key | Required | Example value | Notes |
+   |-----|----------|---------------|--------|
+   | `DATABASE_URL` | **Yes** | `postgresql://…` from Postgres → **Internal Database URL** | Do not use `DB_*` on Render when this is set. |
+   | `SECRET_KEY` | **Yes** | From `python3 -c "import secrets; print(secrets.token_urlsafe(32))"` | Never use the dev default in production. |
+   | `DEBUG` | **Yes** | `False` | Must be `False` on Render. |
+   | `ALLOWED_HOSTS` | **Yes** | `alpha-aviation-dev.onrender.com` | Hostname only — no `https://`, no path. |
+   | `CORS_ALLOWED_ORIGINS` | **Yes** (after frontend exists) | `https://alpha-aviation-dev-1.onrender.com` | Full origin — `https://`, no trailing slash. Add in [step 5](#5-finish-backend-configuration) if the static site is not live yet. |
+
+   **Do not set on Render (not read by current code):** `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` when `DATABASE_URL` is set.
+
+   **Optional (paid disk only, not implemented in app yet):** `MEDIA_ROOT` — see [Media uploads](#media-uploads-and-persistent-storage-closeout).
+
+   Template for local copy: `backend/.env.example`.
 
 5. **Create Web Service**. Note the backend URL (e.g. `https://alpha-aviation-dev.onrender.com`). The root path `/` returns 404; use `/admin/` and `/api/` for this service.
 
@@ -87,9 +93,13 @@ The backend and database should be in the **same region** (e.g. Oregon) so they 
    - **Root Directory:** `frontend`.
    - **Build Command:** `npm install -g yarn && yarn install && yarn build`
    - **Publish Directory:** `build`.
-4. **Environment:**
-   - **Key:** `REACT_APP_API_URL`
-   - **Value:** Backend URL + `/api`, e.g. `https://alpha-aviation-dev.onrender.com/api`
+4. **Environment variables** (static site → **Environment**):
+
+   | Key | Required | Example value | Notes |
+   |-----|----------|---------------|--------|
+   | `REACT_APP_API_URL` | **Yes** | `https://alpha-aviation-dev.onrender.com/api` | Backend public URL + `/api`; no trailing slash. Baked in at **build** time — change requires redeploy. |
+
+   Template: `frontend/.env.example`.
 5. **Redirects/Rewrites** (required for React Router):
    - Add a **Rewrite** (not Redirect):
    - **Source path:** `/*`
@@ -156,7 +166,119 @@ When setting up a **new** Render project or a **new** GitHub repo (e.g. another 
 
 ---
 
+## Media uploads and persistent storage (closeout)
+
+The React app **does not require file uploads** for the standard demo flows (work order sign-off uses text + dates; no SPA upload for profile, aircraft photos, or signature images). See [FINAL_QA_REPORT.md](../operations/FINAL_QA_REPORT.md) for verification details.
+
+**Render free tier:**
+
+- The backend filesystem is **ephemeral**. Files saved via Django admin (e.g. `profile_img`) are **lost** on redeploy or restart.
+- **Persistent disks are not available** on free web services. Disks require a **paid** web service. See [Render persistent disks](https://render.com/docs/disks).
+
+**When you upgrade to a paid backend (optional, post-closeout):**
+
+1. Backend service → **Disks** → Add disk, mount path **`/var/data`** (only files under this path persist).
+2. Set environment variable: **`MEDIA_ROOT=/var/data/media`**
+3. Configure Django `MEDIA_URL` and media serving (not included in the current codebase — implement before relying on uploads in production).
+4. Redeploy and run the persistence test in [FINAL_QA_REPORT.md §2.8](../operations/FINAL_QA_REPORT.md).
+
+Do **not** expect uploaded images to survive deploys on the **free** API service.
+
+---
+
+## Environment variable reference
+
+Variables **read by application code** (from `backend/config/settings.py` and `frontend/src/shared/Api.js`):
+
+### Backend
+
+| Variable | Used in | Required | Default / fallback | Local | Render |
+|----------|---------|----------|-------------------|-------|--------|
+| `SECRET_KEY` | `settings.py` | Yes | `dev-secret-key` (unsafe) | Set in `.env` | **Set** — random string |
+| `DEBUG` | `settings.py` | No | `False` | `True` in `.env` | **`False`** |
+| `DATABASE_URL` | `settings.py` | Yes* | unset | Usually unset | **Set** (Internal URL) |
+| `DB_NAME` | `settings.py` | Yes* | — | Set when no `DATABASE_URL` | Omit if `DATABASE_URL` set |
+| `DB_USER` | `settings.py` | Yes* | — | Set when no `DATABASE_URL` | Omit |
+| `DB_PASSWORD` | `settings.py` | Yes* | — | Set when no `DATABASE_URL` | Omit |
+| `DB_HOST` | `settings.py` | Yes* | — | Set when no `DATABASE_URL` | Omit |
+| `DB_PORT` | `settings.py` | Yes* | — | Set when no `DATABASE_URL` | Omit |
+| `ALLOWED_HOSTS` | `settings.py` | No | `localhost,127.0.0.1` | Optional | **Set** to API hostname |
+| `CORS_ALLOWED_ORIGINS` | `settings.py` | No | empty (+ localhost always) | Optional | **Set** to frontend origin |
+
+\* Either `DATABASE_URL` **or** all five `DB_*` variables must be provided. If `DATABASE_URL` is non-empty, `DB_*` are ignored.
+
+`DJANGO_SETTINGS_MODULE` is set by `manage.py` / gunicorn to `config.settings` — do not add to Render unless you have a custom settings module.
+
+### Frontend
+
+| Variable | Used in | Required | Default / fallback | Local | Render |
+|----------|---------|----------|-------------------|-------|--------|
+| `REACT_APP_API_URL` | `shared/Api.js` | No | `http://127.0.0.1:8000/api` | `frontend/.env` | **Set** at build time |
+
+No other `REACT_APP_*` variables are referenced in the frontend source.
+
+### Not in code (documentation / future only)
+
+| Variable | Notes |
+|----------|--------|
+| `MEDIA_ROOT` | Planned for paid Render persistent disk; **not** read by `settings.py` today. |
+
+---
+
+## Deployment readiness checklist
+
+Use this before client demo or production cutover. Copy from `backend/.env.example` and `frontend/.env.example` for local parity.
+
+### Repository / config
+
+- [ ] `backend/.env` exists locally (from `.env.example`), not committed
+- [ ] `frontend/.env` exists locally (from `.env.example`), not committed
+- [ ] Latest `main` includes JWT blacklist app (`rest_framework_simplejwt.token_blacklist`) and migrations
+
+### Render — PostgreSQL
+
+- [ ] Database created in same region as backend
+- [ ] **Internal Database URL** copied for backend `DATABASE_URL`
+- [ ] **External Database URL** saved if you need local `createsuperuser` (free tier)
+
+### Render — backend (Web Service)
+
+- [ ] Root Directory: `backend`
+- [ ] Build: `pip install poetry && poetry config virtualenvs.create false && poetry install`
+- [ ] Start: `python manage.py collectstatic --noinput && python manage.py migrate && gunicorn config.wsgi:application`
+- [ ] `DATABASE_URL` = Internal Database URL
+- [ ] `SECRET_KEY` = long random (not default)
+- [ ] `DEBUG` = `False`
+- [ ] `ALLOWED_HOSTS` = backend hostname only (e.g. `alpha-aviation-dev.onrender.com`)
+- [ ] `CORS_ALLOWED_ORIGINS` = frontend origin (e.g. `https://alpha-aviation-dev-1.onrender.com`)
+- [ ] Deploy succeeded; logs show migrate completed (including `token_blacklist` tables)
+- [ ] `GET https://<backend>/api/health/` returns `{"status":"ok"}`
+
+### Render — frontend (Static Site)
+
+- [ ] Root Directory: `frontend`
+- [ ] Build: `npm install -g yarn && yarn install && yarn build`
+- [ ] Publish Directory: `build`
+- [ ] `REACT_APP_API_URL` = `https://<backend-host>/api` (no trailing slash)
+- [ ] Rewrite: `/*` → `/index.html` (Rewrite, not Redirect)
+- [ ] Deploy succeeded
+
+### Auth / smoke (production)
+
+- [ ] Superuser or demo user exists in **deployed** database
+- [ ] Login at `https://<frontend>/login` succeeds
+- [ ] Logout succeeds (no 400 in Network tab on `POST /api/auth/logout/`)
+- [ ] Role landing page loads (e.g. Management, Maintenance, Pilot)
+- [ ] Django admin loads at `https://<backend>/admin/`
+
+### Known limitations (free tier — acceptable for demo)
+
+- [ ] Team aware: no persistent file uploads ([FINAL_QA_REPORT.md](../operations/FINAL_QA_REPORT.md))
+- [ ] Postgres free tier expiry / sleep documented for stakeholders
+
+---
+
 ## Optional: other hosts
 
 - **Railway** — Can run backend + frontend + PostgreSQL; similar flow.
-- **Vercel (frontend) + Render (backend)** — Deploy React on Vercel and point `REACT_APP_API_URL` at your Render backend URL.
+- **Vercel (frontend) + Render (backend)** — Deploy React on Vercel and set `REACT_APP_API_URL` to your Render backend URL + `/api`.

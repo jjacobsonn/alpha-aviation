@@ -244,3 +244,5 @@
 | Site search | Ctrl+K (any authenticated layout) |
 
 **Detailed implementation notes:** `docs/features/PHASE2_MVP.md`
+
+**Production go-live (separate from this checklist):** [docs/operations/PRODUCTION_READINESS_ROADMAP.md](docs/operations/PRODUCTION_READINESS_ROADMAP.md)
