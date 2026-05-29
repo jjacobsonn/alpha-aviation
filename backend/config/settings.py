@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    # Required for logout blacklist() and BLACKLIST_AFTER_ROTATION (see SIMPLE_JWT below).
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'api',
 ]

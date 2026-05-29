@@ -62,7 +62,9 @@ def component_history_list(request):
     if request.method == "POST":
         if not IsMechanicOrManager().has_permission(request, None):
             return Response(status=status.HTTP_403_FORBIDDEN)
-        serializer = InstalledComponentCreateSerializer(data=request.data)
+        serializer = InstalledComponentCreateSerializer(
+            data=request.data, context={"request": request, "company": company}
+        )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         initial_summary = (data.pop("initial_event_summary", None) or "").strip()

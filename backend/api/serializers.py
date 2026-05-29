@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import serializers
 from django.utils import timezone
 from .models import (
@@ -921,6 +922,15 @@ class WorkOrderHistoryListSerializer(serializers.ModelSerializer):
         return act.created_at if act else None
 
 
+def company_catalog_parts_qs(company):
+    """Parts in the company catalog (on an aircraft or in inventory)."""
+    if company is None:
+        return Part.objects.none()
+    return Part.objects.filter(
+        Q(aircraft__company=company) | Q(inventories__company=company)
+    ).distinct()
+
+
 class InstalledComponentListSerializer(serializers.ModelSerializer):
     aircraft_label = serializers.SerializerMethodField()
     remaining_value = serializers.SerializerMethodField()
@@ -1014,7 +1024,9 @@ class InstalledComponentCreateSerializer(serializers.ModelSerializer):
     """Register a tracked component (rotable or consumable) for lifecycle history."""
 
     part_id = serializers.PrimaryKeyRelatedField(
-        queryset=Part.objects.all(), required=False, allow_null=True, source="part"
+        queryset=Part.objects.none(),
+        required=True,
+        source="part",
     )
     initial_event_summary = serializers.CharField(
         required=False, allow_blank=True, max_length=500
@@ -1038,8 +1050,36 @@ class InstalledComponentCreateSerializer(serializers.ModelSerializer):
             "part_id",
             "initial_event_summary",
         ]
+        read_only_fields = ["part_number", "part_name"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        company = self.context.get("company")
+        if company is not None:
+            self.fields["part_id"].queryset = company_catalog_parts_qs(company)
+            self.fields["aircraft"].queryset = Aircraft.objects.filter(company=company)
 
     def validate(self, data):
+        company = self.context.get("company")
+        if company is None:
+            raise serializers.ValidationError(
+                "Company context is required to register a component."
+            )
+
+        part = data.get("part")
+        if not part:
+            raise serializers.ValidationError(
+                {"part_id": "Select a part from your Parts inventory catalog."}
+            )
+
+        if not company_catalog_parts_qs(company).filter(pk=part.pk).exists():
+            raise serializers.ValidationError(
+                {"part_id": "This part is not in your company's parts catalog."}
+            )
+
+        data["part_number"] = part.part_number.strip()
+        data["part_name"] = (part.name or "").strip()
+
         sn = (data.get("serial_number") or "").strip()
         data["serial_number"] = sn
         ctype = data.get("component_type") or InstalledComponent.ComponentType.SERIALIZED
@@ -1051,16 +1091,14 @@ class InstalledComponentCreateSerializer(serializers.ModelSerializer):
             )
         else:
             data["component_type"] = InstalledComponent.ComponentType.CONSUMABLE
-        part = data.get("part")
-        if part:
-            if not (data.get("part_number") or "").strip():
-                data["part_number"] = part.part_number
-            if not (data.get("part_name") or "").strip():
-                data["part_name"] = part.name or ""
-        if not (data.get("part_number") or "").strip():
+
+        aircraft = data.get("aircraft")
+        if aircraft and aircraft.company_id != company.id:
             raise serializers.ValidationError(
-                {"part_number": "Part number is required."}
+                {"aircraft": "Aircraft must belong to your company."}
             )
-        data["part_number"] = data["part_number"].strip()
+        if not aircraft and part.aircraft_id:
+            data["aircraft"] = part.aircraft
+
         return data
 

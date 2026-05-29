@@ -415,9 +415,12 @@ export default function ComponentHistoryPage() {
         notes: registerForm.notes.trim(),
         initial_event_summary: registerForm.initial_event_summary.trim(),
       };
-      if (registerForm.catalog_part_id) {
-        payload.part_id = Number(registerForm.catalog_part_id);
+      if (!registerForm.catalog_part_id) {
+        setError("Select a part from your Parts inventory catalog.");
+        setRegisterBusy(false);
+        return;
       }
+      payload.part_id = Number(registerForm.catalog_part_id);
       if (registerForm.aircraft) {
         payload.aircraft = Number(registerForm.aircraft);
       }
@@ -443,6 +446,12 @@ export default function ComponentHistoryPage() {
 
   const header = detail || results.find((r) => r.id === selectedId);
   const showEmpty = !loading && results.length === 0;
+  const selectedCatalogPart = useMemo(
+    () =>
+      catalogParts.find((p) => String(p.id) === String(registerForm.catalog_part_id)) ||
+      null,
+    [catalogParts, registerForm.catalog_part_id]
+  );
 
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
@@ -484,9 +493,10 @@ export default function ComponentHistoryPage() {
                   color="text.secondary"
                   sx={{ wordBreak: "break-word" }}
                 >
-                  Track serial numbers and install history linked to your{" "}
-                  <RouterLink to="/parts">parts catalog</RouterLink>. Shelf quantities stay on
-                  Parts.
+                  Track install/removal history for parts already in{" "}
+                  <RouterLink to="/parts">Parts → Inventory</RouterLink>. Add the part there
+                  first, then register a serial number here. Calibrated shop tools live under{" "}
+                  <RouterLink to="/parts?tab=tools">Parts → Calibration</RouterLink>.
                 </Typography>
               </Box>
             </Stack>
@@ -677,7 +687,14 @@ export default function ComponentHistoryPage() {
                             sx={{ cursor: "pointer" }}
                           >
                             <TableCell sx={{ fontWeight: selectedId === row.id ? 700 : 400 }}>
-                              {row.part_number}
+                              <Stack spacing={0.25}>
+                                <span>{row.part_number}</span>
+                                {!row.part ? (
+                                  <Typography variant="caption" color="warning.main">
+                                    Not linked to catalog
+                                  </Typography>
+                                ) : null}
+                              </Stack>
                             </TableCell>
                             <TableCell>{row.serial_number || "—"}</TableCell>
                             <TableCell>
@@ -739,6 +756,24 @@ export default function ComponentHistoryPage() {
                               }
                               variant="outlined"
                             />
+                            {header.part ? (
+                              <Chip
+                                size="small"
+                                label="In Parts catalog"
+                                color="success"
+                                variant="outlined"
+                                component={RouterLink}
+                                to="/parts"
+                                clickable
+                              />
+                            ) : (
+                              <Chip
+                                size="small"
+                                label="Not linked to catalog"
+                                color="warning"
+                                variant="outlined"
+                              />
+                            )}
                             <Chip
                               size="small"
                               label={
@@ -790,47 +825,49 @@ export default function ComponentHistoryPage() {
         <DialogTitle>Register component</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {catalogParts.length === 0 ? (
+              <Alert severity="warning">
+                No parts in your inventory catalog yet. Add parts on{" "}
+                <RouterLink to="/parts">Parts → Inventory</RouterLink> first, then register a
+                tracked unit here.
+              </Alert>
+            ) : null}
             <Autocomplete
               options={catalogParts}
               getOptionLabel={(opt) =>
                 opt?.part_number ? `${opt.part_number} — ${opt.name || "Unnamed"}` : ""
               }
-              value={
-                catalogParts.find((p) => String(p.id) === String(registerForm.catalog_part_id)) ||
-                null
-              }
+              value={selectedCatalogPart}
               onChange={(_, opt) =>
                 setRegisterForm((s) => ({
                   ...s,
                   catalog_part_id: opt ? String(opt.id) : "",
-                  part_number: opt?.part_number || s.part_number,
-                  part_name: opt?.name || s.part_name,
+                  part_number: opt?.part_number || "",
+                  part_name: opt?.name || "",
                 }))
               }
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="From parts catalog"
-                  placeholder="Select a catalog part to link stock and history"
+                  required
+                  label="Part from inventory catalog"
+                  placeholder="Required — choose a part number from Parts"
+                  helperText="Must match a part on Parts → Inventory"
                 />
               )}
             />
             <TextField
               label="Part number"
               required
-              placeholder="e.g. P-2002"
               value={registerForm.part_number}
-              onChange={(e) =>
-                setRegisterForm((s) => ({ ...s, part_number: e.target.value, catalog_part_id: "" }))
-              }
               fullWidth
+              InputProps={{ readOnly: true }}
             />
             <TextField
               label="Part name"
-              placeholder="e.g. Hydraulic pump assembly"
               value={registerForm.part_name}
-              onChange={(e) => setRegisterForm((s) => ({ ...s, part_name: e.target.value }))}
               fullWidth
+              InputProps={{ readOnly: true }}
             />
             <FormControlLabel
               control={
@@ -932,7 +969,7 @@ export default function ComponentHistoryPage() {
           </Button>
           <Button
             variant="contained"
-            disabled={registerBusy || !registerForm.part_number.trim()}
+            disabled={registerBusy || !registerForm.catalog_part_id || catalogParts.length === 0}
             onClick={handleRegister}
           >
             {registerBusy ? "Saving…" : "Register"}
