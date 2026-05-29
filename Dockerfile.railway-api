@@ -1,0 +1,15 @@
+# Railway API image (monorepo root). Use when Root Directory cannot be set to backend/.
+# Service Settings → Build → Builder: Dockerfile → Dockerfile path: Dockerfile.railway-api
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir poetry \
+    && poetry config virtualenvs.create false
+
+COPY backend/pyproject.toml backend/poetry.lock ./
+RUN poetry install --no-root
+
+COPY backend/ ./
+
+CMD sh -c "python manage.py collectstatic --noinput && python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"

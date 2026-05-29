@@ -1,0 +1,7 @@
+# API service (monorepo root). Forces Docker build so Railpack does not detect root package.json.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.railway-api"
+
+[deploy]
+healthcheckPath = "/api/health/"
