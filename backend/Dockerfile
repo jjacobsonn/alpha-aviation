@@ -1,5 +1,4 @@
-# API image when Railway Root Directory = backend/ (build context is backend/).
-# Repo-root path for railway.toml dockerfilePath; COPY paths are relative to backend/.
+# Same as ../Dockerfile.railway-api — use when config path is /backend/Dockerfile.
 FROM python:3.12-slim-bookworm
 
 WORKDIR /app
