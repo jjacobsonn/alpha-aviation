@@ -17,6 +17,7 @@ import {
   Link,
 } from '@mui/material';
 
+import ScrollableTableContainer from '../components/ScrollableTableContainer';
 import { useAppContext } from '../context/AppContext';
 import {
   fetchCompanyUsers,
@@ -174,7 +175,8 @@ const CompanyOverview = () => {
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                   Users
                 </Typography>
-                <Table size="small">
+                <ScrollableTableContainer minWidth={640}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Username</TableCell>
@@ -201,6 +203,7 @@ const CompanyOverview = () => {
                     )}
                   </TableBody>
                 </Table>
+                </ScrollableTableContainer>
               </CardContent>
             </Card>
 
@@ -209,7 +212,8 @@ const CompanyOverview = () => {
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                   Aircraft
                 </Typography>
-                <Table size="small">
+                <ScrollableTableContainer minWidth={640}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Registration</TableCell>
@@ -238,6 +242,7 @@ const CompanyOverview = () => {
                     )}
                   </TableBody>
                 </Table>
+                </ScrollableTableContainer>
               </CardContent>
             </Card>
 
@@ -246,7 +251,8 @@ const CompanyOverview = () => {
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                   Low Stock
                 </Typography>
-                <Table size="small">
+                <ScrollableTableContainer minWidth={640}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Part</TableCell>
@@ -275,6 +281,7 @@ const CompanyOverview = () => {
                     )}
                   </TableBody>
                 </Table>
+                </ScrollableTableContainer>
               </CardContent>
             </Card>
 
@@ -283,7 +290,8 @@ const CompanyOverview = () => {
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                   Flights
                 </Typography>
-                <Table size="small">
+                <ScrollableTableContainer minWidth={640}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Flight #</TableCell>
@@ -316,6 +324,7 @@ const CompanyOverview = () => {
                     )}
                   </TableBody>
                 </Table>
+                </ScrollableTableContainer>
               </CardContent>
             </Card>
           </Stack>

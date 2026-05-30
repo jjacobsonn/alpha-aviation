@@ -58,6 +58,7 @@ import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
 import FleetAvailabilityPanel from '../components/management/FleetAvailabilityPanel';
 import FleetStatusPanel from '../components/management/FleetStatusPanel';
+import ScrollableTableContainer from '../components/ScrollableTableContainer';
 
 //Local imports
 import RecurringDiscrepancyTable from '../components/RecurringDiscrepancyTable';
@@ -702,7 +703,8 @@ const Management = () => {
 									No users in this company yet.
 								</Typography>
 							) : (
-								<Table size="small">
+								<ScrollableTableContainer minWidth={720}>
+								<Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
 									<TableHead>
 										<TableRow>
 											<TableCell>Name</TableCell>
@@ -734,6 +736,7 @@ const Management = () => {
 										))}
 									</TableBody>
 								</Table>
+								</ScrollableTableContainer>
 							)}
 						</CardContent>
 					</Card>

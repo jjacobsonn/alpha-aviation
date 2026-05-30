@@ -615,8 +615,8 @@ export default function ServiceHistoryPage() {
 								: null}
 						</Stack>
 					) : (
-						<TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-							<Table size="small" sx={{ minWidth: 960 }}>
+						<TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
+							<Table size="small" sx={{ minWidth: 960, width: 'max-content', maxWidth: 'none' }}>
 								<TableHead>
 									<TableRow>
 										<TableCell sortDirection={sortDirection('id')}>

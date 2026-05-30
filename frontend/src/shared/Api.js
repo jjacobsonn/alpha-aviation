@@ -51,7 +51,11 @@ apiClient.interceptors.request.use(
 		const path = String(config.url || '');
 		const isAuthPath = path.includes('/auth/');
 		const adminCompanyId = localStorage.getItem('adminCompanyId');
-		if (adminCompanyId && !isAuthPath) {
+		// Company list/detail must not be scoped by tenant header (admin needs all orgs).
+		const skipCompanyHeader =
+			config.skipCompanyScope === true ||
+			(config.method === 'get' && /^\/companies\/?$/.test(path));
+		if (adminCompanyId && !isAuthPath && !skipCompanyHeader) {
 			config.headers['X-Company-Id'] = adminCompanyId;
 		}
 		return config;
@@ -183,13 +187,15 @@ export const makeApiRequest = async (
 	method,
 	url,
 	body = null,
-	queryParams = {}
+	queryParams = {},
+	options = {}
 ) => {
 	try {
 		const response = await apiClient.request({
 			url,
 			method,
 			params: queryParams,
+			skipCompanyScope: options.skipCompanyScope === true,
 			data:
 				['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && body
 					? body
@@ -406,9 +412,39 @@ export const fetchFleetAvailabilityDashboard = async () => {
 	return await makeApiRequest('GET', '/dashboard/fleet-availability/');
 };
 
-// Site admin (global scope)
+// Site admin (global scope — no X-Company-Id tenant filter)
+const siteAdminScope = { skipCompanyScope: true };
+
 export const fetchCompanies = async () => {
 	return await makeApiRequest('GET', '/companies/');
+};
+
+export const fetchProfilesForSiteAdmin = async () => {
+	return await makeApiRequest('GET', '/profiles/', null, {}, siteAdminScope);
+};
+
+export const fetchAircraftForSiteAdmin = async () => {
+	return await makeApiRequest('GET', '/aircraft/', null, {}, siteAdminScope);
+};
+
+export const fetchFlightsForSiteAdmin = async () => {
+	return await makeApiRequest('GET', '/flights/', null, {}, siteAdminScope);
+};
+
+export const fetchPartsForSiteAdmin = async () => {
+	return await makeApiRequest('GET', '/parts/', null, {}, siteAdminScope);
+};
+
+export const fetchInventoriesForSiteAdmin = async () => {
+	return await makeApiRequest('GET', '/inventories/', null, {}, siteAdminScope);
+};
+
+export const fetchWorkordersForSiteAdmin = async () => {
+	return await makeApiRequest('GET', '/workorders/', null, {}, siteAdminScope);
+};
+
+export const fetchDiscrepanciesForSiteAdmin = async () => {
+	return await makeApiRequest('GET', '/discrepancies/', null, {}, siteAdminScope);
 };
 
 export const fetchCompanyById = async (id) => {

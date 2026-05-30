@@ -14,19 +14,35 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import ComponentEvent, InstalledComponent
-from .permissions import IsComponentHistoryReader, IsMechanicOrManager
+from .models import Company, ComponentEvent, InstalledComponent
+from .permissions import IsComponentHistoryReader
 from .serializers import (
     ComponentEventSerializer,
     InstalledComponentCreateSerializer,
     InstalledComponentDetailSerializer,
     InstalledComponentListSerializer,
 )
-from .views import get_request_company
+from .views import get_request_company, _is_platform_admin
+
+
+def _resolve_component_history_company(request):
+    """
+    Tenant users: profile company. Platform admins: X-Company-Id header, else first
+    company (demo-friendly when admin has not opened Organization picker).
+    """
+    company = get_request_company(request)
+    if company is not None:
+        return company
+    user = getattr(request, "user", None)
+    if user and getattr(user, "company_id", None):
+        return user.company
+    if user and _is_platform_admin(user):
+        return Company.objects.order_by("id").first()
+    return None
 
 
 def _company_components_qs(request):
-    company = get_request_company(request)
+    company = _resolve_component_history_company(request)
     if company is None:
         return None, None
     return company, InstalledComponent.objects.filter(company=company).select_related(
@@ -60,8 +76,18 @@ def component_history_list(request):
         )
 
     if request.method == "POST":
-        if not IsMechanicOrManager().has_permission(request, None):
-            return Response(status=status.HTTP_403_FORBIDDEN)
+        company = _resolve_component_history_company(request)
+        if company is None:
+            return Response(
+                {
+                    "error": (
+                        "No company context. Tenant users need a company on their profile; "
+                        "platform admins should open Organizations and select a company, "
+                        "or set the X-Company-Id header."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = InstalledComponentCreateSerializer(
             data=request.data, context={"request": request, "company": company}
         )

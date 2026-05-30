@@ -93,6 +93,11 @@ import {
 	isMechanicRole,
 	isPlatformAdmin,
 } from '../shared/rbac';
+import {
+	companyFleetParts,
+	filterPartIdsForAircraft,
+	partsForWorkOrderAircraft,
+} from '../shared/workOrderParts';
 
 /** Matches backend `WorkOrder.STATUS_CHOICES` — value stored, label shown in UI */
 const WORK_ORDER_STATUS_OPTIONS = [
@@ -141,13 +146,6 @@ function formatActivitySummary(summary) {
 		(_, fromStatus, toStatus) =>
 			`Status ${humanizeStatusToken(fromStatus)} → ${humanizeStatusToken(toStatus)}`
 	);
-}
-
-function partAircraftId(p) {
-	if (!p) return null;
-	const a = p.aircraft;
-	if (typeof a === 'object' && a != null) return a.id;
-	return a;
 }
 
 /** Work order / discrepancy row: human-readable tail from nested or id-only `aircraft`. */
@@ -385,15 +383,9 @@ const Maintenance = () => {
 		[workOrders, today]
 	);
 
-	const aircraftIdSet = useMemo(() => new Set(aircraft.map((a) => a.id)), [aircraft]);
-
 	const companyParts = useMemo(
-		() =>
-			allParts.filter((p) => {
-				const aid = partAircraftId(p);
-				return aid != null && aircraftIdSet.has(aid);
-			}),
-		[allParts, aircraftIdSet]
+		() => companyFleetParts(allParts, aircraft),
+		[allParts, aircraft]
 	);
 
 	const partLabelById = useMemo(() => {
@@ -538,26 +530,26 @@ const Maintenance = () => {
 		[companyUsers]
 	);
 
-	const partsForWorkorderAircraft = useMemo(() => {
-		if (!workorderForm.aircraft) return [];
-		const aid = Number(workorderForm.aircraft);
-		return companyParts.filter((p) => Number(partAircraftId(p)) === aid);
-	}, [companyParts, workorderForm.aircraft]);
+	const partsForWorkorderAircraft = useMemo(
+		() => partsForWorkOrderAircraft(allParts, aircraft, workorderForm.aircraft),
+		[allParts, aircraft, workorderForm.aircraft]
+	);
 	const allowedEditStatusOptions = useMemo(
 		() => getAllowedWorkOrderStatusOptions(),
 		[]
 	);
 
 	const handleWorkorderAircraftChange = (newAc) => {
-		setWorkorderForm((s) => {
-			const aid = newAc === '' ? null : Number(newAc);
-			const nextParts = (s.parts_needed || []).filter((pid) => {
-				if (aid == null) return false;
-				const p = companyParts.find((x) => x.id === Number(pid));
-				return p && Number(partAircraftId(p)) === aid;
-			});
-			return { ...s, aircraft: newAc, parts_needed: nextParts };
-		});
+		setWorkorderForm((s) => ({
+			...s,
+			aircraft: newAc,
+			parts_needed: filterPartIdsForAircraft(
+				s.parts_needed,
+				allParts,
+				aircraft,
+				newAc
+			),
+		}));
 	};
 
 	const handleCreateWorkorder = async () => {
@@ -1431,15 +1423,16 @@ const Maintenance = () => {
 											disabled={!canEditWorkOrderAssignment}
 											onChange={(e) => {
 												const newAc = e.target.value;
-												setWorkorderForm((s) => {
-													const aid = newAc === '' ? null : Number(newAc);
-													const nextParts = (s.parts_needed || []).filter((pid) => {
-														if (aid == null) return false;
-														const p = companyParts.find((x) => x.id === Number(pid));
-														return p && Number(partAircraftId(p)) === aid;
-													});
-													return { ...s, aircraft: newAc, parts_needed: nextParts };
-												});
+												setWorkorderForm((s) => ({
+													...s,
+													aircraft: newAc,
+													parts_needed: filterPartIdsForAircraft(
+														s.parts_needed,
+														allParts,
+														aircraft,
+														newAc
+													),
+												}));
 											}}
 										>
 											{aircraft.map((a) => (

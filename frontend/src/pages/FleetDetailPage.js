@@ -33,6 +33,7 @@ import {
 	fetchFleetAircraftDetail,
 	updateAircraftInterval,
 } from '../shared/Api';
+import ScrollableTableContainer from '../components/ScrollableTableContainer';
 import { useAppContext } from '../context/AppContext';
 import { isPlatformAdmin } from '../shared/rbac';
 
@@ -419,7 +420,8 @@ const FleetDetailPage = () => {
 										{canEditDetail ? (
 											null
 										) : null}
-										<Table size="small">
+										<ScrollableTableContainer minWidth={960}>
+										<Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
 											<TableHead>
 												<TableRow>
 													<TableCell>Name</TableCell>
@@ -496,6 +498,7 @@ const FleetDetailPage = () => {
 												) : null}
 											</TableBody>
 										</Table>
+										</ScrollableTableContainer>
 									</Stack>
 								</CardContent>
 							</Card>

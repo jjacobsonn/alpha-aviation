@@ -1190,6 +1190,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
     serializer_class = CompanySerializer
 
     def get_queryset(self):
+        # Platform admins always see every tenant in Site Admin (ignore X-Company-Id).
+        user = self.request.user
+        if _is_platform_admin(user):
+            return Company.objects.all().order_by("name")
         return company_scoped_company_queryset(self.request)
 
     def get_permissions(self):
@@ -1228,6 +1232,8 @@ class AircraftViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         company = get_request_company(self.request)
+        if company is None and _is_platform_admin(getattr(self.request, "user", None)):
+            company = serializer.validated_data.get("company")
         serializer.save(company=company)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])

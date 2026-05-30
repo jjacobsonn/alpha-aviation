@@ -664,6 +664,64 @@ class TestComponentHistoryViews:
         assert response.data["count"] >= 1
         assert any(r["id"] == sample_installed_component.id for r in response.data["results"])
 
+    def test_mechanic_can_register_component(
+        self, authenticated_client, sample_company, sample_aircraft, sample_part
+    ):
+        from api.models import InstalledComponent
+
+        url = reverse("component-history-list")
+        response = authenticated_client.post(
+            url,
+            {
+                "part_id": sample_part.id,
+                "serial_number": "HYD-4567",
+                "component_type": "serialized",
+                "aircraft": sample_aircraft.id,
+                "location": "Shop 13",
+                "limit_type": "hours",
+                "limit_value": "130",
+                "used_value": "43",
+                "installed_at": "2026-05-29",
+                "initial_event_summary": "Installed during 100 hour inspection",
+                "notes": "Test register",
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        assert response.data["part_number"] == sample_part.part_number
+        assert InstalledComponent.objects.filter(serial_number="HYD-4567").exists()
+
+    def test_platform_admin_can_register_with_company_header(
+        self, api_client, sample_company, sample_aircraft, sample_part
+    ):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        admin = User.objects.create_user(
+            username="platform.comp",
+            email="admin@example.com",
+            password="pass12345",
+            is_staff=True,
+            is_superuser=True,
+        )
+        api_client.force_authenticate(user=admin)
+        url = reverse("component-history-list")
+        response = api_client.post(
+            url,
+            {
+                "part_id": sample_part.id,
+                "serial_number": "ADM-9901",
+                "component_type": "serialized",
+                "aircraft": sample_aircraft.id,
+                "limit_type": "hours",
+                "limit_value": "100",
+                "used_value": "10",
+            },
+            format="json",
+            HTTP_X_COMPANY_ID=str(sample_company.id),
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+
     def test_dispatcher_cannot_access_component_history(self, api_client, sample_company):
         from django.contrib.auth import get_user_model
 
