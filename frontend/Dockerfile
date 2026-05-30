@@ -1,5 +1,5 @@
 # React SPA for Railway (Root Directory = frontend/)
-FROM node:20-slim-bookworm
+FROM node:20-slim
 
 WORKDIR /app
 
