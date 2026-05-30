@@ -171,6 +171,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         pilot_data = validated_data.pop("pilot_info", None) or {}
         mechanic_data = validated_data.pop("mechanic_info", None) or {}
         raw_password = validated_data.pop("password", None)
+        if getattr(instance, "is_superuser", False) or getattr(instance, "is_staff", False):
+            validated_data.pop("company_role", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         if raw_password is not None and raw_password != "":
