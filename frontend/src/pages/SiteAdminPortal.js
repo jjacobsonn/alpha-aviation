@@ -366,10 +366,14 @@ export default function SiteAdminPortal() {
     setSavingUser(true);
     setError("");
     try {
-      await updateProfile(selectedUser.id, {
+      const payload = {
         ...editUserForm,
         company: editUserForm.company ? Number(editUserForm.company) : null,
-      });
+      };
+      if (selectedUser.is_superuser || selectedUser.is_staff) {
+        delete payload.company_role;
+      }
+      await updateProfile(selectedUser.id, payload);
       setEditUserOpen(false);
       await refresh();
     } catch (e) {
@@ -1296,11 +1300,28 @@ export default function SiteAdminPortal() {
         <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Username"
+              value={selectedUser?.username || ""}
+              disabled
+              helperText="Login name cannot be changed here."
+            />
             <TextField label="First Name" value={editUserForm.first_name} onChange={(e) => setEditUserForm((s) => ({ ...s, first_name: e.target.value }))} />
             <TextField label="Last Name" value={editUserForm.last_name} onChange={(e) => setEditUserForm((s) => ({ ...s, last_name: e.target.value }))} />
             <TextField label="Email" value={editUserForm.email} onChange={(e) => setEditUserForm((s) => ({ ...s, email: e.target.value }))} />
             <TextField label="Reset Password (optional)" type="password" value={editUserForm.password} onChange={(e) => setEditUserForm((s) => ({ ...s, password: e.target.value }))} />
-            <TextField select label="Role" value={editUserForm.company_role} onChange={(e) => setEditUserForm((s) => ({ ...s, company_role: e.target.value }))}>
+            <TextField
+              select
+              label="Role"
+              value={editUserForm.company_role}
+              onChange={(e) => setEditUserForm((s) => ({ ...s, company_role: e.target.value }))}
+              disabled={Boolean(selectedUser?.is_superuser || selectedUser?.is_staff)}
+              helperText={
+                selectedUser?.is_superuser || selectedUser?.is_staff
+                  ? "Platform accounts keep a fixed company role; change platform access in Django admin if needed."
+                  : ""
+              }
+            >
               {["owner", "manager", "mechanic", "pilot", "dispatcher"].map((r) => (
                 <MenuItem key={r} value={r}>{r}</MenuItem>
               ))}

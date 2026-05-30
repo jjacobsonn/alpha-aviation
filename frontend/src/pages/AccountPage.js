@@ -49,8 +49,10 @@ export default function AccountPage() {
   const [companyName, setCompanyName] = useState("");
   const [username, setUsername] = useState("");
   const [companyRole, setCompanyRole] = useState("");
-  /** Staff/superuser: site-wide tooling; omit tenant-only cert/dashboard copy. */
+  /** Staff/superuser: site-wide tooling; company role still shown read-only. */
   const [platformAccount, setPlatformAccount] = useState(false);
+  const [isStaff, setIsStaff] = useState(false);
+  const [isSuperuser, setIsSuperuser] = useState(false);
 
   const [pilotCertificate, setPilotCertificate] = useState("");
   const [medicallyClearedUntil, setMedicallyClearedUntil] = useState(null);
@@ -66,6 +68,8 @@ export default function AccountPage() {
     setCompanyName(data.company_name || "");
     setCompanyRole(data.company_role || "");
     setPlatformAccount(Boolean(data.is_staff || data.is_superuser));
+    setIsStaff(Boolean(data.is_staff));
+    setIsSuperuser(Boolean(data.is_superuser));
     setPilotCertificate(
       Object.prototype.hasOwnProperty.call(data, "pilot_certificate")
         ? data.pilot_certificate ?? ""
@@ -107,7 +111,12 @@ export default function AccountPage() {
     [companyRole]
   );
 
-  const primaryRoleHeading = platformAccount ? "Platform administrator" : tenantRoleDisplay;
+  const platformAccessLabel = useMemo(() => {
+    if (!platformAccount) return "";
+    if (isSuperuser) return "Superuser";
+    if (isStaff) return "Staff";
+    return "Platform";
+  }, [platformAccount, isSuperuser, isStaff]);
 
   const save = async () => {
     setSaving(true);
@@ -260,39 +269,38 @@ export default function AccountPage() {
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
             Organization & role
           </Typography>
-          <Stack spacing={1}>
-            <Typography variant="body2">
-              <strong>Company:</strong>{" "}
-              {companyName?.trim()
-                ? companyName
-                : platformAccount
-                  ? "None on this login (not a tenant user session)"
-                  : "—"}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Primary role:</strong> {primaryRoleHeading}
-            </Typography>
-            {platformAccount &&
-            (companyRole === "pilot" || companyRole === "mechanic") ? (
-              <Typography variant="caption" color="text.secondary" display="block">
-                Your directory entry may still list <strong>{ROLE_LABEL[companyRole]}</strong>; as
-                platform staff those aviation fields do not appear here. Certification and
-                compliance are managed on tenant accounts instead.
-              </Typography>
+          <Stack spacing={2}>
+            <TextField
+              label="Company"
+              value={
+                companyName?.trim()
+                  ? companyName
+                  : platformAccount
+                    ? "None (platform login)"
+                    : "—"
+              }
+              fullWidth
+              disabled
+              size="small"
+            />
+            <TextField
+              label="Company role"
+              value={tenantRoleDisplay}
+              fullWidth
+              disabled
+              size="small"
+              helperText="Assigned by an administrator. You cannot change your role on this page."
+            />
+            {platformAccount ? (
+              <TextField
+                label="Platform access"
+                value={platformAccessLabel}
+                fullWidth
+                disabled
+                size="small"
+                helperText="Site Admin and cross-tenant tools. This is separate from your company role above."
+              />
             ) : null}
-            {!platformAccount ? (
-              <Typography variant="body2" color="text.secondary">
-                You are signed in as a <strong>{tenantRoleDisplay}</strong>
-                {companyName?.trim()
-                  ? ` for ${companyName}.`
-                  : "; company name will appear when your account is linked."}
-              </Typography>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Use Site Admin and related tools when you need to inspect or operate
-                on behalf of an operator company (with the appropriate safeguards).
-              </Typography>
-            )}
           </Stack>
         </CardContent>
       </Card>
