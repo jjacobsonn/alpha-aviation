@@ -1474,3 +1474,478 @@ Returns all calibration records for a tool, ordered most recent first.
 * Error Response:
     * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
     * Code: 404 NOT FOUND — `{ "detail": "No Tool matches the given query." }`
+
+---
+
+# Management Dashboard
+
+### GET /api/management/dashboard/
+Returns company-wide KPIs and analytics for management. Different from the maintenance dashboard — this covers the full operation.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Manager or Owner
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        {
+            "company": {
+                "id": 1,
+                "name": "Acme Aviation",
+                "locations": "Salt Lake City, UT"
+            },
+            "counts": {
+                "aircraft": 5,
+                "flights": 42,
+                "work_orders_open": 3,
+                "discrepancies_pending": 2,
+                "low_stock_items": 1
+            },
+            "team_by_role": {
+                "owner": 1,
+                "manager": 2,
+                "mechanic": 4,
+                "dispatcher": 1,
+                "pilot": 8
+            },
+            "aircraft_analytics": {
+                "workorder_analytics": {},
+                "remaining_hobbs": {},
+                "recuring_discrepancies": {},
+                "monthly_flight_hours": {},
+                "uptime_downtime": {}
+            }
+        }
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }` or insufficient role
+
+---
+
+# Company Discrepancies
+
+### GET /api/company/discrepancies/
+Returns all discrepancies belonging to the authenticated user's company.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "work_order": null,
+                "aircraft": 1,
+                "reporter": 2,
+                "reporter_name": "jdoe",
+                "date_reported": "2026-03-01",
+                "description": "Hydraulic leak observed near landing gear",
+                "ata_code": "32",
+                "tach_time": "1023.4",
+                "status": "pending"
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+
+---
+
+# Flight Request & Dispatch
+
+### POST /api/company/flights/request/
+Pilot submits a new flight request. The flight is created with `status: "pending approval"` and the requesting pilot set as `primary_pilot`.
+* URL Params: None
+* Data Params:
+    ```json
+    {
+        "aircraft": 1,
+        "flight_number": "ACM-010",
+        "origin": "KSLC",
+        "destination": "KOGD",
+        "departure_time": "2026-06-01T09:00:00Z",
+        "arrival_time": "2026-06-01T10:30:00Z",
+        "route": "Direct",
+        "flight_type": "training",
+        "pilot_requirement": "private",
+        "secondary_pilot": 3
+    }
+    ```
+    * `flight_number`, `route`, `secondary_pilot` are optional
+    * `flight_type` defaults to `"training"` if omitted
+    * `pilot_requirement` defaults to `"private"` if omitted
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Pilot role only (other roles receive 403)
+* Success Response:
+    * Code: 201
+    * Content: Flight object (same as GET /api/flights/\<id\>/) with `status: "pending approval"`
+* Error Response:
+    * Code: 400 BAD REQUEST — `{ "error": "aircraft is required" }`
+    * Code: 400 BAD REQUEST — `{ "error": "Invalid aircraft for this company." }`
+    * Code: 400 BAD REQUEST — `{ "error": "departure_time is required" }` / `{ "error": "arrival_time is required" }`
+    * Code: 400 BAD REQUEST — `{ "error": "Invalid secondary pilot." }`
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "Only pilot users can submit flight requests." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+
+---
+
+### PATCH /api/company/flights/\<id\>/dispatch/
+Dispatcher or management updates a flight's status or details. Pilots may also edit their own pending requests, but are restricted to `departure_time`, `arrival_time`, `route`, and `secondary_pilot` fields only.
+* URL Params: `id=[integer]`
+* Data Params: Any subset of Flight fields (partial update)
+    * Dispatcher/Manager/Owner may update any field including `status`
+    * Pilot editing own request may only update: `departure_time`, `arrival_time`, `route`, `secondary_pilot`
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Dispatcher, Manager, or Owner — OR Pilot editing their own flight request
+* Success Response:
+    * Code: 200
+    * Content: Flight object (same as GET /api/flights/\<id\>/)
+    * Side effect: if `status` is set to `"approved"` and no dispatcher is assigned, the requesting user is auto-assigned as dispatcher
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "error": "User does not have an associated company" }`
+    * Code: 403 FORBIDDEN — `{ "error": "Dispatcher/management role required, or pilot can edit own request." }`
+    * Code: 403 FORBIDDEN — `{ "error": "Pilot cannot edit fields: <field_list>." }`
+    * Code: 404 NOT FOUND — `{ "detail": "Not found." }`
+
+---
+
+# Fleet Management
+
+MaintenanceInterval object
+```
+{
+    id: int
+    aircraft: int (read-only)
+    name: string
+    interval_type: string
+    due_every_hours: decimal (optional)
+    due_every_days: int (optional)
+    last_done_tach: decimal (optional)
+    last_done_hobbs: decimal (optional)
+    last_done_date: date YYYY-MM-DD (optional)
+    is_ad: bool
+    ad_number: string (optional)
+    ad_revision: string (optional)
+    notes: string (optional)
+    is_active: bool
+    created_at: datetime (read-only)
+    updated_at: datetime (read-only)
+    hours_remaining: float | null (computed, read-only)
+    days_remaining: int | null (computed, read-only)
+    compliance_status: string (computed, read-only: "ok" | "due_soon" | "overdue")
+    severity_color: string (computed, read-only: "green" | "amber" | "red")
+}
+```
+
+---
+
+### GET /api/fleet/aircraft/
+Returns all aircraft for the authenticated user's company with maintenance interval summaries. Supports filtering and ordering.
+* URL Params:
+    * Optional: `search=[string]` — filters by registration number, model, or location
+    * Optional: `status=[string]` — filters by `fleet_status`
+    * Optional: `type=[string]` — filters by `aircraft_type`
+    * Optional: `location=[string]` — filters by location
+    * Optional: `ordering=[string]` — one of `registration_number`, `model`, `location`, `fleet_status`, `tach_current` (prefix `-` for descending)
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "registration_number": "N12345",
+                "model": "Cessna 172",
+                "location": "Salt Lake City, UT",
+                "tach_current": 1023.4,
+                "hobbs_current": 1100.0,
+                "fleet_status": "available",
+                "aircraft_type": "single_engine",
+                "interval_summary": {
+                    "overdue_count": 0,
+                    "due_soon_count": 1,
+                    "ok_count": 4
+                }
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+
+---
+
+### GET /api/fleet/aircraft/\<aircraft_id\>/
+Returns detailed info for a single aircraft including photos and related links.
+* URL Params: `aircraft_id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        {
+            "id": 1,
+            "registration_number": "N12345",
+            "model": "Cessna 172",
+            "manufacturer": "Cessna",
+            "engine_type": "Lycoming O-320",
+            "year_built": 2005,
+            "location": "Salt Lake City, UT",
+            "tach_current": 1023.4,
+            "hobbs_current": 1100.0,
+            "fleet_status": "available",
+            "aircraft_type": "single_engine",
+            "specs": {},
+            "photos": [
+                { "id": 1, "image": "http://example.com/media/...", "caption": "Front view", "sort_order": 0 }
+            ],
+            "links": {}
+        }
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "Not found." }`
+
+---
+
+### GET /api/fleet/aircraft/\<aircraft_id\>/intervals/
+Returns all active maintenance intervals for a specific aircraft.
+* URL Params: `aircraft_id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content: Array of MaintenanceInterval objects
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — aircraft not found or not in user's company
+
+---
+
+### POST /api/fleet/aircraft/\<aircraft_id\>/intervals/
+Creates a new maintenance interval for a specific aircraft.
+* URL Params: `aircraft_id=[integer]`
+* Data Params:
+    ```json
+    {
+        "name": "Oil Change",
+        "interval_type": "hours",
+        "due_every_hours": 50,
+        "last_done_tach": 1000.0,
+        "is_ad": false,
+        "is_active": true
+    }
+    ```
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Dispatcher, Manager, or Owner
+* Success Response:
+    * Code: 201
+    * Content: MaintenanceInterval object
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "detail": "You do not have permission to create intervals." }`
+    * Code: 404 NOT FOUND — aircraft not found or not in user's company
+
+---
+
+### GET /api/fleet/intervals/\<interval_id\>/
+Returns a single maintenance interval.
+* URL Params: `interval_id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Success Response:
+    * Code: 200
+    * Content: MaintenanceInterval object
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 404 NOT FOUND — `{ "detail": "Not found." }`
+
+---
+
+### PUT/PATCH /api/fleet/intervals/\<interval_id\>/
+Full or partial update of a maintenance interval.
+* URL Params: `interval_id=[integer]`
+* Data Params: Full or partial MaintenanceInterval fields
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Dispatcher, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content: MaintenanceInterval object
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "detail": "You do not have permission to update intervals." }`
+    * Code: 404 NOT FOUND — `{ "detail": "Not found." }`
+
+---
+
+### DELETE /api/fleet/intervals/\<interval_id\>/
+Deletes a maintenance interval. Owner-only.
+* URL Params: `interval_id=[integer]`
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Owner only
+* Success Response:
+    * Code: 204 NO CONTENT
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "detail": "You do not have permission to delete intervals." }`
+    * Code: 404 NOT FOUND — `{ "detail": "Not found." }`
+
+---
+
+### POST /api/fleet/intervals/\<interval_id\>/complete/
+Records a completion event for a maintenance interval — updates `last_done_date`, `last_done_tach`, and/or `last_done_hobbs`.
+* URL Params: `interval_id=[integer]`
+* Data Params:
+    ```json
+    {
+        "completed_date": "2026-05-30",
+        "completed_tach": 1050.0,
+        "completed_hobbs": 1130.0,
+        "notes": "Completed on schedule."
+    }
+    ```
+    * All fields are optional; omitted fields are left unchanged
+    * `completed_date` must be `YYYY-MM-DD` format
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Mechanic, Dispatcher, Manager, or Owner
+* Success Response:
+    * Code: 200
+    * Content: MaintenanceInterval object (updated)
+* Error Response:
+    * Code: 400 BAD REQUEST — `{ "detail": "completed_date must be YYYY-MM-DD." }`
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — `{ "detail": "You do not have permission to complete intervals." }`
+    * Code: 404 NOT FOUND — `{ "detail": "Not found." }`
+
+---
+
+# Inventory (Detailed)
+
+InventoryPart object (used by detailed endpoints)
+```
+{
+    id: int
+    inventory: int (FK to Inventory)
+    company: <nested Company object> (read-only)
+    part: <nested Part object> (read-only)
+    part_id: int (write-only, to set the part on create)
+    in_stock: int (maps to model field `quantity`)
+    stock_alert: int
+    stock_alert_percentage: float (0–1, default 0.10)
+    shop_location: string (optional)
+    tracked_units_count: int (read-only, computed)
+}
+```
+
+---
+
+### GET /api/company/inventories/detailed/
+Returns all inventory part lines for the authenticated user's company as serialized objects.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Owner, Manager, or Mechanic
+* Success Response:
+    * Code: 200
+    * Content:
+        ```json
+        [
+            {
+                "id": 1,
+                "inventory": 1,
+                "company": { "id": 1, "name": "Acme Aviation" },
+                "part": { "id": 2, "part_number": "PN-1234", "name": "Oil Filter" },
+                "in_stock": 5,
+                "stock_alert": 2,
+                "stock_alert_percentage": 0.1,
+                "shop_location": "Shelf A3",
+                "tracked_units_count": 3
+            }
+        ]
+        ```
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — insufficient role or no company association
+
+---
+
+### POST /api/company/inventories/detailed/
+Creates a new inventory part line for the authenticated user's company.
+* URL Params: None
+* Data Params:
+    ```json
+    {
+        "part_id": 2,
+        "in_stock": 5,
+        "stock_alert": 2,
+        "stock_alert_percentage": 0.1,
+        "shop_location": "Shelf A3"
+    }
+    ```
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Owner, Manager, or Mechanic
+* Success Response:
+    * Code: 201
+    * Content: InventoryPart object (same as GET /api/company/inventories/detailed/)
+* Error Response:
+    * Code: 400 BAD REQUEST — validation errors
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — insufficient role or no company association
+
+---
+
+### GET /api/company/inventories/detailed/low-stock/
+Returns only inventory part lines where `in_stock` is at or below `stock_alert` for the authenticated user's company.
+* URL Params: None
+* Data Params: None
+* Headers:
+    * `Content-Type: application/json`
+    * `Authorization: Bearer <access_token>`
+* Permission: Owner, Manager, or Mechanic
+* Success Response:
+    * Code: 200
+    * Content: Array of InventoryPart objects (same shape as GET /api/company/inventories/detailed/)
+* Error Response:
+    * Code: 401 UNAUTHORIZED — `{ "detail": "Authentication credentials were not provided." }`
+    * Code: 403 FORBIDDEN — insufficient role or no company association
