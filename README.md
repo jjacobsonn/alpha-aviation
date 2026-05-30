@@ -18,7 +18,6 @@
 [![Gunicorn](https://img.shields.io/badge/Gunicorn-WSGI-499848?logo=gunicorn&logoColor=white)](https://gunicorn.org/)
 [![Docker](https://img.shields.io/badge/Docker-deploy-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Railway](https://img.shields.io/badge/Railway-hosting-0B0D0E?logo=railway&logoColor=white)](https://railway.app/)
-[![Render](https://img.shields.io/badge/Render-hosting-46E3B7?logo=render&logoColor=black)](https://render.com/)
 [![WhiteNoise](https://img.shields.io/badge/WhiteNoise-static-092E20)](https://whitenoise.readthedocs.io/)
 
 Monorepo for fleet operations, maintenance, parts, dispatch, and platform administration.
@@ -39,7 +38,7 @@ This repository contains `backend/` and `frontend/` in a single monorepo for loc
 
 ## Live application
 
-### Production (Railway) — recommended demo
+Production is hosted on **Railway**. Demo data (Horizon + Cascade tenants) is seeded on this environment.
 
 | | URL |
 |---|-----|
@@ -48,18 +47,6 @@ This repository contains `backend/` and `frontend/` in a single monorepo for loc
 | Django admin | [https://alpha-aviation-production.up.railway.app/admin/](https://alpha-aviation-production.up.railway.app/admin/) |
 | Site Admin (SPA) | [https://alpha-aviation-web-production.up.railway.app/site-admin](https://alpha-aviation-web-production.up.railway.app/site-admin) |
 
-Demo data (Horizon + Cascade tenants) is seeded on this environment.
-
-### Alternate (Render)
-
-Separate Postgres — run bootstrap commands on Render if you use this stack ([DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)).
-
-| | URL |
-|---|-----|
-| **App** | [https://alpha-aviation-dev-1.onrender.com/](https://alpha-aviation-dev-1.onrender.com/) |
-| API | [https://alpha-aviation-dev.onrender.com/api/](https://alpha-aviation-dev.onrender.com/api/) |
-| Django admin | [https://alpha-aviation-dev.onrender.com/admin/](https://alpha-aviation-dev.onrender.com/admin/) |
-
 ---
 
 ## Demo credentials
@@ -67,8 +54,6 @@ Separate Postgres — run bootstrap commands on Render if you use this stack ([D
 **Default password for every account below:** `Demo2026!`
 
 ### Platform superuser (Site Admin + Django admin)
-
-Use on the **Railway** URLs above (or Render admin URL if you seeded Render).
 
 | Field | Value |
 |-------|--------|
@@ -108,7 +93,7 @@ Locations: **KBFI** (Seattle Boeing Field), **KPAE** (Everett Paine Field). Six 
 
 ### Tenant 2 — Cascade Air Services
 
-Locations: **KPDX** (Portland). Smaller second company for platform-admin testing (2 aircraft, flights, parts, WOs, service history, component history).
+Locations: **KPDX** (Portland). Smaller second company for platform-admin testing (2 aircraft, flights, parts, work orders, service history, component history).
 
 | Username | Role |
 |----------|------|
@@ -157,7 +142,7 @@ Frontend API base: `REACT_APP_API_URL=http://localhost:8000/api` in `frontend/.e
 
 ## Re-seed demo data
 
-From `backend/` with the target host **External Database URL** (Railway Postgres or Render Postgres):
+From `backend/` with the Railway Postgres **public** `DATABASE_URL` (Railway dashboard → Postgres service → **Connect**):
 
 ```bash
 export DATABASE_URL='postgresql://...'
@@ -168,21 +153,17 @@ poetry run python manage.py bootstrap_parts_and_tools --company-id 1
 poetry run python manage.py bootstrap_labor_entries
 ```
 
-Commands are idempotent. Seed **each** environment’s database separately (Railway and Render do not share data).
+Commands are idempotent (safe to run again before a demo).
 
 ## Deployment
 
-| Host | Stack |
-|------|--------|
-| **Railway** | Postgres + API (Docker) + web (Docker). Primary production demo. |
-| **Render** | Postgres + Python web service + static frontend. See [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md). |
+Production runs on **Railway**: PostgreSQL, API (`Dockerfile.railway-api`), and web (`frontend/Dockerfile`). Connect the GitHub repo and set `REACT_APP_API_URL` on the web service to the API public URL + `/api`.
 
 ## Documentation
 
 | Doc | Purpose |
 |-----|---------|
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local DB, env vars, testing API + UI |
-| [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) | Render setup (3 services, CORS, SPA rewrite) |
 | [docs/README.md](docs/README.md) | Documentation index |
 
 ## License
