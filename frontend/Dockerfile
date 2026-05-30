@@ -3,7 +3,7 @@ FROM node:20-slim
 
 WORKDIR /app
 
-RUN npm install -g yarn serve
+RUN npm install -g serve
 
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
