@@ -91,6 +91,20 @@ const theme = createTheme({
 			styleOverrides: {
 				root: {
 					borderRadius: 12,
+					minWidth: 0,
+				},
+			},
+		},
+		MuiTableContainer: {
+			styleOverrides: {
+				root: {
+					width: '100%',
+					maxWidth: '100%',
+					minWidth: 0,
+					overflowX: 'auto',
+					WebkitOverflowScrolling: 'touch',
+					overscrollBehaviorX: 'contain',
+					touchAction: 'pan-x pan-y',
 				},
 			},
 		},

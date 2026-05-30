@@ -32,6 +32,7 @@ import {
 	updateAircraft,
 } from '../shared/Api';
 import { isPlatformAdmin } from '../shared/rbac';
+import ScrollableTableContainer from '../components/ScrollableTableContainer';
 import useDebouncedValue from '../shared/useDebouncedValue';
 import { buildFleetSuggestions, filterFleetRows } from '../shared/moduleSearch';
 import ModuleSearchBar from '../components/search/ModuleSearchBar';
@@ -332,6 +333,7 @@ const FleetPage = () => {
 
 								{error ? <Alert severity="error">{error}</Alert> : null}
 
+								<ScrollableTableContainer minWidth={880}>
 								<Table
 									size="small"
 									sx={{
@@ -341,7 +343,7 @@ const FleetPage = () => {
 											fontWeight: 700,
 											borderColor: 'divider',
 										},
-										'& .MuiTableCell-root': { borderColor: 'divider' },
+										'& .MuiTableCell-root': { borderColor: 'divider', whiteSpace: 'nowrap' },
 									}}
 								>
 									<TableHead>
@@ -416,6 +418,7 @@ const FleetPage = () => {
 										) : null}
 									</TableBody>
 								</Table>
+								</ScrollableTableContainer>
 							</Stack>
 						</CardContent>
 					</Card>

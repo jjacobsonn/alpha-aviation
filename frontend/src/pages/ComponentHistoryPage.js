@@ -42,12 +42,15 @@ import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import {
   createTrackedComponent,
   downloadComponentHistoryExport,
+  fetchCompanies,
   fetchCompanyAircrafts,
   fetchCompanyInventoriesDetailed,
   fetchComponentHistoryDetail,
   fetchComponentHistorySearch,
 } from "../shared/Api";
 import useDebouncedValue from "../shared/useDebouncedValue";
+import { useAppContext } from "../context/AppContext";
+import { isPlatformAdmin } from "../shared/rbac";
 
 const TYPE_FILTERS = [
   { value: "all", label: "All types" },
@@ -219,6 +222,7 @@ function LifeLimitSummary({ component }) {
 }
 
 export default function ComponentHistoryPage() {
+  const { state } = useAppContext();
   const theme = useTheme();
   const isCompact = useMediaQuery(theme.breakpoints.down("lg"));
   const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
@@ -328,10 +332,31 @@ export default function ComponentHistoryPage() {
   }, [selectedId, loadDetail]);
 
   useEffect(() => {
+    if (!isPlatformAdmin(state.user)) return;
+    if (localStorage.getItem("adminCompanyId")) return;
+    fetchCompanies()
+      .then((list) => {
+        const companies = Array.isArray(list) ? list : [];
+        if (companies.length === 1) {
+          localStorage.setItem("adminCompanyId", String(companies[0].id));
+        } else {
+          const horizon = companies.find((c) =>
+            String(c.name || "").toLowerCase().includes("horizon")
+          );
+          if (horizon?.id) {
+            localStorage.setItem("adminCompanyId", String(horizon.id));
+          }
+        }
+        setStatsRefreshKey((k) => k + 1);
+      })
+      .catch(() => {});
+  }, [state.user]);
+
+  useEffect(() => {
     fetchCompanyAircrafts()
       .then((data) => setAircraft(Array.isArray(data) ? data : []))
       .catch(() => setAircraft([]));
-  }, []);
+  }, [statsRefreshKey]);
 
   useEffect(() => {
     fetchCompanyInventoriesDetailed()
@@ -438,7 +463,17 @@ export default function ComponentHistoryPage() {
         setSelectedId(created.id);
       }
     } catch (e) {
-      setError(e?.message || "Could not register component.");
+      const msg =
+        e?.data &&
+        typeof e.data === "object" &&
+        !Array.isArray(e.data)
+          ? Object.entries(e.data)
+              .flatMap(([k, v]) =>
+                Array.isArray(v) ? v.map((x) => `${k}: ${x}`) : [`${k}: ${v}`]
+              )
+              .join(" ")
+          : "";
+      setError(msg || e?.data?.error || e?.message || "Could not register component.");
     } finally {
       setRegisterBusy(false);
     }
@@ -608,7 +643,7 @@ export default function ComponentHistoryPage() {
               alignItems: "start",
             }}
           >
-            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0, overflow: "hidden" }}>
+            <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", minWidth: 0 }}>
               <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
                 <Stack
                   direction="row"
@@ -657,7 +692,7 @@ export default function ComponentHistoryPage() {
                     </Button>
                   </Stack>
                 ) : (
-                  <ScrollableTableContainer minWidth={720}>
+                  <ScrollableTableContainer minWidth={640} fill>
                     <Table
                       size="small"
                       sx={{
@@ -666,15 +701,20 @@ export default function ComponentHistoryPage() {
                           whiteSpace: "nowrap",
                           bgcolor: "action.hover",
                         },
+                        "& .MuiTableCell-root": {
+                          wordBreak: "break-word",
+                        },
                       }}
                     >
                       <TableHead>
                         <TableRow>
-                          <TableCell>Part number</TableCell>
-                          <TableCell>Serial #</TableCell>
-                          <TableCell>Type</TableCell>
-                          <TableCell>Aircraft / location</TableCell>
-                          <TableCell align="right">Events</TableCell>
+                          <TableCell sx={{ width: "22%" }}>Part number</TableCell>
+                          <TableCell sx={{ width: "16%" }}>Serial #</TableCell>
+                          <TableCell sx={{ width: "12%" }}>Type</TableCell>
+                          <TableCell sx={{ width: "42%" }}>Aircraft / location</TableCell>
+                          <TableCell align="right" sx={{ width: "8%" }}>
+                            Events
+                          </TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>

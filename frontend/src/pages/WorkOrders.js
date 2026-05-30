@@ -47,6 +47,11 @@ import {
 	isMechanicRole,
 	isPlatformAdmin,
 } from '../shared/rbac';
+import {
+	companyFleetParts,
+	filterPartIdsForAircraft,
+	partsForWorkOrderAircraft,
+} from '../shared/workOrderParts';
 
 const WO_STATUS_OPTIONS = [
 	{ value: 'open', label: 'Open' },
@@ -346,16 +351,12 @@ export default function WorkOrders() {
 		[workOrders, editTargetId]
 	);
 
-	const partsForEditAircraft = useMemo(() => {
-		const aid = editForm.aircraft === '' ? null : Number(editForm.aircraft);
-		if (!Number.isFinite(aid)) return [];
-		return parts.filter((p) => {
-			const pAc = p?.aircraft;
-			const pAid =
-				typeof pAc === 'object' && pAc != null ? Number(pAc.id) : Number(pAc);
-			return Number.isFinite(pAid) && pAid === aid;
-		});
-	}, [parts, editForm.aircraft]);
+	const fleetParts = useMemo(() => companyFleetParts(parts, aircraft), [parts, aircraft]);
+
+	const partsForEditAircraft = useMemo(
+		() => partsForWorkOrderAircraft(parts, aircraft, editForm.aircraft),
+		[parts, aircraft, editForm.aircraft]
+	);
 
 	const openAssignDialog = (wo) => {
 		setAssignTarget(wo);
@@ -617,8 +618,8 @@ export default function WorkOrders() {
 								) : filtered.length === 0 ? (
 									<Typography color="text.secondary">No work orders match the current filters.</Typography>
 								) : (
-									<TableContainer sx={{ maxWidth: '100%', overflowX: 'auto' }}>
-										<Table size="small" sx={{ minWidth: 1300 }}>
+									<TableContainer sx={{ maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
+										<Table size="small" sx={{ minWidth: 1300, width: 'max-content', maxWidth: 'none' }}>
 											<TableHead>
 												<TableRow>
 													<TableCell>ID</TableCell>
@@ -751,20 +752,16 @@ export default function WorkOrders() {
 										value={editForm.aircraft}
 										onChange={(e) => {
 											const nextAc = e.target.value;
-											setEditForm((s) => {
-												const aid = nextAc === '' ? null : Number(nextAc);
-												const nextParts = (s.parts_needed || []).filter((pid) => {
-													const p = parts.find((x) => Number(x.id) === Number(pid));
-													if (!p) return false;
-													const pAc = p.aircraft;
-													const pAid =
-														typeof pAc === 'object' && pAc != null
-															? Number(pAc.id)
-															: Number(pAc);
-													return Number.isFinite(pAid) && pAid === aid;
-												});
-												return { ...s, aircraft: nextAc, parts_needed: nextParts };
-											});
+											setEditForm((s) => ({
+												...s,
+												aircraft: nextAc,
+												parts_needed: filterPartIdsForAircraft(
+													s.parts_needed,
+													parts,
+													aircraft,
+													nextAc
+												),
+											}));
 										}}
 										fullWidth
 									>
@@ -834,7 +831,9 @@ export default function WorkOrders() {
 											(selected || []).length
 												? (selected || [])
 														.map((id) => {
-															const p = parts.find((x) => Number(x.id) === Number(id));
+															const p = fleetParts.find(
+																(x) => Number(x.id) === Number(id)
+															);
 															return p ? `${p.part_number} — ${p.name}` : `#${id}`;
 														})
 														.join(', ')
@@ -855,7 +854,7 @@ export default function WorkOrders() {
 										!editForm.aircraft
 											? 'Select an aircraft first'
 											: partsForEditAircraft.length === 0
-												? 'No parts for this aircraft'
+												? 'No parts catalogued for this aircraft'
 												: undefined
 									}
 									fullWidth

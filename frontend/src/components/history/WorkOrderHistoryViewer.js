@@ -32,6 +32,11 @@ import DeleteConfirmationDialog from '../DeleteConfirmationDialog';
 import LaborEntriesPanel from '../maintenance/LaborEntriesPanel';
 import { workOrderHeadline, workOrderSourceLabel } from '../../shared/workOrderDisplay';
 import { profileDisplayName, resolvePersonDisplay } from '../../shared/profileDisplay';
+import {
+	companyFleetParts,
+	filterPartIdsForAircraft,
+	partsForWorkOrderAircraft,
+} from '../../shared/workOrderParts';
 
 const WORK_ORDER_STATUS_OPTIONS = [
 	{ value: 'open', label: 'Open' },
@@ -66,13 +71,6 @@ function aircraftLabel(ac) {
 		return `${ac.registration_number || ''} (${ac.model || ''})`.trim() || '—';
 	}
 	return String(ac);
-}
-
-function partAircraftId(p) {
-	if (!p) return null;
-	const a = p.aircraft;
-	if (typeof a === 'object' && a != null) return a.id;
-	return a;
 }
 
 function formatStatus(value) {
@@ -239,15 +237,9 @@ export default function WorkOrderHistoryViewer({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open, workOrderId]);
 
-	const aircraftIdSet = useMemo(() => new Set(aircraft.map((a) => a.id)), [aircraft]);
-
 	const companyParts = useMemo(
-		() =>
-			allParts.filter((p) => {
-				const aid = partAircraftId(p);
-				return aid != null && aircraftIdSet.has(aid);
-			}),
-		[allParts, aircraftIdSet]
+		() => companyFleetParts(allParts, aircraft),
+		[allParts, aircraft]
 	);
 
 	const partLabelById = useMemo(() => {
@@ -256,11 +248,10 @@ export default function WorkOrderHistoryViewer({
 		return m;
 	}, [companyParts]);
 
-	const partsForAircraft = useMemo(() => {
-		if (!form.aircraft) return [];
-		const aid = Number(form.aircraft);
-		return companyParts.filter((p) => Number(partAircraftId(p)) === aid);
-	}, [companyParts, form.aircraft]);
+	const partsForAircraft = useMemo(
+		() => partsForWorkOrderAircraft(allParts, aircraft, form.aircraft),
+		[allParts, aircraft, form.aircraft]
+	);
 
 	const mechanicUsers = useMemo(
 		() => users.filter((u) => ['mechanic', 'manager', 'owner'].includes(u?.company_role)),
@@ -449,15 +440,16 @@ export default function WorkOrderHistoryViewer({
 						value={form.aircraft}
 						onChange={(e) => {
 							const newAc = e.target.value;
-							setForm((s) => {
-								const aid = newAc === '' ? null : Number(newAc);
-								const nextParts = (s.parts_needed || []).filter((pid) => {
-									if (aid == null) return false;
-									const p = companyParts.find((x) => x.id === Number(pid));
-									return p && Number(partAircraftId(p)) === aid;
-								});
-								return { ...s, aircraft: newAc, parts_needed: nextParts };
-							});
+							setForm((s) => ({
+								...s,
+								aircraft: newAc,
+								parts_needed: filterPartIdsForAircraft(
+									s.parts_needed,
+									allParts,
+									aircraft,
+									newAc
+								),
+							}));
 						}}
 						fullWidth
 					>
@@ -554,7 +546,9 @@ export default function WorkOrderHistoryViewer({
 				helperText={
 					!form.aircraft
 						? 'Select an aircraft first'
-						: 'Linked to your parts catalog for this tail number (quantities tracked separately).'
+						: partsForAircraft.length === 0
+							? 'No parts catalogued for this aircraft'
+							: 'Linked to your parts catalog for this tail number'
 				}
 				fullWidth
 			>

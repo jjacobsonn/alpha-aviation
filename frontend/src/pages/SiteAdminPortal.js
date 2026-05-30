@@ -25,9 +25,15 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import { useEffect, useMemo, useState } from "react";
 import StatCard from "../components/StatCard";
+import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import DeleteConfirmationDialog from "../components/DeleteConfirmationDialog";
 import { aircraftRefId, formatAircraftRef } from "../shared/aircraftDisplay";
-import { resolvePersonDisplay } from "../shared/profileDisplay";
+import {
+  companyRoleLabel,
+  profilePlatformAccessLabel,
+  profileSiteAdminRoleLabel,
+  resolvePersonDisplay,
+} from "../shared/profileDisplay";
 import {
   createCompany,
   createAircraft,
@@ -47,6 +53,13 @@ import {
   deleteWorkorder,
   fetchAircraft,
   fetchCompanies,
+  fetchProfilesForSiteAdmin,
+  fetchAircraftForSiteAdmin,
+  fetchFlightsForSiteAdmin,
+  fetchPartsForSiteAdmin,
+  fetchInventoriesForSiteAdmin,
+  fetchWorkordersForSiteAdmin,
+  fetchDiscrepanciesForSiteAdmin,
   fetchFlights,
   fetchInventories,
   fetchParts,
@@ -219,13 +232,13 @@ export default function SiteAdminPortal() {
         discrepancyData,
       ] = await Promise.all([
         fetchCompanies(),
-        fetchProfiles(),
-        fetchAircraft(),
-        fetchFlights(),
-        fetchParts(),
-        fetchInventories(),
-        fetchWorkorders(),
-        fetchDiscrepancies(),
+        fetchProfilesForSiteAdmin(),
+        fetchAircraftForSiteAdmin(),
+        fetchFlightsForSiteAdmin(),
+        fetchPartsForSiteAdmin(),
+        fetchInventoriesForSiteAdmin(),
+        fetchWorkordersForSiteAdmin(),
+        fetchDiscrepanciesForSiteAdmin(),
       ]);
       setCompanies(Array.isArray(companyData) ? companyData : []);
       setProfiles(Array.isArray(profileData) ? profileData : []);
@@ -246,11 +259,18 @@ export default function SiteAdminPortal() {
     refresh();
   }, []);
 
+  const entityCompanyId = (entity) => {
+    const c = entity?.company;
+    if (typeof c === "object" && c != null) return Number(c.id);
+    if (c != null && c !== "") return Number(c);
+    return null;
+  };
+
   const userCountByCompany = useMemo(() => {
     const map = new Map();
     profiles.forEach((u) => {
-      const key = u?.company;
-      if (!key) return;
+      const key = entityCompanyId(u);
+      if (key == null || !Number.isFinite(key)) return;
       map.set(key, (map.get(key) || 0) + 1);
     });
     return map;
@@ -259,8 +279,8 @@ export default function SiteAdminPortal() {
   const aircraftCountByCompany = useMemo(() => {
     const map = new Map();
     aircraft.forEach((a) => {
-      const key = a?.company;
-      if (!key) return;
+      const key = entityCompanyId(a);
+      if (key == null || !Number.isFinite(key)) return;
       map.set(key, (map.get(key) || 0) + 1);
     });
     return map;
@@ -819,7 +839,7 @@ export default function SiteAdminPortal() {
 
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth="lg" sx={{ py: 4, minWidth: 0 }}>
         <Stack spacing={2} sx={{ mb: 3 }}>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>
             Site Admin
@@ -894,7 +914,8 @@ export default function SiteAdminPortal() {
               <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary", mb: 1 }}>
                 Companies
               </Typography>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Name</TableCell>
@@ -923,7 +944,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
               <Stack direction="row" spacing={1}>
                 <Button
                   variant="outlined"
@@ -948,7 +970,8 @@ export default function SiteAdminPortal() {
                   Create User
                 </Button>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Username</TableCell>
@@ -965,7 +988,7 @@ export default function SiteAdminPortal() {
                       <TableCell>{u.username}</TableCell>
                       <TableCell>{`${u.first_name || ""} ${u.last_name || ""}`.trim() || "—"}</TableCell>
                       <TableCell>{u.email || "—"}</TableCell>
-                      <TableCell>{u.platform_role || u.company_role || "—"}</TableCell>
+                      <TableCell>{profileSiteAdminRoleLabel(u)}</TableCell>
                       <TableCell>
                         {companies.find((c) => Number(c.id) === Number(u.company))?.name || "—"}
                       </TableCell>
@@ -980,7 +1003,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
             </Stack>
           </CardContent>
         </Card>
@@ -996,7 +1020,8 @@ export default function SiteAdminPortal() {
                   Create Aircraft
                 </Button>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Registration</TableCell>
@@ -1036,7 +1061,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
             </Stack>
           </CardContent>
         </Card>
@@ -1052,7 +1078,8 @@ export default function SiteAdminPortal() {
                   Create Flight
                 </Button>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Flight #</TableCell>
@@ -1092,7 +1119,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
             </Stack>
           </CardContent>
         </Card>
@@ -1108,7 +1136,8 @@ export default function SiteAdminPortal() {
                   Create Part
                 </Button>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>P/N</TableCell>
@@ -1132,7 +1161,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
             </Stack>
           </CardContent>
         </Card>
@@ -1148,7 +1178,8 @@ export default function SiteAdminPortal() {
                   Add Inventory Line
                 </Button>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Company</TableCell>
@@ -1174,7 +1205,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
             </Stack>
           </CardContent>
         </Card>
@@ -1190,7 +1222,8 @@ export default function SiteAdminPortal() {
                   Create Work Order
                 </Button>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>ID</TableCell>
@@ -1216,7 +1249,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
             </Stack>
           </CardContent>
         </Card>
@@ -1232,7 +1266,8 @@ export default function SiteAdminPortal() {
                   Create Discrepancy
                 </Button>
               </Stack>
-              <Table size="small">
+              <ScrollableTableContainer minWidth={960}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>ID</TableCell>
@@ -1260,7 +1295,8 @@ export default function SiteAdminPortal() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ScrollableTableContainer>
             </Stack>
           </CardContent>
         </Card>
@@ -1310,22 +1346,33 @@ export default function SiteAdminPortal() {
             <TextField label="Last Name" value={editUserForm.last_name} onChange={(e) => setEditUserForm((s) => ({ ...s, last_name: e.target.value }))} />
             <TextField label="Email" value={editUserForm.email} onChange={(e) => setEditUserForm((s) => ({ ...s, email: e.target.value }))} />
             <TextField label="Reset Password (optional)" type="password" value={editUserForm.password} onChange={(e) => setEditUserForm((s) => ({ ...s, password: e.target.value }))} />
-            <TextField
-              select
-              label="Role"
-              value={editUserForm.company_role}
-              onChange={(e) => setEditUserForm((s) => ({ ...s, company_role: e.target.value }))}
-              disabled={Boolean(selectedUser?.is_superuser || selectedUser?.is_staff)}
-              helperText={
-                selectedUser?.is_superuser || selectedUser?.is_staff
-                  ? "Platform accounts keep a fixed company role; change platform access in Django admin if needed."
-                  : ""
-              }
-            >
-              {["owner", "manager", "mechanic", "pilot", "dispatcher"].map((r) => (
-                <MenuItem key={r} value={r}>{r}</MenuItem>
-              ))}
-            </TextField>
+            {selectedUser?.is_superuser || selectedUser?.is_staff ? (
+              <>
+                <TextField
+                  label="Platform access"
+                  value={profilePlatformAccessLabel(selectedUser)}
+                  disabled
+                  helperText="Change platform access in Django admin if needed."
+                />
+                <TextField
+                  label="Company role"
+                  value={companyRoleLabel(selectedUser?.company_role)}
+                  disabled
+                  helperText="Stored on the profile for platform logins but not used for tenant permissions."
+                />
+              </>
+            ) : (
+              <TextField
+                select
+                label="Role"
+                value={editUserForm.company_role}
+                onChange={(e) => setEditUserForm((s) => ({ ...s, company_role: e.target.value }))}
+              >
+                {["owner", "manager", "mechanic", "pilot", "dispatcher"].map((r) => (
+                  <MenuItem key={r} value={r}>{companyRoleLabel(r)}</MenuItem>
+                ))}
+              </TextField>
+            )}
             <TextField select label="Company" value={editUserForm.company} onChange={(e) => setEditUserForm((s) => ({ ...s, company: e.target.value }))}>
               <MenuItem value="">None</MenuItem>
               {companies.map((c) => (

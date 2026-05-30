@@ -11,7 +11,6 @@ import {
 	Table,
 	TableBody,
 	TableCell,
-	TableContainer,
 	TableHead,
 	TableRow,
 	TextField,
@@ -22,6 +21,7 @@ import {
 } from '@mui/material';
 import AirplanemodeActiveOutlinedIcon from '@mui/icons-material/AirplanemodeActiveOutlined';
 import SearchIcon from '@mui/icons-material/Search';
+import ScrollableTableContainer from '../ScrollableTableContainer';
 
 const FILTER_OPTIONS = [
 	{ value: 'all', label: 'All statuses' },
@@ -247,8 +247,8 @@ export default function FleetStatusPanel({ aircraft, openWoByAircraft, loading }
 						})}
 					</Stack>
 				) : (
-					<TableContainer sx={{ maxHeight: 360, overflow: 'auto' }}>
-						<Table size="small" stickyHeader>
+					<ScrollableTableContainer minWidth={720} sx={{ maxHeight: 360, overflowY: 'auto' }}>
+						<Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
 							<TableHead>
 								<TableRow>
 									<TableCell>Tail</TableCell>
@@ -292,7 +292,7 @@ export default function FleetStatusPanel({ aircraft, openWoByAircraft, loading }
 								})}
 							</TableBody>
 						</Table>
-					</TableContainer>
+					</ScrollableTableContainer>
 				)}
 			</CardContent>
 		</Card>
