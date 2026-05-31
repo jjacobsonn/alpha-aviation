@@ -764,11 +764,11 @@ class ComponentEvent(models.Model):
 class Flight(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, related_name="flights")
     aircraft = models.ForeignKey(Aircraft, on_delete=models.CASCADE, null=True, related_name="flights")
-    flight_number = models.CharField(max_length=250, null=True)
-    origin = models.CharField(max_length=250, null=True)
-    destination = models.CharField(max_length=250, null=True)
-    departure_time = models.DateTimeField(null=True)
-    arrival_time = models.DateTimeField(null=True)
+    flight_number = models.CharField(max_length=250, null=True, blank=True)
+    origin = models.CharField(max_length=250, null=True, blank=True)
+    destination = models.CharField(max_length=250, null=True, blank=True)
+    departure_time = models.DateTimeField(null=True, blank=True)
+    arrival_time = models.DateTimeField(null=True, blank=True)
     route = models.CharField(blank=True, null=True)
     flight_type_options = [
         ("training", "Training"),
@@ -781,12 +781,14 @@ class Flight(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         null=True,
+        blank=True,
         related_name="primary_pilot",
     )
     secondary_pilot = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         null=True,
+        blank=True,
         related_name="secondary_pilot",
     )
     pilot_req_options = [
@@ -864,18 +866,31 @@ class Flight(models.Model):
         check_pilot(self.primary_pilot, "primary_pilot")
         check_pilot(self.secondary_pilot, "secondary_pilot")
 
-        # --- Aircraft checks ---
-        if self.aircraft and self.departure_time and self.arrival_time:
+        # Pilot requests stay pending until dispatch approves; only enforce
+        # scheduling constraints (WO blocks, conflicts, hobbs) on real bookings.
+        is_pending_request = self.status == "pending approval"
+
+        # --- Aircraft checks (scheduled / approved flights only) ---
+        if (
+            not is_pending_request
+            and self.aircraft
+            and self.departure_time
+            and self.arrival_time
+        ):
             aircraft = Aircraft.objects.get(pk=self.aircraft_id)
 
             # Work order check
             if aircraft.work_orders.filter(status__in=['open', 'in_progress', 'awaiting_parts']).exists():
                 errors["aircraft"] = f"{aircraft} has pending work orders"
 
-            # Conflict check
-            conflict = aircraft.flights.exclude(pk=self.pk).filter(
-                departure_time__lt=self.arrival_time,
-                arrival_time__gt=self.departure_time
+            # Conflict check (ignore other pending requests)
+            conflict = (
+                aircraft.flights.exclude(pk=self.pk)
+                .exclude(status__in=["pending approval", "cancelled"])
+                .filter(
+                    departure_time__lt=self.arrival_time,
+                    arrival_time__gt=self.departure_time,
+                )
             )
             if conflict.exists():
                 errors["aircraft"] = f"{aircraft} has a conflicting flight"

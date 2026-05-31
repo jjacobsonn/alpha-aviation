@@ -932,21 +932,32 @@ def company_flight_request_view(request):
         except (ValueError, TypeError, Profile.DoesNotExist):
             return Response({"error": "Invalid secondary pilot."}, status=status.HTTP_400_BAD_REQUEST)
 
-    flight = Flight.objects.create(
-        company=company,
-        aircraft=aircraft,
-        flight_number=request.data.get("flight_number") or None,
-        origin=request.data.get("origin") or "",
-        destination=request.data.get("destination") or "",
-        departure_time=departure_time,
-        arrival_time=arrival_time,
-        route=request.data.get("route") or "",
-        flight_type=request.data.get("flight_type") or "training",
-        primary_pilot=user,
-        secondary_pilot_id=secondary_pilot_id,
-        pilot_requirement=request.data.get("pilot_requirement") or "private",
-        status="pending approval",
-    )
+    try:
+        flight = Flight.objects.create(
+            company=company,
+            aircraft=aircraft,
+            flight_number=request.data.get("flight_number") or None,
+            origin=request.data.get("origin") or "",
+            destination=request.data.get("destination") or "",
+            departure_time=departure_time,
+            arrival_time=arrival_time,
+            route=request.data.get("route") or "",
+            flight_type=request.data.get("flight_type") or "training",
+            primary_pilot=user,
+            secondary_pilot_id=secondary_pilot_id,
+            pilot_requirement=request.data.get("pilot_requirement") or "private",
+            status="pending approval",
+        )
+    except ValidationError as exc:
+        details = getattr(exc, "message_dict", None) or getattr(exc, "messages", None)
+        return Response(
+            {
+                "error": "Flight request could not be submitted.",
+                "details": details or str(exc),
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     serializer = FlightSerializer(flight)
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 

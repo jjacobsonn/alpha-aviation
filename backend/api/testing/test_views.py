@@ -567,6 +567,56 @@ class TestOwnershipRbacRules:
 
 
 @pytest.mark.django_db
+class TestCompanyFlightRequest:
+    def test_pilot_can_submit_request_when_aircraft_has_open_work_order(
+        self,
+        api_client,
+        sample_aircraft,
+        sample_pilot_profile,
+        sample_pilot,
+        sample_work_order,
+    ):
+        """Pending requests must not be blocked by demo maintenance work orders."""
+        sample_work_order.status = "open"
+        sample_work_order.save(update_fields=["status"])
+
+        api_client.force_authenticate(user=sample_pilot_profile)
+        departure = timezone.now() + timedelta(days=2)
+        arrival = departure + timedelta(hours=2)
+        url = reverse("company-flight-request")
+        response = api_client.post(
+            url,
+            {
+                "aircraft": sample_aircraft.id,
+                "origin": "KBFI",
+                "destination": "KPAE",
+                "departure_time": departure.isoformat(),
+                "arrival_time": arrival.isoformat(),
+                "flight_type": "training",
+                "pilot_requirement": "private",
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        assert response.data["status"] == "pending approval"
+
+    def test_validation_errors_return_400_not_500(
+        self, api_client, sample_aircraft, sample_pilot_profile
+    ):
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("company-flight-request")
+        response = api_client.post(
+            url,
+            {"aircraft": sample_aircraft.id, "origin": "KBFI", "destination": "KPAE"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "error" in response.data
+
+
+@pytest.mark.django_db
 class TestServiceHistoryViews:
     def test_mechanic_can_list_service_history(
         self, authenticated_client, sample_work_order
