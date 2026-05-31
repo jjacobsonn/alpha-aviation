@@ -14,6 +14,7 @@ from .models import (
     WorkOrderActivity,
     WorkOrderPart,
     Flight,
+    FlightActivity,
     Inventory,
     Tool,
     CalibrationRecord,
@@ -25,9 +26,12 @@ from .models import (
 from .maintenance_activity import (
     log_discrepancy_created,
     log_discrepancy_updated,
+    log_flight_created,
+    log_flight_updated,
     log_work_order_created,
     log_work_order_updated,
     snapshot_discrepancy,
+    snapshot_flight,
     snapshot_work_order,
 )
 
@@ -569,9 +573,27 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         return work_order
 
 
+class FlightActivitySerializer(serializers.ModelSerializer):
+    actor_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FlightActivity
+        fields = ["id", "actor", "actor_display", "created_at", "event_type", "summary"]
+
+    def get_actor_display(self, obj):
+        a = obj.actor
+        if not a:
+            return "System"
+        fn = (a.first_name or "").strip()
+        ln = (a.last_name or "").strip()
+        full = f"{fn} {ln}".strip()
+        return full or (a.username or "").strip() or str(a.id)
+
+
 class FlightSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.name", read_only=True)
     aircraft_name = serializers.CharField(source="aircraft.model", read_only=True)
+    activities = FlightActivitySerializer(many=True, read_only=True)
     # Frontend still uses `approved`; DB stores workflow as `status`.
     approved = serializers.SerializerMethodField()
 
@@ -596,6 +618,7 @@ class FlightSerializer(serializers.ModelSerializer):
             "approved",
             "company_name",
             "aircraft_name",
+            "activities",
         ]
 
     def get_approved(self, obj):

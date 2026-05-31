@@ -1,6 +1,14 @@
 """Append-only work order / discrepancy activity logging."""
 
-from .models import Aircraft, DiscrepancyActivity, Part, Profile, WorkOrderActivity
+from .models import (
+    Aircraft,
+    DiscrepancyActivity,
+    Flight,
+    FlightActivity,
+    Part,
+    Profile,
+    WorkOrderActivity,
+)
 
 
 def _actor_for_request(request):
@@ -191,6 +199,98 @@ def log_discrepancy_updated(d, before, after, request):
         discrepancy=d,
         actor=_actor_for_request(request),
         event_type=DiscrepancyActivity.EventType.UPDATED,
+        summary=msg,
+        metadata={"before": before, "after": after},
+    )
+
+
+def _pilot_label(pilot_id):
+    if not pilot_id:
+        return "None"
+    try:
+        return _display_name(Profile.objects.get(pk=pilot_id))
+    except Profile.DoesNotExist:
+        return f"User #{pilot_id}"
+
+
+def _dt_label(value):
+    if not value:
+        return "None"
+    return str(value).replace("T", " ").replace("+00:00", " UTC")[:19]
+
+
+def snapshot_flight(flight):
+    return {
+        "departure_time": (
+            flight.departure_time.isoformat() if flight.departure_time else None
+        ),
+        "arrival_time": (
+            flight.arrival_time.isoformat() if flight.arrival_time else None
+        ),
+        "route": (flight.route or "").strip(),
+        "secondary_pilot_id": flight.secondary_pilot_id,
+        "secondary_pilot_name": _pilot_label(flight.secondary_pilot_id),
+        "status": flight.status,
+        "origin": flight.origin or "",
+        "destination": flight.destination or "",
+    }
+
+
+def describe_flight_changes(before, after):
+    bits = []
+    if before["departure_time"] != after["departure_time"]:
+        bits.append(
+            f"Departure {_dt_label(before['departure_time'])} → "
+            f"{_dt_label(after['departure_time'])}"
+        )
+    if before["arrival_time"] != after["arrival_time"]:
+        bits.append(
+            f"Arrival {_dt_label(before['arrival_time'])} → "
+            f"{_dt_label(after['arrival_time'])}"
+        )
+    if (before["route"] or "") != (after["route"] or ""):
+        old_route = before["route"] or "None"
+        new_route = after["route"] or "None"
+        bits.append(f"Route {old_route} → {new_route}")
+    if before["secondary_pilot_id"] != after["secondary_pilot_id"]:
+        bits.append(
+            f"Secondary pilot {before['secondary_pilot_name']} → "
+            f"{after['secondary_pilot_name']}"
+        )
+    if before["status"] != after["status"]:
+        bits.append(
+            f"Status {_status_label(before['status'])} → {_status_label(after['status'])}"
+        )
+    if before["origin"] != after["origin"]:
+        bits.append(f"Origin {before['origin'] or 'None'} → {after['origin'] or 'None'}")
+    if before["destination"] != after["destination"]:
+        bits.append(
+            f"Destination {before['destination'] or 'None'} → "
+            f"{after['destination'] or 'None'}"
+        )
+    return "; ".join(bits) if bits else None
+
+
+def log_flight_created(flight, request):
+    actor = _actor_for_request(request)
+    who = _display_name(actor) if actor else "System"
+    FlightActivity.objects.create(
+        flight=flight,
+        actor=actor,
+        event_type=FlightActivity.EventType.CREATED,
+        summary=f"Flight request submitted by {who}",
+        metadata={"status": flight.status},
+    )
+
+
+def log_flight_updated(flight, before, after, request):
+    msg = describe_flight_changes(before, after)
+    if not msg:
+        return
+    FlightActivity.objects.create(
+        flight=flight,
+        actor=_actor_for_request(request),
+        event_type=FlightActivity.EventType.UPDATED,
         summary=msg,
         metadata={"before": before, "after": after},
     )

@@ -1157,6 +1157,39 @@ class DiscrepancyActivity(models.Model):
     def __str__(self):
         return f"DISC#{self.discrepancy_id} {self.event_type} @ {self.created_at}"
 
+
+class FlightActivity(models.Model):
+    """History entries for flight request / dispatch changes."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+
+    flight = models.ForeignKey(
+        Flight, on_delete=models.CASCADE, related_name="activities"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="flight_activities",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"FLT#{self.flight_id} {self.event_type} @ {self.created_at}"
+
       
 class Tool(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="tools")

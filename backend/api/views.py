@@ -24,6 +24,7 @@ from .models import (
     Discrepancy,
     DiscrepancyActivity,
     Flight,
+    FlightActivity,
     Inventory,
     Tool,
     CalibrationRecord,
@@ -49,8 +50,11 @@ from .permissions import (
     CanSignWorkOrder,
 )
 from .maintenance_activity import (
+    log_flight_created,
+    log_flight_updated,
     log_work_order_created,
     snapshot_discrepancy,
+    snapshot_flight,
     log_discrepancy_updated,
 )
 from .serializers import (
@@ -250,6 +254,19 @@ def company_scoped_workorder_queryset(request):
     if _is_platform_admin(user):
         return qs
     return qs
+
+
+def flights_with_activities_queryset():
+    return Flight.objects.select_related(
+        "aircraft", "primary_pilot", "secondary_pilot", "company"
+    ).prefetch_related(
+        Prefetch(
+            "activities",
+            queryset=FlightActivity.objects.select_related("actor").order_by(
+                "-created_at"
+            ),
+        )
+    )
 
 
 def company_scoped_flight_queryset(request):
@@ -851,8 +868,8 @@ def company_flights_view(request):
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
     flights = (
-        Flight.objects.filter(company=company)
-        .select_related("aircraft", "primary_pilot", "secondary_pilot")
+        flights_with_activities_queryset()
+        .filter(company=company)
         .order_by("-departure_time")
     )
     serializer = FlightSerializer(flights, many=True)
@@ -958,7 +975,9 @@ def company_flight_request_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    serializer = FlightSerializer(flight)
+    log_flight_created(flight, request)
+    out = flights_with_activities_queryset().get(pk=flight.pk)
+    serializer = FlightSerializer(out)
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -1002,6 +1021,7 @@ def company_flight_dispatch_view(request, pk):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+    before = snapshot_flight(flight)
     serializer = FlightSerializer(flight, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
     inst = serializer.save()
@@ -1009,7 +1029,12 @@ def company_flight_dispatch_view(request, pk):
     if new_status == "approved" and inst.dispatcher_id is None:
         inst.dispatcher = request.user
         inst.save(update_fields=["dispatcher"])
-    return Response(FlightSerializer(inst).data)
+    inst = Flight.objects.select_related(
+        "aircraft", "primary_pilot", "secondary_pilot", "company"
+    ).get(pk=inst.pk)
+    log_flight_updated(inst, before, snapshot_flight(inst), request)
+    out = flights_with_activities_queryset().get(pk=inst.pk)
+    return Response(FlightSerializer(out).data)
 
 
 #endpoint for company's inventories

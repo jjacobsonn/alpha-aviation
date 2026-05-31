@@ -567,6 +567,55 @@ class TestOwnershipRbacRules:
 
 
 @pytest.mark.django_db
+class TestFlightActivityLog:
+    def test_pilot_flight_edit_records_actor_name(
+        self,
+        api_client,
+        sample_company,
+        sample_aircraft,
+        sample_pilot_profile,
+        sample_pilot_profile_secondary,
+        sample_pilot,
+        sample_work_order,
+    ):
+        from api.models import Flight, FlightActivity
+
+        sample_work_order.status = "open"
+        sample_work_order.save(update_fields=["status"])
+
+        departure = timezone.now() + timedelta(days=3)
+        arrival = departure + timedelta(hours=2)
+        flight = Flight.objects.create(
+            company=sample_company,
+            aircraft=sample_aircraft,
+            origin="AAA",
+            destination="BBB",
+            departure_time=departure,
+            arrival_time=arrival,
+            primary_pilot=sample_pilot_profile,
+            status="pending approval",
+        )
+
+        api_client.force_authenticate(user=sample_pilot_profile)
+        url = reverse("company-flight-dispatch", kwargs={"pk": flight.id})
+        response = api_client.patch(
+            url,
+            {"secondary_pilot": sample_pilot_profile_secondary.id},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data.get("activities") or []) >= 1
+        latest = response.data["activities"][0]
+        assert latest["actor_display"]
+        assert "Secondary pilot" in latest["summary"]
+
+        db_latest = FlightActivity.objects.filter(flight=flight).first()
+        assert db_latest is not None
+        assert db_latest.actor_id == sample_pilot_profile.id
+
+
+@pytest.mark.django_db
 class TestCompanyFlightRequest:
     def test_pilot_can_submit_request_when_aircraft_has_open_work_order(
         self,

@@ -93,9 +93,6 @@ const PILOT_EDITABLE_DISCREPANCY_FIELDS = new Set([
   "tach_time",
   "description",
 ]);
-const PILOT_FLIGHT_EDIT_TRAIL_KEY = "pilotFlightEditTrail";
-const PILOT_DISCREPANCY_EDIT_TRAIL_KEY = "pilotDiscrepancyEditTrail";
-
 function statusChip(status) {
   const s = status || "";
   if (s === "approved" || s === "scheduled") return <Chip size="small" color="success" label={s} />;
@@ -153,19 +150,6 @@ function formatEditedAt(value) {
   }
 }
 
-function editorNameFromUser(user) {
-  if (!user) return "Unknown user";
-  const name = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-  return name || user.username || `User #${user.id}`;
-}
-
-function resolveTrailEditorName(entry, nameByUserId) {
-  if (entry?.editedByName) return entry.editedByName;
-  const id = Number(entry?.editedBy);
-  if (Number.isFinite(id) && nameByUserId?.get(id)) return nameByUserId.get(id);
-  return "Unknown user";
-}
-
 function refIdString(ref) {
   if (ref === null || ref === undefined || ref === "") return "";
   if (typeof ref === "object") {
@@ -188,43 +172,6 @@ function getChangedFlightFields(current, baseline) {
     .map((k) => labels[k]);
 }
 
-function getFlightFieldValueSummary(form) {
-  if (!form) return {};
-  return {
-    departure_time: form.departure_time || "",
-    arrival_time: form.arrival_time || "",
-    route: form.route || "",
-    secondary_pilot: form.secondary_pilot || "",
-  };
-}
-
-function normalizeTrailMap(value) {
-  if (!value || typeof value !== "object") return {};
-  const out = {};
-  Object.entries(value).forEach(([flightId, entry]) => {
-    if (Array.isArray(entry)) {
-      out[flightId] = entry;
-      return;
-    }
-    if (entry && typeof entry === "object") {
-      out[flightId] = [entry];
-      return;
-    }
-    out[flightId] = [];
-  });
-  return out;
-}
-
-function formatFieldValue(field, value, pilotsById) {
-  if (!value) return "—";
-  if (field === "secondary_pilot") {
-    const id = Number(value);
-    if (Number.isNaN(id)) return String(value);
-    return pilotsById.get(id) || `User #${id}`;
-  }
-  return String(value);
-}
-
 function getChangedDiscrepancyFields(current, baseline) {
   if (!current || !baseline) return [];
   const labels = {
@@ -235,6 +182,37 @@ function getChangedDiscrepancyFields(current, baseline) {
   return Object.keys(labels)
     .filter((k) => (current?.[k] ?? "") !== (baseline?.[k] ?? ""))
     .map((k) => labels[k]);
+}
+
+function PilotEditActivityList({ activities, emptyMessage }) {
+  const items = Array.isArray(activities) ? activities : [];
+  if (!items.length) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        {emptyMessage}
+      </Typography>
+    );
+  }
+  return (
+    <Stack spacing={1}>
+      {items.map((a) => (
+        <Box
+          key={a.id ?? `${a.created_at}-${a.summary}`}
+          sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            {a.actor_display || "System"}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block">
+            {formatEditedAt(a.created_at)}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            {a.summary || "—"}
+          </Typography>
+        </Box>
+      ))}
+    </Stack>
+  );
 }
 
 export default function PilotDashboard() {
@@ -268,15 +246,6 @@ export default function PilotDashboard() {
   const [savingSelectedFlight, setSavingSelectedFlight] = useState(false);
   const [selectedFlightBaseline, setSelectedFlightBaseline] = useState(null);
   const [selectedFlightEditedAt, setSelectedFlightEditedAt] = useState("");
-  const [savedFlightEditTrail, setSavedFlightEditTrail] = useState(() => {
-    try {
-      const raw = localStorage.getItem(PILOT_FLIGHT_EDIT_TRAIL_KEY);
-      const parsed = raw ? JSON.parse(raw) : {};
-      return normalizeTrailMap(parsed);
-    } catch {
-      return {};
-    }
-  });
   const [selectedFlightDirtyFields, setSelectedFlightDirtyFields] = useState([]);
   const [selectedFlightForm, setSelectedFlightForm] = useState({
     flight_number: "",
@@ -297,15 +266,6 @@ export default function PilotDashboard() {
   const [savingSelectedDiscrepancy, setSavingSelectedDiscrepancy] = useState(false);
   const [selectedDiscrepancyBaseline, setSelectedDiscrepancyBaseline] = useState(null);
   const [selectedDiscrepancyEditedAt, setSelectedDiscrepancyEditedAt] = useState("");
-  const [savedDiscrepancyEditTrail, setSavedDiscrepancyEditTrail] = useState(() => {
-    try {
-      const raw = localStorage.getItem(PILOT_DISCREPANCY_EDIT_TRAIL_KEY);
-      const parsed = raw ? JSON.parse(raw) : {};
-      return normalizeTrailMap(parsed);
-    } catch {
-      return {};
-    }
-  });
   const [selectedDiscrepancyForm, setSelectedDiscrepancyForm] = useState({
     ata_code: "",
     tach_time: "",
@@ -314,50 +274,21 @@ export default function PilotDashboard() {
   const [flightFormEditedAt, setFlightFormEditedAt] = useState("");
   const [discFormEditedAt, setDiscFormEditedAt] = useState("");
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(PILOT_FLIGHT_EDIT_TRAIL_KEY, JSON.stringify(savedFlightEditTrail));
-    } catch {
-      // Ignore localStorage write issues.
-    }
-  }, [savedFlightEditTrail]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        PILOT_DISCREPANCY_EDIT_TRAIL_KEY,
-        JSON.stringify(savedDiscrepancyEditTrail)
-      );
-    } catch {
-      // Ignore localStorage write issues.
-    }
-  }, [savedDiscrepancyEditTrail]);
-
   const [flightForm, setFlightForm] = useState(INITIAL_FLIGHT_FORM);
   const [discForm, setDiscForm] = useState(INITIAL_DISC_FORM);
-
-  const trailEditor = useMemo(() => {
-    const user = currentUser || state.user;
-    return {
-      id: user?.id != null ? Number(user.id) : null,
-      name: editorNameFromUser(user),
-    };
-  }, [currentUser, state.user]);
 
   const pilotNameById = useMemo(() => {
     const map = new Map();
     if (currentUser?.id) {
-      map.set(Number(currentUser.id), editorNameFromUser(currentUser));
-    }
-    if (state.user?.id && !map.has(Number(state.user.id))) {
-      map.set(Number(state.user.id), editorNameFromUser(state.user));
+      const meName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(" ").trim();
+      map.set(Number(currentUser.id), meName || currentUser.username || `User #${currentUser.id}`);
     }
     (pilots || []).forEach((p) => {
       const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
       map.set(Number(p.id), name || p.username || `User #${p.id}`);
     });
     return map;
-  }, [pilots, currentUser, state.user]);
+  }, [pilots, currentUser]);
 
   const aircraftNameById = useMemo(() => {
     const map = new Map();
@@ -618,13 +549,6 @@ export default function PilotDashboard() {
     return getChangedDiscrepancyFields(selectedDiscrepancyForm, selectedDiscrepancyBaseline);
   }, [editingSelectedDiscrepancy, selectedDiscrepancyBaseline, selectedDiscrepancyForm]);
 
-  const selectedDiscrepancySavedTrail = useMemo(() => {
-    if (!selectedDiscrepancy?.id) return [];
-    return Array.isArray(savedDiscrepancyEditTrail[selectedDiscrepancy.id])
-      ? savedDiscrepancyEditTrail[selectedDiscrepancy.id]
-      : [];
-  }, [savedDiscrepancyEditTrail, selectedDiscrepancy]);
-
   const saveSelectedDiscrepancyEdit = async () => {
     if (!selectedDiscrepancy?.id) return;
     if (!selectedDiscrepancyForm.description) {
@@ -634,10 +558,6 @@ export default function PilotDashboard() {
     setSavingSelectedDiscrepancy(true);
     setError("");
     try {
-      const changedBeforeSave = getChangedDiscrepancyFields(
-        selectedDiscrepancyForm,
-        selectedDiscrepancyBaseline
-      );
       const updated = await updateDiscrepancy(selectedDiscrepancy.id, {
         ata_code: selectedDiscrepancyForm.ata_code || "",
         tach_time: selectedDiscrepancyForm.tach_time || "",
@@ -646,20 +566,6 @@ export default function PilotDashboard() {
       setDiscrepancies((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
       setSelectedDiscrepancy(updated);
       setEditingSelectedDiscrepancy(false);
-      if (changedBeforeSave.length > 0) {
-        setSavedDiscrepancyEditTrail((prev) => ({
-          ...prev,
-          [updated.id]: [
-            ...(Array.isArray(prev?.[updated.id]) ? prev[updated.id] : []),
-            {
-              fields: changedBeforeSave,
-              editedAt: new Date().toISOString(),
-              editedBy: trailEditor.id,
-              editedByName: trailEditor.name,
-            },
-          ],
-        }));
-      }
       setSelectedDiscrepancyEditedAt("");
     } catch (e) {
       setError(e?.message || "Could not update discrepancy.");
@@ -679,26 +585,6 @@ export default function PilotDashboard() {
     setSavingSelectedFlight(true);
     setError("");
     try {
-      const changedFieldMap = {
-        departure_time: "Departure",
-        arrival_time: "Arrival",
-        route: "Route notes",
-        secondary_pilot: "Secondary pilot",
-      };
-      const unionRaw = new Set([
-        ...selectedFlightDirtyFields,
-        ...Object.keys(changedFieldMap).filter(
-          (k) =>
-            (selectedFlightForm?.[k] ?? "") !== (selectedFlightBaseline?.[k] ?? "")
-        ),
-      ]);
-      const unionFields = [...unionRaw].filter((k) => changedFieldMap[k]);
-      const changeDetails = unionFields.map((field) => ({
-        field,
-        label: changedFieldMap[field],
-        before: selectedFlightBaseline?.[field] ?? "",
-        after: selectedFlightForm?.[field] ?? "",
-      }));
       const updated = await patchCompanyFlightDispatch(selectedFlight.id, {
         departure_time: dep,
         arrival_time: arr,
@@ -710,23 +596,6 @@ export default function PilotDashboard() {
       setFlights((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
       setSelectedFlight(updated);
       setEditingSelectedFlight(false);
-      if (unionFields.length > 0) {
-        const values = getFlightFieldValueSummary(selectedFlightForm);
-        setSavedFlightEditTrail((prev) => ({
-          ...prev,
-          [updated.id]: [
-            ...(Array.isArray(prev?.[updated.id]) ? prev[updated.id] : []),
-            {
-              fields: unionFields.map((f) => changedFieldMap[f]),
-              changes: changeDetails,
-              editedAt: new Date().toISOString(),
-              editedBy: trailEditor.id,
-              editedByName: trailEditor.name,
-              values,
-            },
-          ],
-        }));
-      }
       setSelectedFlightEditedAt("");
       setSelectedFlightDirtyFields([]);
     } catch (e) {
@@ -775,13 +644,6 @@ export default function PilotDashboard() {
       .filter((k) => (selectedFlightForm?.[k] ?? "") !== (selectedFlightBaseline?.[k] ?? ""))
       .map((k) => labels[k]);
   }, [editingSelectedFlight, selectedFlightBaseline, selectedFlightForm]);
-
-  const selectedFlightSavedTrail = useMemo(() => {
-    if (!selectedFlight?.id) return null;
-    return Array.isArray(savedFlightEditTrail[selectedFlight.id])
-      ? savedFlightEditTrail[selectedFlight.id]
-      : [];
-  }, [savedFlightEditTrail, selectedFlight]);
 
   const requestFlightChangedFields = useMemo(() => {
     const labels = {
@@ -1201,18 +1063,7 @@ export default function PilotDashboard() {
                       {formatEditedAt(selectedFlightEditedAt)}
                     </Alert>
                   ) : null}
-                  {!editingSelectedFlight && selectedFlightSavedTrail.length > 0 ? (
-                    <Alert severity="info">
-                      Last saved edit by{" "}
-                      {resolveTrailEditorName(
-                        selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1],
-                        pilotNameById
-                      )}
-                      : {selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1].fields.join(", ")} on{" "}
-                      {formatEditedAt(selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1].editedAt)}
-                    </Alert>
-                  ) : null}
-                  {!editingSelectedFlight && selectedFlightSavedTrail.length > 0 ? (
+                  {!editingSelectedFlight ? (
                     <Box
                       sx={{
                         border: "1px solid",
@@ -1224,38 +1075,10 @@ export default function PilotDashboard() {
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
                         Edit history
                       </Typography>
-                      <Stack spacing={1}>
-                        {[...selectedFlightSavedTrail]
-                          .slice(-10)
-                          .reverse()
-                          .map((entry, idx) => (
-                            <Box
-                              key={`${entry.editedAt}-${idx}`}
-                              sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
-                            >
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                {resolveTrailEditorName(entry, pilotNameById)}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" display="block">
-                                {formatEditedAt(entry.editedAt)}
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                Changed: {Array.isArray(entry.fields) ? entry.fields.join(", ") : "—"}
-                              </Typography>
-                              {Array.isArray(entry.changes) && entry.changes.length > 0 ? (
-                                <Stack spacing={0.25} sx={{ mt: 0.5 }}>
-                                  {entry.changes.map((change, i) => (
-                                    <Typography key={`${change.field}-${i}`} variant="caption" color="text.secondary">
-                                      {change.label}:{" "}
-                                      {formatFieldValue(change.field, change.before, pilotNameById)} ->{" "}
-                                      {formatFieldValue(change.field, change.after, pilotNameById)}
-                                    </Typography>
-                                  ))}
-                                </Stack>
-                              ) : null}
-                            </Box>
-                          ))}
-                      </Stack>
+                      <PilotEditActivityList
+                        activities={selectedFlight?.activities}
+                        emptyMessage="No edit history yet. Changes will appear here with who made them."
+                      />
                     </Box>
                   ) : null}
                 </Stack>
@@ -1662,28 +1485,7 @@ export default function PilotDashboard() {
                       {formatEditedAt(selectedDiscrepancyEditedAt)}
                     </Alert>
                   ) : null}
-                  {!editingSelectedDiscrepancy && selectedDiscrepancySavedTrail.length > 0 ? (
-                    <Alert severity="info">
-                      Last saved edit by{" "}
-                      {resolveTrailEditorName(
-                        selectedDiscrepancySavedTrail[
-                          selectedDiscrepancySavedTrail.length - 1
-                        ],
-                        pilotNameById
-                      )}
-                      :{" "}
-                      {selectedDiscrepancySavedTrail[
-                        selectedDiscrepancySavedTrail.length - 1
-                      ].fields.join(", ")}{" "}
-                      on{" "}
-                      {formatEditedAt(
-                        selectedDiscrepancySavedTrail[
-                          selectedDiscrepancySavedTrail.length - 1
-                        ].editedAt
-                      )}
-                    </Alert>
-                  ) : null}
-                  {!editingSelectedDiscrepancy && selectedDiscrepancySavedTrail.length > 0 ? (
+                  {!editingSelectedDiscrepancy ? (
                     <Box
                       sx={{
                         border: "1px solid",
@@ -1695,27 +1497,10 @@ export default function PilotDashboard() {
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
                         Edit history
                       </Typography>
-                      <Stack spacing={1}>
-                        {[...selectedDiscrepancySavedTrail]
-                          .slice(-10)
-                          .reverse()
-                          .map((entry, idx) => (
-                            <Box
-                              key={`${entry.editedAt}-${idx}`}
-                              sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
-                            >
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                {resolveTrailEditorName(entry, pilotNameById)}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" display="block">
-                                {formatEditedAt(entry.editedAt)}
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                Changed: {Array.isArray(entry.fields) ? entry.fields.join(", ") : "—"}
-                              </Typography>
-                            </Box>
-                          ))}
-                      </Stack>
+                      <PilotEditActivityList
+                        activities={selectedDiscrepancy?.activities}
+                        emptyMessage="No edit history yet. Changes will appear here with who made them."
+                      />
                     </Box>
                   ) : null}
                 </Stack>
