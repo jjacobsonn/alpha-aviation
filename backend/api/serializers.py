@@ -122,7 +122,6 @@ class ProfileSerializer(serializers.ModelSerializer):
             "phone_number",
             "company",
             "company_role",
-            "date_joined",
             "is_staff",
             "is_superuser",
             "platform_role",
@@ -131,7 +130,6 @@ class ProfileSerializer(serializers.ModelSerializer):
             "AP_certificate_number",
             "inspector_authentication",
         ]
-        read_only_fields = ["date_joined"]
 
     def get_platform_role(self, obj):
         if getattr(obj, "is_superuser", False):
@@ -253,7 +251,6 @@ class AircraftSerializer(serializers.ModelSerializer):
             "specs",
             "company",
             "company_name",
-            "created_at",
         ]
 
 class PartSerializer(serializers.ModelSerializer):

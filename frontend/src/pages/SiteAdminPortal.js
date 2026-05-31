@@ -34,23 +34,24 @@ import {
   profileSiteAdminRoleLabel,
   resolvePersonDisplay,
 } from "../shared/profileDisplay";
-import { sortByNewestFirst } from "../shared/listSort";
 import {
   createCompany,
-  createAircraftForSiteAdmin,
-  createDiscrepancyForSiteAdmin,
-  createFlightForSiteAdmin,
-  createInventoryForSiteAdmin,
-  createPartForSiteAdmin,
-  createProfileForSiteAdmin,
-  createWorkorderForSiteAdmin,
-  deleteAircraftForSiteAdmin,
-  deleteDiscrepancyForSiteAdmin,
-  deleteInventoryForSiteAdmin,
-  deletePartForSiteAdmin,
-  deleteProfileForSiteAdmin,
-  deleteFlightForSiteAdmin,
-  deleteWorkorderForSiteAdmin,
+  createAircraft,
+  createDiscrepancy,
+  fetchDiscrepancies,
+  createFlight,
+  createInventory,
+  createPart,
+  createProfile,
+  createWorkorder,
+  deleteAircraft,
+  deleteDiscrepancy,
+  deleteInventory,
+  deletePart,
+  deleteProfile,
+  deleteFlight,
+  deleteWorkorder,
+  fetchAircraft,
   fetchCompanies,
   fetchProfilesForSiteAdmin,
   fetchAircraftForSiteAdmin,
@@ -59,13 +60,18 @@ import {
   fetchInventoriesForSiteAdmin,
   fetchWorkordersForSiteAdmin,
   fetchDiscrepanciesForSiteAdmin,
-  updateAircraftForSiteAdmin,
-  updateDiscrepancyForSiteAdmin,
-  updateFlightForSiteAdmin,
-  updateInventoryForSiteAdmin,
-  updatePartForSiteAdmin,
-  updateProfileForSiteAdmin,
-  updateWorkorderForSiteAdmin,
+  fetchFlights,
+  fetchInventories,
+  fetchParts,
+  fetchProfiles,
+  fetchWorkorders,
+  updateAircraft,
+  updateDiscrepancy,
+  updateFlight,
+  updateInventory,
+  updatePart,
+  updateProfile,
+  updateWorkorder,
 } from "../shared/Api";
 
 function profileRefId(ref) {
@@ -234,14 +240,14 @@ export default function SiteAdminPortal() {
         fetchWorkordersForSiteAdmin(),
         fetchDiscrepanciesForSiteAdmin(),
       ]);
-      setCompanies(sortByNewestFirst(Array.isArray(companyData) ? companyData : []));
-      setProfiles(sortByNewestFirst(Array.isArray(profileData) ? profileData : []));
-      setAircraft(sortByNewestFirst(Array.isArray(aircraftData) ? aircraftData : []));
-      setFlights(sortByNewestFirst(Array.isArray(flightData) ? flightData : []));
-      setParts(sortByNewestFirst(Array.isArray(partData) ? partData : []));
-      setInventories(sortByNewestFirst(Array.isArray(inventoryData) ? inventoryData : []));
-      setWorkorders(sortByNewestFirst(Array.isArray(workorderData) ? workorderData : []));
-      setDiscrepancies(sortByNewestFirst(Array.isArray(discrepancyData) ? discrepancyData : []));
+      setCompanies(Array.isArray(companyData) ? companyData : []);
+      setProfiles(Array.isArray(profileData) ? profileData : []);
+      setAircraft(Array.isArray(aircraftData) ? aircraftData : []);
+      setFlights(Array.isArray(flightData) ? flightData : []);
+      setParts(Array.isArray(partData) ? partData : []);
+      setInventories(Array.isArray(inventoryData) ? inventoryData : []);
+      setWorkorders(Array.isArray(workorderData) ? workorderData : []);
+      setDiscrepancies(Array.isArray(discrepancyData) ? discrepancyData : []);
     } catch (e) {
       setError(e?.message || "Failed to load site-admin data.");
     } finally {
@@ -356,7 +362,7 @@ export default function SiteAdminPortal() {
         username: newUserForm.username.trim(),
         company: newUserForm.company ? Number(newUserForm.company) : null,
       };
-      await createProfileForSiteAdmin(payload);
+      await createProfile(payload);
       setCreateUserOpen(false);
       setNewUserForm({
         username: "",
@@ -387,7 +393,7 @@ export default function SiteAdminPortal() {
       if (selectedUser.is_superuser || selectedUser.is_staff) {
         delete payload.company_role;
       }
-      await updateProfileForSiteAdmin(selectedUser.id, payload);
+      await updateProfile(selectedUser.id, payload);
       setEditUserOpen(false);
       await refresh();
     } catch (e) {
@@ -431,7 +437,7 @@ export default function SiteAdminPortal() {
     setCreatingAircraft(true);
     setError("");
     try {
-      await createAircraftForSiteAdmin({
+      await createAircraft({
         ...newAircraftForm,
         year_built: newAircraftForm.year_built ? Number(newAircraftForm.year_built) : null,
         company: newAircraftForm.company ? Number(newAircraftForm.company) : null,
@@ -458,7 +464,7 @@ export default function SiteAdminPortal() {
     setSavingAircraft(true);
     setError("");
     try {
-      await updateAircraftForSiteAdmin(selectedAircraft.id, {
+      await updateAircraft(selectedAircraft.id, {
         ...editAircraftForm,
         year_built: editAircraftForm.year_built ? Number(editAircraftForm.year_built) : null,
         company: editAircraftForm.company ? Number(editAircraftForm.company) : null,
@@ -475,7 +481,7 @@ export default function SiteAdminPortal() {
   const handleDeleteAircraft = async (id) => {
     setError("");
     try {
-      await deleteAircraftForSiteAdmin(id);
+      await deleteAircraft(id);
       await refresh();
     } catch (e) {
       setError(e?.message || "Failed to delete aircraft.");
@@ -526,7 +532,7 @@ export default function SiteAdminPortal() {
     setCreatingFlight(true);
     setError("");
     try {
-      await createFlightForSiteAdmin(normalizeFlightPayload(newFlightForm));
+      await createFlight(normalizeFlightPayload(newFlightForm));
       setCreateFlightOpen(false);
       setNewFlightForm({
         company: "",
@@ -556,7 +562,7 @@ export default function SiteAdminPortal() {
     setSavingFlight(true);
     setError("");
     try {
-      await updateFlightForSiteAdmin(selectedFlight.id, normalizeFlightPayload(editFlightForm));
+      await updateFlight(selectedFlight.id, normalizeFlightPayload(editFlightForm));
       setEditFlightOpen(false);
       await refresh();
     } catch (e) {
@@ -579,7 +585,7 @@ export default function SiteAdminPortal() {
 
   const handleCreatePart = async () => {
     try {
-      await createPartForSiteAdmin({
+      await createPart({
         ...partForm,
         aircraft: Number(partForm.aircraft),
       });
@@ -604,7 +610,7 @@ export default function SiteAdminPortal() {
   const handleEditPart = async () => {
     if (!selectedPart?.id) return;
     try {
-      await updatePartForSiteAdmin(selectedPart.id, {
+      await updatePart(selectedPart.id, {
         ...partForm,
         aircraft: Number(partForm.aircraft),
       });
@@ -625,13 +631,13 @@ export default function SiteAdminPortal() {
     try {
       setError("");
       if (deleteConfirmType === "flight") {
-        await deleteFlightForSiteAdmin(deleteConfirmId);
+        await deleteFlight(deleteConfirmId);
       } else if (deleteConfirmType === "part") {
-        await deletePartForSiteAdmin(deleteConfirmId);
+        await deletePart(deleteConfirmId);
       } else if (deleteConfirmType === "inventory") {
-        await deleteInventoryForSiteAdmin(deleteConfirmId);
+        await deleteInventory(deleteConfirmId);
       } else if (deleteConfirmType === "user") {
-        await deleteProfileForSiteAdmin(deleteConfirmId);
+        await deleteProfile(deleteConfirmId);
       }
       await refresh();
       setDeleteConfirmOpen(false);
@@ -662,7 +668,7 @@ export default function SiteAdminPortal() {
 
   const handleCreateInventoryLine = async () => {
     try {
-      await createInventoryForSiteAdmin({
+      await createInventory({
         company: Number(inventoryForm.company),
         part_id: Number(inventoryForm.part_id),
         in_stock: Number(inventoryForm.in_stock),
@@ -693,7 +699,7 @@ export default function SiteAdminPortal() {
   const handleEditInventoryLine = async () => {
     if (!selectedInventory?.id) return;
     try {
-      await updateInventoryForSiteAdmin(selectedInventory.id, {
+      await updateInventory(selectedInventory.id, {
         part_id: Number(inventoryForm.part_id),
         in_stock: Number(inventoryForm.in_stock),
         stock_alert: Number(inventoryForm.stock_alert),
@@ -726,7 +732,7 @@ export default function SiteAdminPortal() {
 
   const handleCreateWorkorder = async () => {
     try {
-      await createWorkorderForSiteAdmin({
+      await createWorkorder({
         ...workorderForm,
         aircraft: Number(workorderForm.aircraft),
       });
@@ -752,7 +758,7 @@ export default function SiteAdminPortal() {
   const handleEditWorkorder = async () => {
     if (!selectedWorkorder?.id) return;
     try {
-      await updateWorkorderForSiteAdmin(selectedWorkorder.id, {
+      await updateWorkorder(selectedWorkorder.id, {
         ...workorderForm,
         aircraft: Number(workorderForm.aircraft),
       });
@@ -765,7 +771,7 @@ export default function SiteAdminPortal() {
 
   const handleDeleteWorkorder = async (id) => {
     try {
-      await deleteWorkorderForSiteAdmin(id);
+      await deleteWorkorder(id);
       await refresh();
     } catch (e) {
       setError(e?.message || "Failed to delete work order.");
@@ -786,7 +792,7 @@ export default function SiteAdminPortal() {
 
   const handleCreateDiscrepancy = async () => {
     try {
-      await createDiscrepancyForSiteAdmin({
+      await createDiscrepancy({
         ...discrepancyForm,
         aircraft: Number(discrepancyForm.aircraft),
         reporter: Number(discrepancyForm.reporter),
@@ -814,7 +820,7 @@ export default function SiteAdminPortal() {
   const handleEditDiscrepancy = async () => {
     if (!selectedDiscrepancy?.id) return;
     try {
-      await updateDiscrepancyForSiteAdmin(selectedDiscrepancy.id, discrepancyForm);
+      await updateDiscrepancy(selectedDiscrepancy.id, discrepancyForm);
       setEditDiscrepancyOpen(false);
       await refresh();
     } catch (e) {
@@ -824,7 +830,7 @@ export default function SiteAdminPortal() {
 
   const handleDeleteDiscrepancy = async (id) => {
     try {
-      await deleteDiscrepancyForSiteAdmin(id);
+      await deleteDiscrepancy(id);
       await refresh();
     } catch (e) {
       setError(e?.message || "Failed to delete discrepancy.");

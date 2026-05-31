@@ -154,7 +154,7 @@ def inventory_parts_queryset_for_request(request):
         cid = _optional_company_id_from_header(request)
         if cid is not None:
             qs = qs.filter(inventory__company_id=cid)
-        return qs.order_by("-id")
+        return qs.order_by("inventory__company_id", "part__part_number")
     company = getattr(user, "company", None)
     if company is None:
         return base.none()
@@ -200,7 +200,7 @@ def company_scoped_aircraft_queryset(request):
         cid = _optional_company_id_from_header(request)
         if cid is not None:
             qs = qs.filter(company_id=cid)
-        return qs.order_by("-created_at", "-id")
+        return qs
     company = getattr(user, "company", None)
     if company is None:
         return qs.none()
@@ -271,13 +271,13 @@ def company_scoped_flight_queryset(request):
 
 def company_scoped_profile_queryset(request):
     """Profiles in the requester's company only (platform admin: all or header filter)."""
-    qs = Profile.objects.all()
+    qs = Profile.objects.all().order_by("username")
     user = request.user
     if _is_platform_admin(user):
         cid = _optional_company_id_from_header(request)
         if cid is not None:
             qs = qs.filter(company_id=cid)
-        return qs.order_by("-date_joined", "-id")
+        return qs
     company = getattr(user, "company", None)
     if company is None:
         return qs.none()
@@ -286,13 +286,13 @@ def company_scoped_profile_queryset(request):
 
 def company_scoped_company_queryset(request):
     """Tenant users see only their company; platform admins see all (optional header filter)."""
-    qs = Company.objects.all()
+    qs = Company.objects.all().order_by("name")
     user = request.user
     if _is_platform_admin(user):
         cid = _optional_company_id_from_header(request)
         if cid is not None:
             qs = qs.filter(pk=cid)
-        return qs.order_by("-created_at", "-id")
+        return qs
     company = getattr(user, "company", None)
     if company is None:
         return qs.none()
@@ -305,14 +305,10 @@ def company_scoped_part_queryset(request):
     if _is_platform_admin(user):
         cid = _optional_company_id_from_header(request)
         if cid is not None:
-            return (
-                Part.objects.filter(
-                    Q(aircraft__company_id=cid) | Q(inventories__company_id=cid)
-                )
-                .distinct()
-                .order_by("-id")
-            )
-        return Part.objects.all().order_by("-id")
+            return Part.objects.filter(
+                Q(aircraft__company_id=cid) | Q(inventories__company_id=cid)
+            ).distinct()
+        return Part.objects.all()
     company = getattr(user, "company", None)
     if company is None:
         return Part.objects.none()
@@ -1197,7 +1193,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
         # Platform admins always see every tenant in Site Admin (ignore X-Company-Id).
         user = self.request.user
         if _is_platform_admin(user):
-            return Company.objects.all().order_by("-created_at", "-id")
+            return Company.objects.all().order_by("name")
         return company_scoped_company_queryset(self.request)
 
     def get_permissions(self):
