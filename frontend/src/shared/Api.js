@@ -447,6 +447,72 @@ export const fetchDiscrepanciesForSiteAdmin = async () => {
 	return await makeApiRequest('GET', '/discrepancies/', null, {}, siteAdminScope);
 };
 
+const siteAdminMutate = (method, url, body = null) =>
+	makeApiRequest(method, url, body, {}, siteAdminScope);
+
+export const createProfileForSiteAdmin = async (payload) =>
+	siteAdminMutate('POST', '/profiles/', payload);
+
+export const updateProfileForSiteAdmin = async (id, payload) =>
+	siteAdminMutate('PATCH', `/profiles/${id}/`, payload);
+
+export const deleteProfileForSiteAdmin = async (id) =>
+	siteAdminMutate('DELETE', `/profiles/${id}/`);
+
+export const createAircraftForSiteAdmin = async (payload) =>
+	siteAdminMutate('POST', '/aircraft/', payload);
+
+export const updateAircraftForSiteAdmin = async (id, payload) =>
+	siteAdminMutate('PATCH', `/aircraft/${id}/`, payload);
+
+export const deleteAircraftForSiteAdmin = async (id) =>
+	siteAdminMutate('DELETE', `/aircraft/${id}/`);
+
+export const createFlightForSiteAdmin = async (payload) =>
+	siteAdminMutate('POST', '/flights/', payload);
+
+export const updateFlightForSiteAdmin = async (id, payload) =>
+	siteAdminMutate('PATCH', `/flights/${id}/`, payload);
+
+export const deleteFlightForSiteAdmin = async (id) =>
+	siteAdminMutate('DELETE', `/flights/${id}/`);
+
+export const createPartForSiteAdmin = async (payload) =>
+	siteAdminMutate('POST', '/parts/', payload);
+
+export const updatePartForSiteAdmin = async (id, payload) =>
+	siteAdminMutate('PATCH', `/parts/${id}/`, payload);
+
+export const deletePartForSiteAdmin = async (id) =>
+	siteAdminMutate('DELETE', `/parts/${id}/`);
+
+export const createInventoryForSiteAdmin = async (payload) =>
+	siteAdminMutate('POST', '/inventories/', payload);
+
+export const updateInventoryForSiteAdmin = async (id, payload) =>
+	siteAdminMutate('PATCH', `/inventories/${id}/`, payload);
+
+export const deleteInventoryForSiteAdmin = async (id) =>
+	siteAdminMutate('DELETE', `/inventories/${id}/`);
+
+export const createWorkorderForSiteAdmin = async (payload) =>
+	siteAdminMutate('POST', '/workorders/', payload);
+
+export const updateWorkorderForSiteAdmin = async (id, payload) =>
+	siteAdminMutate('PATCH', `/workorders/${id}/`, payload);
+
+export const deleteWorkorderForSiteAdmin = async (id) =>
+	siteAdminMutate('DELETE', `/workorders/${id}/`);
+
+export const createDiscrepancyForSiteAdmin = async (payload) =>
+	siteAdminMutate('POST', '/discrepancies/', payload);
+
+export const updateDiscrepancyForSiteAdmin = async (id, payload) =>
+	siteAdminMutate('PATCH', `/discrepancies/${id}/`, payload);
+
+export const deleteDiscrepancyForSiteAdmin = async (id) =>
+	siteAdminMutate('DELETE', `/discrepancies/${id}/`);
+
 export const fetchCompanyById = async (id) => {
 	return await makeApiRequest('GET', `/companies/${id}/`);
 };
