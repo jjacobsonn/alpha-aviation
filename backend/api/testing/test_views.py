@@ -600,15 +600,15 @@ class TestFlightActivityLog:
         url = reverse("company-flight-dispatch", kwargs={"pk": flight.id})
         response = api_client.patch(
             url,
-            {"secondary_pilot": sample_pilot_profile_secondary.id},
+            {"route": "KBFI-KPAE direct"},
             format="json",
         )
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data.get("activities") or []) >= 1
         latest = response.data["activities"][0]
-        assert latest["actor_display"]
-        assert "Secondary pilot" in latest["summary"]
+        assert latest["actor_display"] == "Pilot User"
+        assert "Route" in latest["summary"]
 
         db_latest = FlightActivity.objects.filter(flight=flight).first()
         assert db_latest is not None
