@@ -153,6 +153,28 @@ function formatEditedAt(value) {
   }
 }
 
+function editorNameFromUser(user) {
+  if (!user) return "Unknown user";
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+  return name || user.username || `User #${user.id}`;
+}
+
+function resolveTrailEditorName(entry, nameByUserId) {
+  if (entry?.editedByName) return entry.editedByName;
+  const id = Number(entry?.editedBy);
+  if (Number.isFinite(id) && nameByUserId?.get(id)) return nameByUserId.get(id);
+  return "Unknown user";
+}
+
+function refIdString(ref) {
+  if (ref === null || ref === undefined || ref === "") return "";
+  if (typeof ref === "object") {
+    const id = ref?.id ?? ref?.pk;
+    return id == null ? "" : String(id);
+  }
+  return String(ref);
+}
+
 function getChangedFlightFields(current, baseline) {
   if (!current || !baseline) return [];
   const labels = {
@@ -314,18 +336,28 @@ export default function PilotDashboard() {
   const [flightForm, setFlightForm] = useState(INITIAL_FLIGHT_FORM);
   const [discForm, setDiscForm] = useState(INITIAL_DISC_FORM);
 
+  const trailEditor = useMemo(() => {
+    const user = currentUser || state.user;
+    return {
+      id: user?.id != null ? Number(user.id) : null,
+      name: editorNameFromUser(user),
+    };
+  }, [currentUser, state.user]);
+
   const pilotNameById = useMemo(() => {
     const map = new Map();
     if (currentUser?.id) {
-      const meName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(" ").trim();
-      map.set(Number(currentUser.id), meName || currentUser.username || `User #${currentUser.id}`);
+      map.set(Number(currentUser.id), editorNameFromUser(currentUser));
+    }
+    if (state.user?.id && !map.has(Number(state.user.id))) {
+      map.set(Number(state.user.id), editorNameFromUser(state.user));
     }
     (pilots || []).forEach((p) => {
       const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
       map.set(Number(p.id), name || p.username || `User #${p.id}`);
     });
     return map;
-  }, [pilots, currentUser]);
+  }, [pilots, currentUser, state.user]);
 
   const aircraftNameById = useMemo(() => {
     const map = new Map();
@@ -492,10 +524,7 @@ export default function PilotDashboard() {
       route: flight?.route || "",
       flight_type: flight?.flight_type || "training",
       pilot_requirement: flight?.pilot_requirement || "private",
-      secondary_pilot:
-        flight?.secondary_pilot === null || flight?.secondary_pilot === undefined || flight?.secondary_pilot === ""
-          ? ""
-          : String(flight.secondary_pilot),
+      secondary_pilot: refIdString(flight?.secondary_pilot),
     };
     setSelectedFlightForm(nextForm);
     setSelectedFlightBaseline(nextForm);
@@ -625,6 +654,8 @@ export default function PilotDashboard() {
             {
               fields: changedBeforeSave,
               editedAt: new Date().toISOString(),
+              editedBy: trailEditor.id,
+              editedByName: trailEditor.name,
             },
           ],
         }));
@@ -689,6 +720,8 @@ export default function PilotDashboard() {
               fields: unionFields.map((f) => changedFieldMap[f]),
               changes: changeDetails,
               editedAt: new Date().toISOString(),
+              editedBy: trailEditor.id,
+              editedByName: trailEditor.name,
               values,
             },
           ],
@@ -1170,8 +1203,12 @@ export default function PilotDashboard() {
                   ) : null}
                   {!editingSelectedFlight && selectedFlightSavedTrail.length > 0 ? (
                     <Alert severity="info">
-                      Last saved edit:{" "}
-                      {selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1].fields.join(", ")} on{" "}
+                      Last saved edit by{" "}
+                      {resolveTrailEditorName(
+                        selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1],
+                        pilotNameById
+                      )}
+                      : {selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1].fields.join(", ")} on{" "}
                       {formatEditedAt(selectedFlightSavedTrail[selectedFlightSavedTrail.length - 1].editedAt)}
                     </Alert>
                   ) : null}
@@ -1196,10 +1233,13 @@ export default function PilotDashboard() {
                               key={`${entry.editedAt}-${idx}`}
                               sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
                             >
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {resolveTrailEditorName(entry, pilotNameById)}
+                              </Typography>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 {formatEditedAt(entry.editedAt)}
                               </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                 Changed: {Array.isArray(entry.fields) ? entry.fields.join(", ") : "—"}
                               </Typography>
                               {Array.isArray(entry.changes) && entry.changes.length > 0 ? (
@@ -1624,7 +1664,14 @@ export default function PilotDashboard() {
                   ) : null}
                   {!editingSelectedDiscrepancy && selectedDiscrepancySavedTrail.length > 0 ? (
                     <Alert severity="info">
-                      Last saved edit:{" "}
+                      Last saved edit by{" "}
+                      {resolveTrailEditorName(
+                        selectedDiscrepancySavedTrail[
+                          selectedDiscrepancySavedTrail.length - 1
+                        ],
+                        pilotNameById
+                      )}
+                      :{" "}
                       {selectedDiscrepancySavedTrail[
                         selectedDiscrepancySavedTrail.length - 1
                       ].fields.join(", ")}{" "}
@@ -1657,10 +1704,13 @@ export default function PilotDashboard() {
                               key={`${entry.editedAt}-${idx}`}
                               sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
                             >
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {resolveTrailEditorName(entry, pilotNameById)}
+                              </Typography>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 {formatEditedAt(entry.editedAt)}
                               </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                 Changed: {Array.isArray(entry.fields) ? entry.fields.join(", ") : "—"}
                               </Typography>
                             </Box>
