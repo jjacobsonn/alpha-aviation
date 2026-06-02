@@ -4,19 +4,18 @@ Component history (Phase 2 — 3.3.2): P/N and S/N search, timeline, audit CSV e
 
 import csv
 from io import StringIO
-import re
 
 from django.db.models import Count, Q
-from django.http import HttpResponse
 from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, renderer_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.renderers import BaseRenderer
 from rest_framework.response import Response
 
+from .csv_response import csv_attachment_response, safe_csv_filename_part
 from .models import Company, ComponentEvent, InstalledComponent
+from .renderers import CSVRenderer
 from .permissions import IsComponentHistoryReader
 from .serializers import (
     ComponentEventSerializer,
@@ -25,27 +24,6 @@ from .serializers import (
     InstalledComponentListSerializer,
 )
 from .views import get_request_company, _is_platform_admin
-
-
-class CSVRenderer(BaseRenderer):
-    """Allow Accept: text/csv on export without 406 from DRF content negotiation."""
-
-    media_type = "text/csv"
-    format = "csv"
-    charset = "utf-8"
-
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        return data
-
-
-def _safe_export_filename_part(value):
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    # Keep header-safe filename tokens only.
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", text)
-    cleaned = cleaned.strip("-.")
-    return cleaned
 
 
 def _resolve_component_history_company(request):
@@ -248,13 +226,11 @@ def component_history_export(request, pk):
             ]
         )
 
-    part_token = _safe_export_filename_part(component.part_number) or str(component.id)
+    part_token = safe_csv_filename_part(component.part_number) or str(component.id)
     filename = f"component-{part_token}"
-    serial_token = _safe_export_filename_part(component.serial_number)
+    serial_token = safe_csv_filename_part(component.serial_number)
     if serial_token:
         filename += f"-{serial_token}"
     filename += ".csv"
 
-    response = HttpResponse(buffer.getvalue(), content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    return csv_attachment_response(buffer.getvalue(), filename)

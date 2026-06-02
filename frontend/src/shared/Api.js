@@ -1,6 +1,7 @@
 /* eslint-disable no-param-reassign */
 import axios from 'axios';
 import { ACTION_TYPES } from '../context/AppContext';
+import { downloadCsvFromApi } from './csvExport';
 
 const setTokens = (accessToken, refreshToken = '') => {
 	localStorage.setItem('accessToken', accessToken);
@@ -322,35 +323,10 @@ export const fetchComponentHistoryDetail = async (id) => {
 	return await makeApiRequest('GET', `/history/components/${id}/`);
 };
 
-export const downloadComponentHistoryExport = async (id) => {
-	const tokens = getTokens();
-	const adminCompanyId = localStorage.getItem('adminCompanyId');
-	const headers = { Accept: 'text/csv' };
-	if (tokens.accessToken) {
-		headers.Authorization = `Bearer ${tokens.accessToken}`;
-	}
-	if (adminCompanyId) {
-		headers['X-Company-Id'] = adminCompanyId;
-	}
-	const base = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
-	const response = await axios.get(`${base}/history/components/${id}/export/`, {
-		headers,
-		responseType: 'blob',
-		withCredentials: true,
+export const downloadComponentHistoryExport = async (id) =>
+	downloadCsvFromApi(`/history/components/${id}/export/`, {
+		fallbackFilename: `component-${id}.csv`,
 	});
-	const blob = new Blob([response.data], { type: 'text/csv' });
-	const url = window.URL.createObjectURL(blob);
-	const link = document.createElement('a');
-	const disposition = response.headers['content-disposition'] || '';
-	const match = disposition.match(/filename="?([^"]+)"?/);
-	const filename = match ? match[1] : `component-${id}.csv`;
-	link.href = url;
-	link.setAttribute('download', filename);
-	document.body.appendChild(link);
-	link.click();
-	link.remove();
-	window.URL.revokeObjectURL(url);
-};
 
 export const fetchCompanyDiscrepancies = async () => {
 	return await makeApiRequest('GET', '/company/discrepancies/');

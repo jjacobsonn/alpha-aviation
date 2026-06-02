@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { downloadClientCsv } from '../shared/csvExport';
 import {
 	Alert,
 	Box,
@@ -559,38 +560,35 @@ export default function WorkOrders() {
 	}, [page, pageCount]);
 
 	const exportCsv = () => {
-		const rows = filtered.map((wo) => [
-			wo.id,
-			`"${String(wo.title || '').replace(/"/g, '""')}"`,
-			`"${String(wo.aircraftLabel || '').replace(/"/g, '""')}"`,
-			`"${String(wo.assigneeLabel || '').replace(/"/g, '""')}"`,
-			wo.status || '',
-			wo.priority || '',
-			wo.due_by || '',
-			wo.updated_at || '',
-			wo.partsCount,
-			wo.discrepancyCount,
-		]);
-		const header = [
-			'id',
-			'title',
-			'aircraft',
-			'assignee',
-			'status',
-			'priority',
-			'due_by',
-			'updated_at',
-			'parts_count',
-			'discrepancy_count',
-		];
-		const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
-		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `work-orders-${activeStatus}.csv`;
-		a.click();
-		URL.revokeObjectURL(url);
+		try {
+			const header = [
+				'id',
+				'title',
+				'aircraft',
+				'assignee',
+				'status',
+				'priority',
+				'due_by',
+				'updated_at',
+				'parts_count',
+				'discrepancy_count',
+			];
+			const rows = filtered.map((wo) => [
+				wo.id,
+				wo.title || '',
+				wo.aircraftLabel || '',
+				wo.assigneeLabel || '',
+				wo.status || '',
+				wo.priority || '',
+				wo.due_by || '',
+				wo.updated_at || '',
+				wo.partsCount,
+				wo.discrepancyCount,
+			]);
+			downloadClientCsv(`work-orders-${activeStatus}.csv`, header, rows);
+		} catch (e) {
+			setError(e?.message || 'Export failed.');
+		}
 	};
 
 	return (
