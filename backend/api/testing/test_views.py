@@ -1040,6 +1040,12 @@ class TestComponentHistoryViews:
         assert "text/csv" in export_resp["Content-Type"]
         assert b"P-TEST" in export_resp.content
 
+        csv_accept = authenticated_client.get(
+            export_url, HTTP_ACCEPT="text/csv, application/json"
+        )
+        assert csv_accept.status_code == status.HTTP_200_OK
+        assert "text/csv" in csv_accept["Content-Type"]
+
 
 @pytest.mark.django_db
 class TestLaborEntries:

@@ -519,16 +519,21 @@ export default function ComponentHistoryPage() {
                 >
                   Component History
                 </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ wordBreak: "break-word" }}
-                >
-                  Track install/removal history for parts already in{" "}
-                  <RouterLink to="/parts">Parts → Inventory</RouterLink>. Add the part there
-                  first, then register a serial number here. Calibrated shop tools live under{" "}
-                  <RouterLink to="/parts?tab=tools">Parts → Calibration</RouterLink>.
-                </Typography>
+                <Stack spacing={1} sx={{ mt: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ wordBreak: "break-word" }}
+                  >
+                    Track installation and removal history for serialized components from your{" "}
+                    <RouterLink to="/parts">Parts Inventory</RouterLink>. Add the part to
+                    inventory first, then register its serial number here.
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
+                    Calibrated shop tools are managed under{" "}
+                    <RouterLink to="/parts?tab=tools">Parts → Calibration</RouterLink>.
+                  </Typography>
+                </Stack>
               </Box>
             </Stack>
             <Stack

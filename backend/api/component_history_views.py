@@ -11,8 +11,9 @@ from django.http import HttpResponse
 from django.utils import timezone
 
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, renderer_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.renderers import BaseRenderer
 from rest_framework.response import Response
 
 from .models import Company, ComponentEvent, InstalledComponent
@@ -24,6 +25,17 @@ from .serializers import (
     InstalledComponentListSerializer,
 )
 from .views import get_request_company, _is_platform_admin
+
+
+class CSVRenderer(BaseRenderer):
+    """Allow Accept: text/csv on export without 406 from DRF content negotiation."""
+
+    media_type = "text/csv"
+    format = "csv"
+    charset = "utf-8"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
 
 
 def _safe_export_filename_part(value):
@@ -184,6 +196,7 @@ def component_history_detail(request, pk):
 
 
 @api_view(["GET"])
+@renderer_classes([CSVRenderer])
 @permission_classes([IsAuthenticated, IsComponentHistoryReader])
 def component_history_export(request, pk):
     company, qs = _company_components_qs(request)
