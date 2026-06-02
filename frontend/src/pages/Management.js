@@ -59,6 +59,8 @@ import { isPlatformAdmin } from '../shared/rbac';
 import FleetAvailabilityPanel from '../components/management/FleetAvailabilityPanel';
 import FleetStatusPanel from '../components/management/FleetStatusPanel';
 import ScrollableTableContainer from '../components/ScrollableTableContainer';
+import TablePaginationBar, { ROWS_PER_PAGE_OPTIONS_5_10_15 } from '../components/TablePaginationBar';
+import { useTablePagination } from '../shared/useTablePagination';
 
 //Local imports
 import RecurringDiscrepancyTable from '../components/RecurringDiscrepancyTable';
@@ -335,6 +337,11 @@ const Management = () => {
 		});
 		return list;
 	}, [companyUsers]);
+
+	const rosterPagination = useTablePagination(sortedUsers, {
+		pageSize: 5,
+		sortById: false,
+	});
 	// Only platform admins and company owners can edit the roster
 	const canEditRoster = platformAdmin || state.user?.role === 'owner';
 
@@ -715,7 +722,7 @@ const Management = () => {
 										</TableRow>
 									</TableHead>
 									<TableBody>
-										{sortedUsers.map((u) => (
+										{rosterPagination.pagedItems.map((u) => (
 											<TableRow key={u.id}>
 												<TableCell>
 													{[u.first_name, u.middle_name, u.last_name].filter(Boolean).join(' ') || '—'}
@@ -738,6 +745,19 @@ const Management = () => {
 								</Table>
 								</ScrollableTableContainer>
 							)}
+							{!loading && sortedUsers.length > 0 ? (
+								<Box sx={{ px: 2, pb: 2 }}>
+									<TablePaginationBar
+										page={rosterPagination.page}
+										pageCount={rosterPagination.pageCount}
+										pageSize={rosterPagination.pageSize}
+										total={rosterPagination.total}
+										onPageChange={rosterPagination.setPage}
+										onPageSizeChange={rosterPagination.setPageSize}
+										rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS_5_10_15}
+									/>
+								</Box>
+							) : null}
 						</CardContent>
 					</Card>
 				</Box>

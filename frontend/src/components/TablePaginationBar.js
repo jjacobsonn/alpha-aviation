@@ -8,6 +8,9 @@ export const TABLE_ACTIONS_COLUMN_WIDTH = 240;
 /** 5, then +10 per step, capped at 50. */
 export const SITE_ADMIN_ROWS_PER_PAGE_OPTIONS = [5, 15, 25, 35, 45, 50];
 
+/** Management roster and similar tenant tables. */
+export const ROWS_PER_PAGE_OPTIONS_5_10_15 = [5, 10, 15];
+
 export default function TablePaginationBar({
   page,
   pageCount,

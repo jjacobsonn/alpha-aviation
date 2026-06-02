@@ -41,6 +41,8 @@ import {
 } from "../shared/moduleSearch";
 import ModuleSearchBar from "../components/search/ModuleSearchBar";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
+import TablePaginationBar, { ROWS_PER_PAGE_OPTIONS_5_10_15 } from "../components/TablePaginationBar";
+import { useTablePagination } from "../shared/useTablePagination";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
 
@@ -170,6 +172,11 @@ export default function DispatcherDashboard() {
     () => filterDispatchFlights(aircraftFilteredFlights, debouncedSearch, filter, null),
     [aircraftFilteredFlights, debouncedSearch, filter]
   );
+
+  const flightsPagination = useTablePagination(filtered, {
+    pageSize: 10,
+    sortById: false,
+  });
 
   const handleApprove = async (id) => {
     setBusyId(id);
@@ -486,7 +493,7 @@ export default function DispatcherDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((f) => (
+                    flightsPagination.pagedItems.map((f) => (
                       <TableRow
                         key={f.id}
                         {...clickableRowProps(() => openEdit(f))}
@@ -524,6 +531,17 @@ export default function DispatcherDashboard() {
                 </TableBody>
               </Table>
               </ScrollableTableContainer>
+              {!loading && filtered.length > 0 ? (
+                <TablePaginationBar
+                  page={flightsPagination.page}
+                  pageCount={flightsPagination.pageCount}
+                  pageSize={flightsPagination.pageSize}
+                  total={flightsPagination.total}
+                  onPageChange={flightsPagination.setPage}
+                  onPageSizeChange={flightsPagination.setPageSize}
+                  rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS_5_10_15}
+                />
+              ) : null}
             </CardContent>
           </Card>
           <Dialog

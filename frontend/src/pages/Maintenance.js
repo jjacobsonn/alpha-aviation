@@ -68,6 +68,8 @@ import {
 } from '../shared/moduleSearch';
 import ModuleSearchBar from '../components/search/ModuleSearchBar';
 import ScrollableTableContainer from '../components/ScrollableTableContainer';
+import TablePaginationBar from '../components/TablePaginationBar';
+import { useTablePagination } from '../shared/useTablePagination';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import {
 	closeWorkOrder,
@@ -537,6 +539,15 @@ const Maintenance = () => {
 			),
 		[discrepancies, displayedDiscrepancies, debouncedDiscSearch, discStatusFilters]
 	);
+
+	const workOrdersTablePagination = useTablePagination(searchedWorkOrders, {
+		pageSize: 10,
+		sortById: false,
+	});
+	const discrepanciesTablePagination = useTablePagination(searchedDiscrepancies, {
+		pageSize: 10,
+		sortById: false,
+	});
 
 	const mechanicUsers = useMemo(
 		() => companyUsers.filter((u) => ['mechanic', 'manager', 'owner'].includes(u?.company_role)),
@@ -1048,7 +1059,7 @@ const Maintenance = () => {
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{searchedWorkOrders.map((order) => (
+											{workOrdersTablePagination.pagedItems.map((order) => (
 												<TableRow
 													key={order.id}
 													hover
@@ -1116,6 +1127,15 @@ const Maintenance = () => {
 									</Table>
 									</ScrollableTableContainer>
 								)}
+								{!isLoading && searchedWorkOrders.length > 0 ? (
+									<TablePaginationBar
+										page={workOrdersTablePagination.page}
+										pageCount={workOrdersTablePagination.pageCount}
+										pageSize={workOrdersTablePagination.pageSize}
+										total={workOrdersTablePagination.total}
+										onPageChange={workOrdersTablePagination.setPage}
+									/>
+								) : null}
 							</CardContent>
 						</Card>
 					</Grid>
@@ -1160,7 +1180,7 @@ const Maintenance = () => {
 											</TableRow>
 										</TableHead>
 										<TableBody>
-											{searchedDiscrepancies.map((d) => (
+											{discrepanciesTablePagination.pagedItems.map((d) => (
 												<TableRow
 													key={d.id}
 													hover
@@ -1202,6 +1222,15 @@ const Maintenance = () => {
 									</Table>
 									</ScrollableTableContainer>
 								)}
+								{!isLoading && searchedDiscrepancies.length > 0 ? (
+									<TablePaginationBar
+										page={discrepanciesTablePagination.page}
+										pageCount={discrepanciesTablePagination.pageCount}
+										pageSize={discrepanciesTablePagination.pageSize}
+										total={discrepanciesTablePagination.total}
+										onPageChange={discrepanciesTablePagination.setPage}
+									/>
+								) : null}
 							</CardContent>
 						</Card>
 					</Grid>

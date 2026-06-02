@@ -39,6 +39,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
 import ModuleSearchBar from "../components/search/ModuleSearchBar";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
+import TablePaginationBar from "../components/TablePaginationBar";
 import {
   createTrackedComponent,
   downloadComponentHistoryExport,
@@ -364,6 +365,8 @@ export default function ComponentHistoryPage() {
   const [aircraft, setAircraft] = useState([]);
   const [catalogParts, setCatalogParts] = useState([]);
   const [statsRefreshKey, setStatsRefreshKey] = useState(0);
+  const [listPage, setListPage] = useState(1);
+  const LIST_PAGE_SIZE = 5;
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [editBusy, setEditBusy] = useState(false);
@@ -394,7 +397,7 @@ export default function ComponentHistoryPage() {
     setLoading(true);
     setError("");
     try {
-      const params = { page_size: 25 };
+      const params = { page: listPage, page_size: LIST_PAGE_SIZE };
       if (debouncedQuery.trim()) params.q = debouncedQuery.trim();
       if (typeFilter && typeFilter !== "all") params.component_type = typeFilter;
       const data = await fetchComponentHistorySearch(params);
@@ -407,6 +410,10 @@ export default function ComponentHistoryPage() {
     } finally {
       setLoading(false);
     }
+  }, [debouncedQuery, typeFilter, listPage]);
+
+  useEffect(() => {
+    setListPage(1);
   }, [debouncedQuery, typeFilter]);
 
   const loadDetail = useCallback(async (id) => {
@@ -954,6 +961,15 @@ export default function ComponentHistoryPage() {
                     </Table>
                   </ScrollableTableContainer>
                 )}
+                {!loading && count > 0 ? (
+                  <TablePaginationBar
+                    page={listPage}
+                    pageCount={Math.max(1, Math.ceil(count / LIST_PAGE_SIZE))}
+                    pageSize={LIST_PAGE_SIZE}
+                    total={count}
+                    onPageChange={setListPage}
+                  />
+                ) : null}
               </CardContent>
             </Card>
 

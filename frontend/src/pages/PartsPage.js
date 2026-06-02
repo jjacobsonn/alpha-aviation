@@ -22,7 +22,6 @@ import {
   Card,
   CardContent,
   Grid,
-  Pagination,
 } from "@mui/material";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -55,6 +54,7 @@ import {
 } from "../shared/moduleSearch";
 import ModuleSearchBar from "../components/search/ModuleSearchBar";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
+import TablePaginationBar, { ROWS_PER_PAGE_OPTIONS_5_10_15 } from "../components/TablePaginationBar";
 import ToolsCalibrationPanel from "../components/parts/ToolsCalibrationPanel";
 
 function PartsPage() {
@@ -76,7 +76,7 @@ function PartsPage() {
   const [partsStatus, setPartsStatus] = useState(() => searchParams.get("status") || "all");
   const sortOrder = searchParams.get("ordering") || "newest";
   const page = Number(searchParams.get("page") || 1);
-  const pageSize = Number(searchParams.get("page_size") || 25);
+  const pageSize = Number(searchParams.get("page_size") || 10);
   const debouncedSearch = useDebouncedValue(search, 300);
   const [aircraftOptions, setAircraftOptions] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -171,7 +171,7 @@ function PartsPage() {
     else next.delete("ordering");
     if (page > 1) next.set("page", String(page));
     else next.delete("page");
-    if (pageSize !== 25) next.set("page_size", String(pageSize));
+    if (pageSize !== 10) next.set("page_size", String(pageSize));
     else next.delete("page_size");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,7 +194,7 @@ function PartsPage() {
 
   const setPageSize = (size) => {
     const next = new URLSearchParams(searchParams);
-    if (size !== 25) next.set("page_size", String(size));
+    if (size !== 10) next.set("page_size", String(size));
     else next.delete("page_size");
     next.delete("page");
     setSearchParams(next, { replace: true });
@@ -642,28 +642,15 @@ function PartsPage() {
                 )}
 
                 {inventoryCount > 0 ? (
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2 }}>
-                    <TextField
-                      select
-                      size="small"
-                      label="Rows"
-                      value={String(pageSize)}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
-                      sx={{ width: 110 }}
-                    >
-                      <MenuItem value="10">10</MenuItem>
-                      <MenuItem value="25">25</MenuItem>
-                      <MenuItem value="50">50</MenuItem>
-                      <MenuItem value="100">100</MenuItem>
-                    </TextField>
-                    <Pagination
-                      page={page}
-                      count={pageCount}
-                      onChange={(_, p) => setPage(p)}
-                      size="small"
-                      color="primary"
-                    />
-                  </Stack>
+                  <TablePaginationBar
+                    page={page}
+                    pageCount={pageCount}
+                    pageSize={pageSize}
+                    total={inventoryCount}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
+                    rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS_5_10_15}
+                  />
                 ) : null}
 
                 <Menu

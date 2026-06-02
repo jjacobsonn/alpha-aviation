@@ -13,7 +13,6 @@ import {
 	IconButton,
 	InputAdornment,
 	MenuItem,
-	Pagination,
 	Popover,
 	Stack,
 	Table,
@@ -35,6 +34,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SearchIcon from '@mui/icons-material/Search';
 import { fetchCompanyAircrafts, fetchServiceHistory } from '../shared/Api';
 import WorkOrderHistoryViewer from '../components/history/WorkOrderHistoryViewer';
+import TablePaginationBar from '../components/TablePaginationBar';
 import { useAppContext } from '../context/AppContext';
 import {
 	canEditServiceHistory,
@@ -83,7 +83,7 @@ const DEFAULT_FILTERS = {
 	date_to: '',
 	ordering: '-updated_at',
 	page: 1,
-	page_size: 25,
+	page_size: 5,
 };
 
 function draftToSearchParams(draft) {
@@ -91,7 +91,7 @@ function draftToSearchParams(draft) {
 	Object.entries(draft).forEach(([key, val]) => {
 		if (val === '' || val == null) return;
 		if (key === 'page' && Number(val) === 1) return;
-		if (key === 'page_size' && Number(val) === 25) return;
+		if (key === 'page_size' && Number(val) === 5) return;
 		if (key === 'ordering' && val === '-updated_at') return;
 		next.set(key, String(val));
 	});
@@ -457,7 +457,7 @@ export default function ServiceHistoryPage() {
 			date_to: searchParams.get('date_to') || '',
 			ordering: searchParams.get('ordering') || '-updated_at',
 			page: Number(searchParams.get('page') || 1),
-			page_size: Number(searchParams.get('page_size') || 25),
+			page_size: Number(searchParams.get('page_size') || 5),
 		}),
 		[searchParams]
 	);
@@ -711,36 +711,22 @@ export default function ServiceHistoryPage() {
 							</Table>
 						</TableContainer>
 					)}
-					<Stack
-						direction={{ xs: 'column', sm: 'row' }}
-						justifyContent="space-between"
-						alignItems={{ xs: 'stretch', sm: 'center' }}
-						spacing={1.5}
-						sx={{ px: { xs: 0, sm: 2 }, py: 2 }}
-					>
-						<Typography variant="body2" color="text.secondary" sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
-							{data.count ?? 0} result{(data.count ?? 0) === 1 ? '' : 's'}
-						</Typography>
-						<Pagination
-							count={pageCount}
-							page={filters.page}
-							onChange={(_, p) => {
-								const next = new URLSearchParams(searchParams);
-								next.set('page', String(p));
-								setSearchParams(next, { replace: true });
-							}}
-							color="primary"
-							size={isCompact ? 'small' : 'medium'}
-							siblingCount={isCompact ? 0 : 1}
-							boundaryCount={isCompact ? 1 : 1}
-							sx={{
-								'& .MuiPagination-ul': {
-									justifyContent: { xs: 'center', sm: 'flex-end' },
-									flexWrap: 'wrap',
-								},
-							}}
-						/>
-					</Stack>
+					{(data.count ?? 0) > 0 ? (
+						<Box sx={{ px: { xs: 0, sm: 2 } }}>
+							<TablePaginationBar
+								page={filters.page}
+								pageCount={pageCount}
+								pageSize={filters.page_size}
+								total={data.count ?? 0}
+								onPageChange={(p) => {
+									const next = new URLSearchParams(searchParams);
+									if (p > 1) next.set('page', String(p));
+									else next.delete('page');
+									setSearchParams(next, { replace: true });
+								}}
+							/>
+						</Box>
+					) : null}
 				</CardContent>
 			</Card>
 

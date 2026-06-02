@@ -26,7 +26,7 @@ export function useTablePagination(items, { pageSize: initialPageSize = 5, sortB
 
   useEffect(() => {
     setPage(1);
-  }, [total, pageSize]);
+  }, [items, pageSize]);
 
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);

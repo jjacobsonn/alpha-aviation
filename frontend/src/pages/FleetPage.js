@@ -33,6 +33,8 @@ import {
 } from '../shared/Api';
 import { isPlatformAdmin } from '../shared/rbac';
 import ScrollableTableContainer from '../components/ScrollableTableContainer';
+import TablePaginationBar, { ROWS_PER_PAGE_OPTIONS_5_10_15 } from '../components/TablePaginationBar';
+import { useTablePagination } from '../shared/useTablePagination';
 import useDebouncedValue from '../shared/useDebouncedValue';
 import { buildFleetSuggestions, filterFleetRows } from '../shared/moduleSearch';
 import ModuleSearchBar from '../components/search/ModuleSearchBar';
@@ -150,6 +152,11 @@ const FleetPage = () => {
 		() => filterFleetRows(aircraft, debouncedSearch, statusFilter, locationFilter, typeFilter),
 		[aircraft, debouncedSearch, statusFilter, locationFilter, typeFilter]
 	);
+
+	const fleetPagination = useTablePagination(filteredRows, {
+		pageSize: 10,
+		sortById: false,
+	});
 
 	const refreshFleet = async () => {
 		const data = await fetchFleetAircraft();
@@ -362,7 +369,7 @@ const FleetPage = () => {
 									</TableHead>
 									<TableBody>
 										{!isLoading &&
-											filteredRows.map((row) => (
+											fleetPagination.pagedItems.map((row) => (
 												<TableRow
 													key={row.id}
 													hover
@@ -425,6 +432,17 @@ const FleetPage = () => {
 									</TableBody>
 								</Table>
 								</ScrollableTableContainer>
+								{!isLoading && filteredRows.length > 0 ? (
+									<TablePaginationBar
+										page={fleetPagination.page}
+										pageCount={fleetPagination.pageCount}
+										pageSize={fleetPagination.pageSize}
+										total={fleetPagination.total}
+										onPageChange={fleetPagination.setPage}
+										onPageSizeChange={fleetPagination.setPageSize}
+										rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS_5_10_15}
+									/>
+								) : null}
 							</Stack>
 						</CardContent>
 					</Card>

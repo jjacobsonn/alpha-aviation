@@ -15,7 +15,6 @@ import {
 	DialogTitle,
 	Grid,
 	MenuItem,
-	Pagination,
 	Stack,
 	Tab,
 	Tabs,
@@ -43,6 +42,8 @@ import {
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
 import ScrollableTableContainer from '../components/ScrollableTableContainer';
+import TablePaginationBar from '../components/TablePaginationBar';
+import { useTablePagination } from '../shared/useTablePagination';
 import {
 	canDeleteWorkOrders,
 	canSuperviseMaintenance,
@@ -223,8 +224,6 @@ export default function WorkOrders() {
 	const [editTargetId, setEditTargetId] = useState(null);
 	const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [page, setPage] = useState(1);
-	const [pageSize, setPageSize] = useState(10);
 	const aircraftFilterFromQuery = searchParams.get('aircraft') || '';
 
 	const unwrapList = (data) => {
@@ -548,19 +547,10 @@ export default function WorkOrders() {
 		}
 	};
 
-	const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-	const pagedRows = useMemo(
-		() => filtered.slice((page - 1) * pageSize, page * pageSize),
-		[filtered, page, pageSize]
-	);
-
-	useEffect(() => {
-		setPage(1);
-	}, [activeStatus, search, companyFilter, pageSize]);
-
-	useEffect(() => {
-		if (page > pageCount) setPage(pageCount);
-	}, [page, pageCount]);
+	const tablePagination = useTablePagination(filtered, {
+		pageSize: 10,
+		sortById: false,
+	});
 
 	const exportCsv = () => {
 		try {
@@ -698,7 +688,7 @@ export default function WorkOrders() {
 												</TableRow>
 											</TableHead>
 											<TableBody>
-												{pagedRows.map((wo) => (
+												{tablePagination.pagedItems.map((wo) => (
 													<TableRow
 														key={wo.id}
 														hover
@@ -768,32 +758,13 @@ export default function WorkOrders() {
 									</ScrollableTableContainer>
 								)}
 								{filtered.length > 0 ? (
-									<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2 }}>
-										<TextField
-											select
-											size="small"
-											label="Rows"
-											value={String(pageSize)}
-											onChange={(e) => setPageSize(Number(e.target.value))}
-											sx={{ width: 110 }}
-										>
-											<MenuItem value="10">10</MenuItem>
-											<MenuItem value="20">20</MenuItem>
-											<MenuItem value="50">50</MenuItem>
-										</TextField>
-										<Pagination
-											page={page}
-											count={pageCount}
-											onChange={(_, p) => setPage(p)}
-											size="small"
-											sx={{
-												'& .MuiPaginationItem-root.Mui-selected': {
-													backgroundColor: 'rgba(39, 52, 105, 0.14)',
-													color: '#273469',
-												},
-											}}
-										/>
-									</Stack>
+									<TablePaginationBar
+										page={tablePagination.page}
+										pageCount={tablePagination.pageCount}
+										pageSize={tablePagination.pageSize}
+										total={tablePagination.total}
+										onPageChange={tablePagination.setPage}
+									/>
 								) : null}
 							</CardContent>
 						</Card>
