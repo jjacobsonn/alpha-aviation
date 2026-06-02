@@ -16,6 +16,7 @@ import {
   FormControlLabel,
   Grid,
   LinearProgress,
+  Menu,
   MenuItem,
   Stack,
   Switch,
@@ -139,7 +140,7 @@ function fromDatetimeLocalValue(value) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function ComponentTimeline({ events, activities, canEdit, onEditEvent }) {
+function ComponentTimeline({ events, activities }) {
   const items = useMemo(() => {
     const rows = [];
     (events || []).forEach((ev) => {
@@ -201,36 +202,17 @@ function ComponentTimeline({ events, activities, canEdit, onEditEvent }) {
               borderColor: "divider",
             }}
           >
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              flexWrap="wrap"
-              justifyContent="space-between"
-              sx={{ mb: 0.5 }}
-            >
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                <Chip
-                  size="small"
-                  label={eventTypeLabel(ev.event_type)}
-                  color="primary"
-                  variant="outlined"
-                />
-                <Typography variant="caption" color="text.secondary">
-                  {formatDt(ev.occurred_at)}
-                  {ev.actor_name ? ` · ${ev.actor_name}` : ""}
-                </Typography>
-              </Stack>
-              {canEdit ? (
-                <Button
-                  size="small"
-                  startIcon={<EditIcon />}
-                  onClick={() => onEditEvent(ev)}
-                  sx={{ textTransform: "none" }}
-                >
-                  Edit
-                </Button>
-              ) : null}
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 0.5 }}>
+              <Chip
+                size="small"
+                label={eventTypeLabel(ev.event_type)}
+                color="primary"
+                variant="outlined"
+              />
+              <Typography variant="caption" color="text.secondary">
+                {formatDt(ev.occurred_at)}
+                {ev.actor_name ? ` · ${ev.actor_name}` : ""}
+              </Typography>
             </Stack>
             <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
               {ev.summary || "—"}
@@ -249,7 +231,7 @@ function ComponentTimeline({ events, activities, canEdit, onEditEvent }) {
   );
 }
 
-function LifeLimitSummary({ component, canEdit, onEdit }) {
+function LifeLimitSummary({ component }) {
   if (component.component_type !== "serialized" || !component.limit_type) {
     return null;
   }
@@ -286,16 +268,9 @@ function LifeLimitSummary({ component, canEdit, onEdit }) {
   return (
     <Card variant="outlined" sx={{ bgcolor: "action.hover" }}>
       <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-            Life limit — {limitLabel}
-          </Typography>
-          {canEdit ? (
-            <Button size="small" startIcon={<EditIcon />} onClick={onEdit} sx={{ textTransform: "none" }}>
-              Edit
-            </Button>
-          ) : null}
-        </Stack>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+          Life limit — {limitLabel}
+        </Typography>
         {isCalendar ? (
           <>
             <Stack direction="row" spacing={2} sx={{ mb: 1 }} flexWrap="wrap">
@@ -393,8 +368,10 @@ export default function ComponentHistoryPage() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [editEventForm, setEditEventForm] = useState({});
   const [editEventBusy, setEditEventBusy] = useState(false);
+  const [timelineMenuAnchor, setTimelineMenuAnchor] = useState(null);
 
   const canEdit = canEditComponentHistory(state);
+  const timelineEvents = detail?.events || [];
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -1057,7 +1034,53 @@ export default function ComponentHistoryPage() {
                             />
                           </Stack>
                         </Box>
-                        <Stack direction="row" spacing={1} sx={{ alignSelf: "flex-start", flexShrink: 0 }}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          flexWrap="wrap"
+                          useFlexGap
+                          sx={{ alignSelf: "flex-start", flexShrink: 0, justifyContent: "flex-end" }}
+                        >
+                          {canEdit ? (
+                            <>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<EditIcon />}
+                                onClick={openEditComponent}
+                                sx={{ textTransform: "none" }}
+                              >
+                                Edit record
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<EditIcon />}
+                                disabled={!timelineEvents.length}
+                                onClick={(e) => setTimelineMenuAnchor(e.currentTarget)}
+                                sx={{ textTransform: "none" }}
+                              >
+                                Edit timeline
+                              </Button>
+                              <Menu
+                                anchorEl={timelineMenuAnchor}
+                                open={Boolean(timelineMenuAnchor)}
+                                onClose={() => setTimelineMenuAnchor(null)}
+                              >
+                                {timelineEvents.map((ev) => (
+                                  <MenuItem
+                                    key={ev.id}
+                                    onClick={() => {
+                                      setTimelineMenuAnchor(null);
+                                      openEditEvent(ev);
+                                    }}
+                                  >
+                                    {eventTypeLabel(ev.event_type)} · {formatDt(ev.occurred_at)}
+                                  </MenuItem>
+                                ))}
+                              </Menu>
+                            </>
+                          ) : null}
                           <Button
                             variant="outlined"
                             size="small"
@@ -1077,11 +1100,7 @@ export default function ComponentHistoryPage() {
                         </Stack>
                       </Stack>
 
-                      <LifeLimitSummary
-                        component={header}
-                        canEdit={canEdit}
-                        onEdit={openEditComponent}
-                      />
+                      <LifeLimitSummary component={header} />
 
                       <Divider />
 
@@ -1091,8 +1110,6 @@ export default function ComponentHistoryPage() {
                       <ComponentTimeline
                         events={detail?.events}
                         activities={detail?.activities}
-                        canEdit={canEdit}
-                        onEditEvent={openEditEvent}
                       />
                     </Stack>
                   ) : (
