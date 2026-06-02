@@ -53,6 +53,7 @@ import {
 import useDebouncedValue from "../shared/useDebouncedValue";
 import { useAppContext } from "../context/AppContext";
 import { canEditComponentHistory, isPlatformAdmin } from "../shared/rbac";
+import { formatActivitySummaryLines } from "../shared/activitySummaryFormat";
 
 const TYPE_FILTERS = [
   { value: "all", label: "All types" },
@@ -181,9 +182,13 @@ function ComponentTimeline({ events, activities }) {
                   {act.actor_name ? ` · ${act.actor_name}` : ""}
                 </Typography>
               </Stack>
-              <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-                {act.summary}
-              </Typography>
+              <Stack spacing={0.35}>
+                {formatActivitySummaryLines(act.summary).map((line) => (
+                  <Typography key={line} variant="body2" sx={{ wordBreak: "break-word" }}>
+                    {line}
+                  </Typography>
+                ))}
+              </Stack>
             </Box>
           );
         }

@@ -1057,6 +1057,48 @@ class TestComponentHistoryViews:
 
 
 @pytest.mark.django_db
+class TestMaintenanceActivityLog:
+    def test_work_order_patch_records_activity(
+        self, authenticated_client, sample_work_order
+    ):
+        from api.models import WorkOrderActivity
+
+        url = reverse("workorders-detail", kwargs={"pk": sample_work_order.id})
+        response = authenticated_client.patch(
+            url,
+            {"description": "Updated scope for activity log test"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data.get("activities") or []) >= 1
+        latest = response.data["activities"][0]
+        assert latest.get("actor_display")
+        assert "Description" in latest.get("summary", "")
+
+        assert WorkOrderActivity.objects.filter(work_order=sample_work_order).exists()
+
+    def test_company_work_orders_list_includes_activities(
+        self, authenticated_client, sample_work_order, sample_user
+    ):
+        from api.models import WorkOrderActivity
+
+        WorkOrderActivity.objects.create(
+            work_order=sample_work_order,
+            actor=sample_user,
+            summary="Test list activity",
+        )
+        url = reverse("company-workorders")
+        response = authenticated_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        row = next(
+            (w for w in response.data if w["id"] == sample_work_order.id),
+            None,
+        )
+        assert row is not None
+        assert len(row.get("activities") or []) >= 1
+
+
+@pytest.mark.django_db
 class TestLaborEntries:
     def test_create_and_list_labor_entry(
         self, authenticated_client, sample_work_order, sample_user

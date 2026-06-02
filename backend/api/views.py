@@ -361,7 +361,9 @@ def company_scoped_discrepancy_queryset(request):
         .prefetch_related(
             Prefetch(
                 "activities",
-                queryset=DiscrepancyActivity.objects.select_related("actor"),
+                queryset=DiscrepancyActivity.objects.select_related("actor").order_by(
+                    "-created_at"
+                ),
             ),
         )
         .order_by("-date_reported")
@@ -1077,7 +1079,9 @@ def company_workorders_view(request):
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
     workorders = company_scoped_workorder_queryset(request)
-    serializer = WorkOrderSerializer(workorders, many=True)
+    serializer = WorkOrderSerializer(
+        workorders, many=True, context={"request": request}
+    )
     return Response(serializer.data)
 
 #endpoint for company's overdue workorders
@@ -1098,7 +1102,9 @@ def company_discrepancies_view(request):
     if company is None:
         return Response({'error': 'User does not have an associated company'}, status=403)
     discrepancies = company_scoped_discrepancy_queryset(request)
-    serializer = DiscrepancySerializer(discrepancies, many=True)
+    serializer = DiscrepancySerializer(
+        discrepancies, many=True, context={"request": request}
+    )
     return Response(serializer.data)
 
 #endpoint that takes in the role that is wanted and checks the user in the company that is that role

@@ -320,9 +320,33 @@ export function MaintenanceActivityTimeline({ items, emptyHint, formatSummary })
 						{a.actor_display ? ` · ${a.actor_display}` : ''}
 						{a.event_type ? ` · ${a.event_type}` : ''}
 					</Typography>
-					<Typography variant="body2" sx={{ mt: 0.25, lineHeight: 1.4, wordBreak: 'break-word' }}>
-						{formatSummary ? formatSummary(a.summary) : a.summary || '—'}
-					</Typography>
+					{(() => {
+						const raw = formatSummary ? formatSummary(a.summary) : a.summary || '—';
+						const lines = String(raw)
+							.split(/\n+/)
+							.map((line) => line.trim())
+							.filter(Boolean);
+						if (!lines.length) {
+							return (
+								<Typography variant="body2" sx={{ mt: 0.25, lineHeight: 1.4 }}>
+									—
+								</Typography>
+							);
+						}
+						return (
+							<Stack spacing={0.35} sx={{ mt: 0.25 }}>
+								{lines.map((line) => (
+									<Typography
+										key={line}
+										variant="body2"
+										sx={{ lineHeight: 1.4, wordBreak: 'break-word' }}
+									>
+										{line}
+									</Typography>
+								))}
+							</Stack>
+						);
+					})()}
 				</Box>
 			))}
 		</Stack>

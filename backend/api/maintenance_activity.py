@@ -51,13 +51,52 @@ def _status_label(value):
     return str(value).replace("_", " ").strip().title()
 
 
+def _humanize_field_keys(keys):
+    labels = {
+        "status": "Status",
+        "priority": "Priority",
+        "title": "Title",
+        "description": "Description",
+        "due_by": "Due date",
+        "assignee": "Assignee",
+        "created_by": "Assignee",
+        "aircraft": "Aircraft",
+        "parts_needed": "Parts",
+        "completion_notes": "Completion notes",
+        "ata_code": "ATA",
+        "tach_time": "Tach",
+        "work_order": "Work order",
+        "reporter": "Reporter",
+    }
+    seen = set()
+    out = []
+    for key in keys or []:
+        label = labels.get(key, str(key).replace("_", " ").strip().title())
+        if label in seen:
+            continue
+        seen.add(label)
+        out.append(label)
+    return out
+
+
+def _fallback_summary(changed_keys):
+    labels = _humanize_field_keys(changed_keys)
+    if not labels:
+        return None
+    return "Updated " + ", ".join(labels)
+
+
 def snapshot_work_order(wo):
+    assignee = wo.assignee or wo.created_by
     return {
         "status": wo.status,
         "priority": wo.priority,
         "title": wo.title,
         "description": wo.description or "",
+        "completion_notes": (wo.completion_notes or "").strip(),
         "due_by": wo.due_by.isoformat() if wo.due_by else None,
+        "assignee_id": wo.assignee_id,
+        "assignee_name": _display_name(assignee) if assignee else "Unassigned",
         "created_by_id": wo.created_by_id,
         "created_by_name": _display_name(wo.created_by) if wo.created_by_id else "Unassigned",
         "aircraft_id": wo.aircraft_id,
@@ -81,11 +120,17 @@ def describe_work_order_changes(before, after):
         )
     if (before["description"] or "").strip() != (after["description"] or "").strip():
         bits.append("Description updated")
+    if (before.get("completion_notes") or "") != (after.get("completion_notes") or ""):
+        bits.append("Completion notes updated")
     if before["due_by"] != after["due_by"]:
         old_due = before["due_by"] or "None"
         new_due = after["due_by"] or "None"
         bits.append(f"Due date {old_due} → {new_due}")
-    if before["created_by_id"] != after["created_by_id"]:
+    if before.get("assignee_id") != after.get("assignee_id"):
+        old_name = before.get("assignee_name") or "Unassigned"
+        new_name = after.get("assignee_name") or "Unassigned"
+        bits.append(f"Assignee {old_name} → {new_name}")
+    elif before["created_by_id"] != after["created_by_id"]:
         old_name = before.get("created_by_name") or "Unassigned"
         new_name = after.get("created_by_name") or "Unassigned"
         bits.append(f"Assignee {old_name} → {new_name}")
@@ -119,8 +164,10 @@ def log_work_order_created(wo, request):
     )
 
 
-def log_work_order_updated(wo, before, after, request):
+def log_work_order_updated(wo, before, after, request, *, changed_keys=None):
     msg = describe_work_order_changes(before, after)
+    if not msg:
+        msg = _fallback_summary(changed_keys)
     if not msg:
         return
     WorkOrderActivity.objects.create(
@@ -191,8 +238,10 @@ def log_discrepancy_created(d, request):
     )
 
 
-def log_discrepancy_updated(d, before, after, request):
+def log_discrepancy_updated(d, before, after, request, *, changed_keys=None):
     msg = describe_discrepancy_changes(before, after)
+    if not msg:
+        msg = _fallback_summary(changed_keys)
     if not msg:
         return
     DiscrepancyActivity.objects.create(

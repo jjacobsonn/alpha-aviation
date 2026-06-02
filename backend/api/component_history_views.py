@@ -14,7 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .csv_response import csv_attachment_response, csv_cell, safe_csv_filename_part
-from .models import Company, ComponentEvent, InstalledComponent
+from .models import Company, ComponentEvent, ComponentHistoryActivity, InstalledComponent
 from .renderers import CSVRenderer
 from .permissions import IsComponentHistoryReader
 from .component_history_activity import (
@@ -158,10 +158,18 @@ def component_history_list(request):
 
 def _component_detail_payload(component):
     data = InstalledComponentDetailSerializer(component).data
-    data["events"] = ComponentEventSerializer(component.events.all(), many=True).data
-    data["activities"] = ComponentHistoryActivitySerializer(
-        component.activities.all()[:100], many=True
+    data["events"] = ComponentEventSerializer(
+        component.events.select_related("aircraft", "work_order", "actor").order_by(
+            "-occurred_at"
+        ),
+        many=True,
     ).data
+    audit_qs = (
+        ComponentHistoryActivity.objects.filter(component=component)
+        .select_related("actor", "component_event")
+        .order_by("-created_at")[:100]
+    )
+    data["activities"] = ComponentHistoryActivitySerializer(audit_qs, many=True).data
     return data
 
 
@@ -205,10 +213,13 @@ def component_history_detail(request, pk):
             context={"request": request, "company": company},
         )
         serializer.is_valid(raise_exception=True)
+        changed_keys = list(serializer.validated_data.keys())
         serializer.save()
         component.refresh_from_db()
         after = snapshot_component(component)
-        log_component_updated(component, before, after, request)
+        log_component_updated(
+            component, before, after, request, changed_keys=changed_keys
+        )
         return Response(_component_detail_payload(component))
 
     return Response(_component_detail_payload(component))
@@ -253,10 +264,11 @@ def component_history_event_update(request, pk, event_id):
         context={"request": request, "company": company},
     )
     serializer.is_valid(raise_exception=True)
+    changed_keys = list(serializer.validated_data.keys())
     serializer.save()
     event.refresh_from_db()
     after = snapshot_event(event)
-    log_event_updated(event, before, after, request)
+    log_event_updated(event, before, after, request, changed_keys=changed_keys)
 
     component = (
         qs.prefetch_related(

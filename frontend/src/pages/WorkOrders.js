@@ -503,7 +503,10 @@ export default function WorkOrders() {
 					parts_needed: (editForm.parts_needed || []).map(Number),
 				};
 			}
-			await updateWorkorder(editTargetId, payload);
+			const updated = await updateWorkorder(editTargetId, payload);
+			setWorkOrders((prev) =>
+				prev.map((wo) => (Number(wo.id) === Number(updated.id) ? { ...wo, ...updated } : wo))
+			);
 			closeEditDialog();
 			await load();
 		} catch (e) {

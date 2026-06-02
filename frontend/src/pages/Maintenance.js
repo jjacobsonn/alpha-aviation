@@ -93,6 +93,7 @@ import {
 	isMechanicRole,
 	isPlatformAdmin,
 } from '../shared/rbac';
+import { formatActivitySummaryLines } from '../shared/activitySummaryFormat';
 import {
 	companyFleetParts,
 	filterPartIdsForAircraft,
@@ -141,11 +142,23 @@ function humanizeStatusToken(value) {
 
 function formatActivitySummary(summary) {
 	if (!summary) return summary;
-	return String(summary).replace(
+	const humanized = String(summary).replace(
 		/Status\s+([a-z_]+)\s+→\s+([a-z_]+)/gi,
 		(_, fromStatus, toStatus) =>
 			`Status ${humanizeStatusToken(fromStatus)} → ${humanizeStatusToken(toStatus)}`
 	);
+	const lines = formatActivitySummaryLines(humanized);
+	return lines.length === 1 ? lines[0] : lines.join('\n');
+}
+
+function mergeWorkOrderInList(list, updated) {
+	if (!updated?.id) return list;
+	return list.map((wo) => (Number(wo.id) === Number(updated.id) ? { ...wo, ...updated } : wo));
+}
+
+function mergeDiscrepancyInList(list, updated) {
+	if (!updated?.id) return list;
+	return list.map((d) => (Number(d.id) === Number(updated.id) ? { ...d, ...updated } : d));
 }
 
 /** Work order / discrepancy row: human-readable tail from nested or id-only `aircraft`. */
@@ -629,18 +642,25 @@ const Maintenance = () => {
 		setWorkOrderDetailEditing(false);
 	};
 
+	const applyWorkOrderUpdate = (updated) => {
+		setWorkOrders((prev) => mergeWorkOrderInList(prev, updated));
+		setSelectedWorkOrder(updated);
+		populateWorkorderFormFromWo(updated);
+		setWorkOrderDetailEditing(false);
+	};
+
 	const handleSaveMechanicWorkOrderProgress = async () => {
 		if (!selectedWorkOrder?.id) return;
 		setError('');
 		try {
-			await updateWorkorder(selectedWorkOrder.id, {
+			const updated = await updateWorkorder(selectedWorkOrder.id, {
 				status: workorderForm.status,
 				priority: workorderForm.priority,
 				due_by: workorderForm.due_by || null,
 				description: workorderForm.description,
 				parts_needed: (workorderForm.parts_needed || []).map(Number),
 			});
-			closeWorkOrderDetail();
+			applyWorkOrderUpdate(updated);
 			await refreshMaintenanceData();
 		} catch (e) {
 			setError(e?.message || 'Failed to update work order.');
@@ -668,8 +688,8 @@ const Maintenance = () => {
 				payload.assignee = null;
 				payload.created_by = null;
 			}
-			await updateWorkorder(selectedWorkOrder.id, payload);
-			closeWorkOrderDetail();
+			const updated = await updateWorkorder(selectedWorkOrder.id, payload);
+			applyWorkOrderUpdate(updated);
 			await refreshMaintenanceData();
 		} catch (e) {
 			setError(e?.message || 'Failed to update work order.');
@@ -747,17 +767,24 @@ const Maintenance = () => {
 		setDiscrepancyDetailEditing(false);
 	};
 
+	const applyDiscrepancyUpdate = (updated) => {
+		setDiscrepancies((prev) => mergeDiscrepancyInList(prev, updated));
+		setSelectedDiscrepancy(updated);
+		populateDiscrepancyFormFromRow(updated);
+		setDiscrepancyDetailEditing(false);
+	};
+
 	const handleSaveMechanicDiscrepancy = async () => {
 		if (!selectedDiscrepancy?.id) return;
 		setError('');
 		try {
-			await updateDiscrepancy(selectedDiscrepancy.id, {
+			const updated = await updateDiscrepancy(selectedDiscrepancy.id, {
 				status: discrepancyForm.status,
 				description: discrepancyForm.description,
 				ata_code: discrepancyForm.ata_code,
 				tach_time: discrepancyForm.tach_time,
 			});
-			closeDiscrepancyDetail();
+			applyDiscrepancyUpdate(updated);
 			await refreshMaintenanceData();
 		} catch (e) {
 			setError(e?.message || 'Failed to update discrepancy.');
@@ -768,13 +795,13 @@ const Maintenance = () => {
 		if (!selectedDiscrepancy?.id) return;
 		setError('');
 		try {
-			await updateDiscrepancy(selectedDiscrepancy.id, {
+			const updated = await updateDiscrepancy(selectedDiscrepancy.id, {
 				...discrepancyForm,
 				aircraft: Number(discrepancyForm.aircraft),
 				reporter: discrepancyForm.reporter ? Number(discrepancyForm.reporter) : undefined,
 				work_order: discrepancyForm.work_order ? Number(discrepancyForm.work_order) : null,
 			});
-			closeDiscrepancyDetail();
+			applyDiscrepancyUpdate(updated);
 			await refreshMaintenanceData();
 		} catch (e) {
 			setError(e?.message || 'Failed to update discrepancy.');

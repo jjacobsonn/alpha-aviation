@@ -86,8 +86,31 @@ def describe_event_changes(before, after):
     return "; ".join(parts)
 
 
-def log_component_updated(component, before, after, request, *, component_event=None):
+def _fallback_component_summary(changed_keys):
+    labels = {
+        "location": "Location",
+        "aircraft": "Aircraft",
+        "limit_type": "Life limit type",
+        "limit_value": "Life limit",
+        "used_value": "Used",
+        "limit_due_date": "Due date",
+        "notes": "Notes",
+        "event_type": "Event type",
+        "occurred_at": "Date/time",
+        "summary": "Summary",
+    }
+    names = [labels[k] for k in (changed_keys or []) if k in labels]
+    if not names:
+        return None
+    return "Updated " + ", ".join(names)
+
+
+def log_component_updated(
+    component, before, after, request, *, component_event=None, changed_keys=None
+):
     msg = describe_component_changes(before, after)
+    if not msg:
+        msg = _fallback_component_summary(changed_keys)
     if not msg:
         return
     editor = _display_name(_actor_for_request(request))
@@ -101,8 +124,10 @@ def log_component_updated(component, before, after, request, *, component_event=
     )
 
 
-def log_event_updated(event, before, after, request):
+def log_event_updated(event, before, after, request, *, changed_keys=None):
     msg = describe_event_changes(before, after)
+    if not msg:
+        msg = _fallback_component_summary(changed_keys)
     if not msg:
         return
     editor = _display_name(_actor_for_request(request))

@@ -322,6 +322,10 @@ class DiscrepancySerializer(serializers.ModelSerializer):
                 "assignee_name": profile_display_name(wo.assignee)
                 or profile_display_name(wo.created_by),
             }
+        activity_qs = DiscrepancyActivity.objects.filter(discrepancy=instance).select_related(
+            "actor"
+        ).order_by("-created_at")
+        rep["activities"] = DiscrepancyActivitySerializer(activity_qs, many=True).data
         return rep
 
     def create(self, validated_data):
@@ -342,8 +346,15 @@ class DiscrepancySerializer(serializers.ModelSerializer):
             validated_data.pop("aircraft", None)
             validated_data.pop("reporter", None)
             validated_data.pop("work_order", None)
+        changed_keys = list(validated_data.keys())
         instance = super().update(instance, validated_data)
-        log_discrepancy_updated(instance, before, snapshot_discrepancy(instance), request)
+        log_discrepancy_updated(
+            instance,
+            before,
+            snapshot_discrepancy(instance),
+            request,
+            changed_keys=changed_keys,
+        )
         return instance
 
 
@@ -459,7 +470,11 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         if sb:
             rep["signed_by"] = profile_to_dict(sb)
         rep["parts_needed"] = serialize_work_order_parts(instance)
-        latest = instance.activities.first()
+        activity_qs = WorkOrderActivity.objects.filter(work_order=instance).select_related(
+            "actor"
+        ).order_by("-created_at")
+        rep["activities"] = WorkOrderActivitySerializer(activity_qs, many=True).data
+        latest = activity_qs.first()
         if latest:
             actor = latest.actor
             if actor:
@@ -561,6 +576,9 @@ class WorkOrderSerializer(serializers.ModelSerializer):
             # Mechanics/dispatchers: progress, parts, dates, description only.
             for field in self._WO_SUPERVISOR_ONLY_FIELDS:
                 validated_data.pop(field, None)
+        changed_keys = list(validated_data.keys())
+        if parts is not None:
+            changed_keys.append("parts_needed")
         work_order = super().update(instance, validated_data)
         if parts is not None:
             WorkOrderPart.objects.filter(work_order=work_order).delete()
@@ -570,7 +588,7 @@ class WorkOrderSerializer(serializers.ModelSerializer):
                 )
         work_order.refresh_from_db()
         after = snapshot_work_order(work_order)
-        log_work_order_updated(work_order, before, after, request)
+        log_work_order_updated(work_order, before, after, request, changed_keys=changed_keys)
         return work_order
 
 
