@@ -1,17 +1,22 @@
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { Box, IconButton, Stack, Typography } from "@mui/material";
+import { Box, IconButton, MenuItem, Stack, TextField, Typography } from "@mui/material";
 
 /** Width shared with Site Admin create buttons and table Actions column. */
 export const TABLE_ACTIONS_COLUMN_WIDTH = 240;
+
+/** 5, then +10 per step, capped at 50. */
+export const SITE_ADMIN_ROWS_PER_PAGE_OPTIONS = [5, 15, 25, 35, 45, 50];
 
 export default function TablePaginationBar({
   page,
   pageCount,
   pageSize,
   onPageChange,
+  onPageSizeChange,
   total,
   alignWithActions = false,
+  rowsPerPageOptions = SITE_ADMIN_ROWS_PER_PAGE_OPTIONS,
 }) {
   if (!total) {
     return (
@@ -27,7 +32,7 @@ export default function TablePaginationBar({
     </Typography>
   );
 
-  const controls = (
+  const pageArrows = (
     <Stack direction="row" spacing={0.5} alignItems="center" aria-label="Table pagination">
       <IconButton
         size="small"
@@ -66,20 +71,36 @@ export default function TablePaginationBar({
     </Stack>
   );
 
+  const rowsSelect =
+    onPageSizeChange != null ? (
+      <TextField
+        select
+        size="small"
+        label="Rows"
+        value={String(pageSize)}
+        onChange={(e) => onPageSizeChange(Number(e.target.value))}
+        sx={{ width: 88 }}
+      >
+        {rowsPerPageOptions.map((n) => (
+          <MenuItem key={n} value={String(n)}>
+            {n}
+          </MenuItem>
+        ))}
+      </TextField>
+    ) : null;
+
+  const paginationControls = (
+    <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="flex-end">
+      {rowsSelect}
+      {pageArrows}
+    </Stack>
+  );
+
   if (alignWithActions) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", py: 2, gap: 2 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>{summary}</Box>
-        <Box
-          sx={{
-            width: TABLE_ACTIONS_COLUMN_WIDTH,
-            flexShrink: 0,
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
-          {controls}
-        </Box>
+        <Box sx={{ flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>{paginationControls}</Box>
       </Box>
     );
   }
@@ -93,7 +114,7 @@ export default function TablePaginationBar({
       sx={{ py: 2 }}
     >
       {summary}
-      {controls}
+      {paginationControls}
     </Stack>
   );
 }

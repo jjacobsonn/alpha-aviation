@@ -969,6 +969,7 @@ export default function SiteAdminPortal() {
                 pageSize={companiesPagination.pageSize}
                 total={companiesPagination.total}
                 onPageChange={companiesPagination.setPage}
+                onPageSizeChange={companiesPagination.setPageSize}
                 alignWithActions
               />
               <Stack direction="row" spacing={1}>
@@ -1038,6 +1039,7 @@ export default function SiteAdminPortal() {
                 pageSize={usersPagination.pageSize}
                 total={usersPagination.total}
                 onPageChange={usersPagination.setPage}
+                onPageSizeChange={usersPagination.setPageSize}
                 alignWithActions
               />
             </Stack>
@@ -1104,6 +1106,7 @@ export default function SiteAdminPortal() {
                 pageSize={aircraftPagination.pageSize}
                 total={aircraftPagination.total}
                 onPageChange={aircraftPagination.setPage}
+                onPageSizeChange={aircraftPagination.setPageSize}
                 alignWithActions
               />
             </Stack>
@@ -1170,6 +1173,7 @@ export default function SiteAdminPortal() {
                 pageSize={flightsPagination.pageSize}
                 total={flightsPagination.total}
                 onPageChange={flightsPagination.setPage}
+                onPageSizeChange={flightsPagination.setPageSize}
                 alignWithActions
               />
             </Stack>
@@ -1222,6 +1226,7 @@ export default function SiteAdminPortal() {
                 pageSize={partsPagination.pageSize}
                 total={partsPagination.total}
                 onPageChange={partsPagination.setPage}
+                onPageSizeChange={partsPagination.setPageSize}
                 alignWithActions
               />
             </Stack>
@@ -1276,6 +1281,7 @@ export default function SiteAdminPortal() {
                 pageSize={inventoriesPagination.pageSize}
                 total={inventoriesPagination.total}
                 onPageChange={inventoriesPagination.setPage}
+                onPageSizeChange={inventoriesPagination.setPageSize}
                 alignWithActions
               />
             </Stack>
@@ -1330,6 +1336,7 @@ export default function SiteAdminPortal() {
                 pageSize={workordersPagination.pageSize}
                 total={workordersPagination.total}
                 onPageChange={workordersPagination.setPage}
+                onPageSizeChange={workordersPagination.setPageSize}
                 alignWithActions
               />
             </Stack>
@@ -1386,6 +1393,7 @@ export default function SiteAdminPortal() {
                 pageSize={discrepanciesPagination.pageSize}
                 total={discrepanciesPagination.total}
                 onPageChange={discrepanciesPagination.setPage}
+                onPageSizeChange={discrepanciesPagination.setPageSize}
                 alignWithActions
               />
             </Stack>

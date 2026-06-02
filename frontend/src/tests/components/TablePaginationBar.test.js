@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import TablePaginationBar from "../../components/TablePaginationBar";
+import TablePaginationBar, { SITE_ADMIN_ROWS_PER_PAGE_OPTIONS } from "../../components/TablePaginationBar";
 
 test("shows single page indicator and arrow navigation", async () => {
   const user = userEvent.setup();
@@ -23,4 +23,28 @@ test("shows single page indicator and arrow navigation", async () => {
 
   await user.click(screen.getByLabelText("Next page"));
   expect(onPageChange).toHaveBeenCalledWith(2);
+});
+
+test("rows dropdown sits left of pagination and changes page size", async () => {
+  const user = userEvent.setup();
+  const onPageSizeChange = jest.fn();
+
+  render(
+    <TablePaginationBar
+      page={1}
+      pageCount={2}
+      pageSize={5}
+      total={12}
+      onPageChange={jest.fn()}
+      onPageSizeChange={onPageSizeChange}
+      alignWithActions
+    />
+  );
+
+  expect(SITE_ADMIN_ROWS_PER_PAGE_OPTIONS).toEqual([5, 15, 25, 35, 45, 50]);
+
+  const rowsField = screen.getByLabelText("Rows");
+  await user.click(rowsField);
+  await user.click(screen.getByRole("option", { name: "25" }));
+  expect(onPageSizeChange).toHaveBeenCalledWith(25);
 });
