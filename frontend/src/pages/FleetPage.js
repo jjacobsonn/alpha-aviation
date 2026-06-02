@@ -333,7 +333,7 @@ const FleetPage = () => {
 
 								{error ? <Alert severity="error">{error}</Alert> : null}
 
-								<ScrollableTableContainer minWidth={880}>
+								<ScrollableTableContainer minWidth={720} fill>
 								<Table
 									size="small"
 									sx={{
@@ -343,19 +343,21 @@ const FleetPage = () => {
 											fontWeight: 700,
 											borderColor: 'divider',
 										},
-										'& .MuiTableCell-root': { borderColor: 'divider', whiteSpace: 'nowrap' },
+										'& .MuiTableCell-root': { borderColor: 'divider' },
 									}}
 								>
 									<TableHead>
 										<TableRow>
-											<TableCell>Tail #</TableCell>
-											<TableCell>Model</TableCell>
-											<TableCell>Type</TableCell>
-											<TableCell>Location</TableCell>
-											<TableCell>Tach</TableCell>
-											<TableCell>Hobbs</TableCell>
-											<TableCell>Status</TableCell>
-											{canManageFleet ? <TableCell>Actions</TableCell> : null}
+											<TableCell sx={{ width: '11%' }}>Tail #</TableCell>
+											<TableCell sx={{ width: '18%' }}>Model</TableCell>
+											<TableCell sx={{ width: '18%' }}>Type</TableCell>
+											<TableCell sx={{ width: '10%' }}>Location</TableCell>
+											<TableCell sx={{ width: '10%' }}>Tach</TableCell>
+											<TableCell sx={{ width: '10%' }}>Hobbs</TableCell>
+											<TableCell sx={{ width: '13%' }}>Status</TableCell>
+											{canManageFleet ? (
+												<TableCell sx={{ width: '10%' }}>Actions</TableCell>
+											) : null}
 										</TableRow>
 									</TableHead>
 									<TableBody>
@@ -367,10 +369,14 @@ const FleetPage = () => {
 													sx={{ cursor: 'pointer' }}
 													onClick={() => navigate(`/fleet/${row.id}`)}
 												>
-													<TableCell>{row.registration_number || '—'}</TableCell>
+													<TableCell sx={{ whiteSpace: 'nowrap' }}>
+														{row.registration_number || '—'}
+													</TableCell>
 													<TableCell>{row.model || '—'}</TableCell>
-													<TableCell>{row.aircraft_type || '—'}</TableCell>
-													<TableCell>{row.location || '—'}</TableCell>
+													<TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+														{row.aircraft_type || '—'}
+													</TableCell>
+													<TableCell sx={{ whiteSpace: 'nowrap' }}>{row.location || '—'}</TableCell>
 													<TableCell>{row.tach_current ?? '—'}</TableCell>
 													<TableCell>{row.hobbs_current ?? '—'}</TableCell>
 													<TableCell>

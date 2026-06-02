@@ -1,5 +1,5 @@
 // import FleetStatusPanel from "../components/FleetStatusPanel";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import {
   Box,
@@ -22,6 +22,7 @@ import {
   Card,
   CardContent,
   Grid,
+  Pagination,
 } from "@mui/material";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -49,8 +50,8 @@ import { useAppContext } from "../context/AppContext";
 import useDebouncedValue from "../shared/useDebouncedValue";
 import {
   PARTS_STATUS_FILTERS,
+  PARTS_SORT_OPTIONS,
   buildPartsSuggestions,
-  filterPartsRows,
 } from "../shared/moduleSearch";
 import ModuleSearchBar from "../components/search/ModuleSearchBar";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
@@ -68,9 +69,14 @@ function PartsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [inventories, setInventories] = useState([]);
+  const [inventoryCount, setInventoryCount] = useState(0);
+  const [inventorySummary, setInventorySummary] = useState(null);
   const [workOrders, setWorkOrders] = useState([]);
-  const [search, setSearch] = useState("");
-  const [partsStatus, setPartsStatus] = useState("all");
+  const [search, setSearch] = useState(() => searchParams.get("q") || "");
+  const [partsStatus, setPartsStatus] = useState(() => searchParams.get("status") || "all");
+  const sortOrder = searchParams.get("ordering") || "newest";
+  const page = Number(searchParams.get("page") || 1);
+  const pageSize = Number(searchParams.get("page_size") || 25);
   const debouncedSearch = useDebouncedValue(search, 300);
   const [aircraftOptions, setAircraftOptions] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -105,37 +111,94 @@ function PartsPage() {
     setMenuAnchor(null);
   };
 
+  const loadInventory = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const params = {
+        page,
+        page_size: pageSize,
+        ordering: sortOrder,
+      };
+      if (debouncedSearch.trim()) params.q = debouncedSearch.trim();
+      if (partsStatus && partsStatus !== "all") params.status = partsStatus;
+      const data = await fetchCompanyInventoriesDetailed(params);
+      const rows = Array.isArray(data?.results) ? data.results : [];
+      setInventories(rows);
+      setInventoryCount(data?.count ?? rows.length);
+      setInventorySummary(data?.summary ?? null);
+    } catch (e) {
+      setError(e?.message || "Failed to load inventory.");
+      setInventories([]);
+      setInventoryCount(0);
+      setInventorySummary(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, pageSize, sortOrder, debouncedSearch, partsStatus]);
+
   useEffect(() => {
     let mounted = true;
-
-    const load = async () => {
-      setIsLoading(true);
-      setError("");
+    (async () => {
       try {
-        const [data, wos] = await Promise.all([
-          fetchCompanyInventoriesDetailed(),
+        const [wos, aircraftData] = await Promise.all([
           fetchCompanyWorkorders(),
+          fetchCompanyAircrafts(),
         ]);
-        const aircraftData = await fetchCompanyAircrafts();
         if (!mounted) return;
-        setInventories(Array.isArray(data) ? data : []);
         setWorkOrders(Array.isArray(wos) ? wos : []);
         setAircraftOptions(Array.isArray(aircraftData) ? aircraftData : []);
-      } catch (e) {
-        if (!mounted) return;
-        setError(e?.message || "Failed to load inventory.");
-      } finally {
-        if (!mounted) return;
-        setIsLoading(false);
+      } catch {
+        /* non-blocking */
       }
-    };
-
-    load();
-
+    })();
     return () => {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    loadInventory();
+  }, [loadInventory]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (debouncedSearch.trim()) next.set("q", debouncedSearch.trim());
+    else next.delete("q");
+    if (partsStatus && partsStatus !== "all") next.set("status", partsStatus);
+    else next.delete("status");
+    if (sortOrder && sortOrder !== "newest") next.set("ordering", sortOrder);
+    else next.delete("ordering");
+    if (page > 1) next.set("page", String(page));
+    else next.delete("page");
+    if (pageSize !== 25) next.set("page_size", String(pageSize));
+    else next.delete("page_size");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, partsStatus, sortOrder, page, pageSize]);
+
+  const setSortOrder = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value && value !== "newest") next.set("ordering", value);
+    else next.delete("ordering");
+    next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
+
+  const setPage = (p) => {
+    const next = new URLSearchParams(searchParams);
+    if (p > 1) next.set("page", String(p));
+    else next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
+
+  const setPageSize = (size) => {
+    const next = new URLSearchParams(searchParams);
+    if (size !== 25) next.set("page_size", String(size));
+    else next.delete("page_size");
+    next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
 
   const handleOpenEdit = (invRow) => {
     if (!invRow?.id) return;
@@ -172,8 +235,7 @@ function PartsPage() {
         part_id: editValues.partId,
       };
       await updateInventory(selectedPart.id, payload);
-      const data = await fetchCompanyInventoriesDetailed();
-      setInventories(Array.isArray(data) ? data : []);
+      await loadInventory();
       setEditOpen(false);
     } catch (e) {
       setError(e?.message || "Failed to save.");
@@ -203,54 +265,50 @@ function PartsPage() {
     setIsSavingAdd(true);
     setError("");
     try {
-      const createdPart = await createPart({
-        aircraft: Number(addValues.aircraftId),
+      const partPayload = {
         part_number: addValues.partNumber.trim(),
         name: addValues.partName.trim(),
         description: addValues.partDescription.trim(),
-      });
+      };
+      if (addValues.aircraftId) {
+        partPayload.aircraft = Number(addValues.aircraftId);
+      }
+      const createdPart = await createPart(partPayload);
+      if (!createdPart?.id) {
+        throw new Error("Part was created but no id was returned from the server.");
+      }
       await createInventory({
-        part_id: createdPart?.id,
+        part_id: createdPart.id,
         in_stock: Number(addValues.inStock || 0),
         stock_alert: Number(addValues.stockAlert || 0),
         shop_location: addValues.shopLocation,
       });
-      const [data, wos] = await Promise.all([
-        fetchCompanyInventoriesDetailed(),
-        fetchCompanyWorkorders(),
-      ]);
-      setInventories(Array.isArray(data) ? data : []);
-      setWorkOrders(Array.isArray(wos) ? wos : []);
+      await loadInventory();
       setAddOpen(false);
     } catch (e) {
+      const details = e?.data;
+      if (details && typeof details === "object" && !Array.isArray(details)) {
+        const lines = Object.entries(details).flatMap(([field, msgs]) => {
+          const list = Array.isArray(msgs) ? msgs : [msgs];
+          return list.map((msg) => `${field}: ${msg}`);
+        });
+        if (lines.length) {
+          setError(lines.join(" "));
+          return;
+        }
+      }
       setError(e?.message || "Failed to add part.");
     } finally {
       setIsSavingAdd(false);
     }
   };
 
-  const lowStockCount = useMemo(() => {
-    return inventories.filter((inv) => {
-      const inStock = Number(inv?.in_stock ?? 0);
-      const alert = Number(inv?.stock_alert ?? 0);
-      return inStock <= alert;
-    }).length;
-  }, [inventories]);
-
-  const partsInStockCount = useMemo(() => {
-    return inventories.filter((inv) => Number(inv?.in_stock ?? 0) > 0).length;
-  }, [inventories]);
-
+  const lowStockCount = inventorySummary?.low_stock_count ?? 0;
+  const partsInStockCount = inventorySummary?.parts_in_stock_count ?? 0;
   const awaitingPartsWoCount = useMemo(() => {
     return (workOrders || []).filter((wo) => wo?.status === "awaiting_parts").length;
   }, [workOrders]);
-
-  const totalUnitsOnHand = useMemo(() => {
-    return inventories.reduce((sum, inv) => {
-      const qty = Number(inv?.in_stock ?? inv?.quantity ?? 0);
-      return sum + (Number.isFinite(qty) ? qty : 0);
-    }, 0);
-  }, [inventories]);
+  const totalUnitsOnHand = inventorySummary?.total_units_on_hand ?? 0;
 
   const dashboardNumbers = useMemo(() => {
     return [
@@ -333,10 +391,14 @@ function PartsPage() {
     [inventoryData, debouncedSearch]
   );
 
-  const filteredRows = useMemo(
-    () => filterPartsRows(inventoryData, debouncedSearch, partsStatus),
-    [inventoryData, debouncedSearch, partsStatus]
-  );
+  const tableRows = inventoryData;
+
+  const pageCount = Math.max(1, Math.ceil(inventoryCount / pageSize));
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageCount]);
 
   const handleTabChange = (_event, value) => {
     setSearchParams(
@@ -430,17 +492,41 @@ function PartsPage() {
                   <Box sx={{ flex: 1, width: "100%" }}>
                     <ModuleSearchBar
                       value={search}
-                      onChange={setSearch}
+                      onChange={(v) => {
+                        setSearch(v);
+                        const next = new URLSearchParams(searchParams);
+                        next.delete("page");
+                        setSearchParams(next, { replace: true });
+                      }}
                       placeholder="Search part number, name, description, location…"
                       suggestions={partsSuggestions}
                       statusOptions={PARTS_STATUS_FILTERS}
                       statusValue={partsStatus}
-                      onStatusChange={setPartsStatus}
+                      onStatusChange={(v) => {
+                        setPartsStatus(v);
+                        const next = new URLSearchParams(searchParams);
+                        next.delete("page");
+                        setSearchParams(next, { replace: true });
+                      }}
                       statusVariant="chips"
-                      resultCount={filteredRows.length}
-                      totalCount={inventoryData.length}
+                      resultCount={tableRows.length}
+                      totalCount={inventoryCount}
                     />
                   </Box>
+                  <TextField
+                    select
+                    size="small"
+                    label="Sort"
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    sx={{ minWidth: 180, mt: { xs: 0, md: 0.5 } }}
+                  >
+                    {PARTS_SORT_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                   <Button variant="contained" onClick={handleOpenAdd} sx={{ whiteSpace: "nowrap", mt: { xs: 0, md: 0.5 } }}>
                     Add Part
                   </Button>
@@ -452,6 +538,15 @@ function PartsPage() {
                   </Box>
                 )}
 
+                {isLoading ? (
+                  <Stack alignItems="center" py={4}>
+                    <CircularProgress size={32} />
+                  </Stack>
+                ) : tableRows.length === 0 ? (
+                  <Typography color="text.secondary" sx={{ py: 3 }}>
+                    No parts match the current filters.
+                  </Typography>
+                ) : (
                 <ScrollableTableContainer minWidth={920}>
                 <Table
                   size="small"
@@ -474,7 +569,7 @@ function PartsPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                  {filteredRows.map((item) => (
+                  {tableRows.map((item) => (
                     <TableRow
                       key={item.id ?? item.pn}
                       hover
@@ -544,6 +639,32 @@ function PartsPage() {
                   </TableBody>
                 </Table>
                 </ScrollableTableContainer>
+                )}
+
+                {inventoryCount > 0 ? (
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2 }}>
+                    <TextField
+                      select
+                      size="small"
+                      label="Rows"
+                      value={String(pageSize)}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      sx={{ width: 110 }}
+                    >
+                      <MenuItem value="10">10</MenuItem>
+                      <MenuItem value="25">25</MenuItem>
+                      <MenuItem value="50">50</MenuItem>
+                      <MenuItem value="100">100</MenuItem>
+                    </TextField>
+                    <Pagination
+                      page={page}
+                      count={pageCount}
+                      onChange={(_, p) => setPage(p)}
+                      size="small"
+                      color="primary"
+                    />
+                  </Stack>
+                ) : null}
 
                 <Menu
                   anchorEl={menuAnchor}
@@ -558,11 +679,7 @@ function PartsPage() {
                           return;
                         }
                         deleteInventory(selectedPart.id)
-                          .then(() => {
-                            setInventories((prev) =>
-                              prev.filter((inv) => inv?.id !== selectedPart.id)
-                            );
-                          })
+                          .then(() => loadInventory())
                           .catch((e) => {
                             console.error('Failed to delete inventory', e);
                             setError(e?.message || 'Failed to delete inventory item.');

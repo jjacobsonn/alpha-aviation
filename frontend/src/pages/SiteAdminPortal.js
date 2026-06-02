@@ -26,7 +26,9 @@ import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import { useEffect, useMemo, useState } from "react";
 import StatCard from "../components/StatCard";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
+import TablePaginationBar from "../components/TablePaginationBar";
 import DeleteConfirmationDialog from "../components/DeleteConfirmationDialog";
+import { useTablePagination } from "../shared/useTablePagination";
 import { aircraftRefId, formatAircraftRef } from "../shared/aircraftDisplay";
 import {
   companyRoleLabel,
@@ -299,6 +301,15 @@ export default function SiteAdminPortal() {
     });
     return map;
   }, [aircraft]);
+
+  const companiesPagination = useTablePagination(companies, { pageSize: 15 });
+  const usersPagination = useTablePagination(profiles, { pageSize: 15 });
+  const aircraftPagination = useTablePagination(aircraft, { pageSize: 15 });
+  const flightsPagination = useTablePagination(flights, { pageSize: 15 });
+  const partsPagination = useTablePagination(parts, { pageSize: 15 });
+  const inventoriesPagination = useTablePagination(inventories, { pageSize: 15 });
+  const workordersPagination = useTablePagination(workorders, { pageSize: 15 });
+  const discrepanciesPagination = useTablePagination(discrepancies, { pageSize: 15 });
 
   const handleCreateCompany = async () => {
     if (!newCompanyName.trim()) {
@@ -926,7 +937,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {companies.map((c) => (
+                  {companiesPagination.pagedItems.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell>{c.name}</TableCell>
                       <TableCell>{c.locations || "—"}</TableCell>
@@ -946,6 +957,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={companiesPagination.page}
+                pageCount={companiesPagination.pageCount}
+                pageSize={companiesPagination.pageSize}
+                total={companiesPagination.total}
+                onPageChange={companiesPagination.setPage}
+                onPageSizeChange={companiesPagination.setPageSize}
+              />
               <Stack direction="row" spacing={1}>
                 <Button
                   variant="outlined"
@@ -983,7 +1002,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {profiles.map((u) => (
+                  {usersPagination.pagedItems.map((u) => (
                     <TableRow key={u.id}>
                       <TableCell>{u.username}</TableCell>
                       <TableCell>{`${u.first_name || ""} ${u.last_name || ""}`.trim() || "—"}</TableCell>
@@ -1005,6 +1024,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={usersPagination.page}
+                pageCount={usersPagination.pageCount}
+                pageSize={usersPagination.pageSize}
+                total={usersPagination.total}
+                onPageChange={usersPagination.setPage}
+                onPageSizeChange={usersPagination.setPageSize}
+              />
             </Stack>
           </CardContent>
         </Card>
@@ -1034,7 +1061,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {aircraft.map((a) => (
+                  {aircraftPagination.pagedItems.map((a) => (
                     <TableRow key={a.id}>
                       <TableCell>{a.registration_number}</TableCell>
                       <TableCell>{a.model || "—"}</TableCell>
@@ -1063,6 +1090,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={aircraftPagination.page}
+                pageCount={aircraftPagination.pageCount}
+                pageSize={aircraftPagination.pageSize}
+                total={aircraftPagination.total}
+                onPageChange={aircraftPagination.setPage}
+                onPageSizeChange={aircraftPagination.setPageSize}
+              />
             </Stack>
           </CardContent>
         </Card>
@@ -1093,7 +1128,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {flights.map((f) => (
+                  {flightsPagination.pagedItems.map((f) => (
                     <TableRow key={f.id}>
                       <TableCell>{f.flight_number || "—"}</TableCell>
                       <TableCell>
@@ -1121,6 +1156,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={flightsPagination.page}
+                pageCount={flightsPagination.pageCount}
+                pageSize={flightsPagination.pageSize}
+                total={flightsPagination.total}
+                onPageChange={flightsPagination.setPage}
+                onPageSizeChange={flightsPagination.setPageSize}
+              />
             </Stack>
           </CardContent>
         </Card>
@@ -1147,7 +1190,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {parts.slice(0, 20).map((p) => (
+                  {partsPagination.pagedItems.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell>{p.part_number || "—"}</TableCell>
                       <TableCell>{p.name || "—"}</TableCell>
@@ -1163,6 +1206,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={partsPagination.page}
+                pageCount={partsPagination.pageCount}
+                pageSize={partsPagination.pageSize}
+                total={partsPagination.total}
+                onPageChange={partsPagination.setPage}
+                onPageSizeChange={partsPagination.setPageSize}
+              />
             </Stack>
           </CardContent>
         </Card>
@@ -1191,7 +1242,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {inventories.slice(0, 30).map((inv) => (
+                  {inventoriesPagination.pagedItems.map((inv) => (
                     <TableRow key={inv.id}>
                       <TableCell>{inv?.company?.name || "—"}</TableCell>
                       <TableCell>{inv?.part?.part_number || inv?.part?.name || "—"}</TableCell>
@@ -1207,6 +1258,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={inventoriesPagination.page}
+                pageCount={inventoriesPagination.pageCount}
+                pageSize={inventoriesPagination.pageSize}
+                total={inventoriesPagination.total}
+                onPageChange={inventoriesPagination.setPage}
+                onPageSizeChange={inventoriesPagination.setPageSize}
+              />
             </Stack>
           </CardContent>
         </Card>
@@ -1235,7 +1294,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {workorders.slice(0, 20).map((wo) => (
+                  {workordersPagination.pagedItems.map((wo) => (
                     <TableRow key={wo.id}>
                       <TableCell>{wo.id}</TableCell>
                       <TableCell>{wo.title || "—"}</TableCell>
@@ -1251,6 +1310,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={workordersPagination.page}
+                pageCount={workordersPagination.pageCount}
+                pageSize={workordersPagination.pageSize}
+                total={workordersPagination.total}
+                onPageChange={workordersPagination.setPage}
+                onPageSizeChange={workordersPagination.setPageSize}
+              />
             </Stack>
           </CardContent>
         </Card>
@@ -1279,7 +1346,7 @@ export default function SiteAdminPortal() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {discrepancies.slice(0, 20).map((d) => (
+                  {discrepanciesPagination.pagedItems.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell>{d.id}</TableCell>
                       <TableCell>{d.status || "—"}</TableCell>
@@ -1297,6 +1364,14 @@ export default function SiteAdminPortal() {
                 </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePaginationBar
+                page={discrepanciesPagination.page}
+                pageCount={discrepanciesPagination.pageCount}
+                pageSize={discrepanciesPagination.pageSize}
+                total={discrepanciesPagination.total}
+                onPageChange={discrepanciesPagination.setPage}
+                onPageSizeChange={discrepanciesPagination.setPageSize}
+              />
             </Stack>
           </CardContent>
         </Card>

@@ -216,7 +216,19 @@ def _pilot_label(pilot_id):
 def _dt_label(value):
     if not value:
         return "None"
-    return str(value).replace("T", " ").replace("+00:00", " UTC")[:19]
+    from django.utils import formats
+    from django.utils.dateparse import parse_datetime
+    from django.utils import timezone as tz
+
+    s = str(value).strip()
+    if " " in s and "T" not in s:
+        s = s.replace(" ", "T", 1)
+    dt = parse_datetime(s)
+    if dt is None:
+        return str(value).replace("T", " ").replace("+00:00", "")[:19]
+    if tz.is_naive(dt):
+        dt = tz.make_aware(dt, tz.utc)
+    return formats.date_format(tz.localtime(dt), "SHORT_DATETIME_FORMAT")
 
 
 def snapshot_flight(flight):

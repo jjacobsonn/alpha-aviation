@@ -151,9 +151,20 @@ const handleApiResponse = (error) => {
 		let errorMessage = 'An error occurred';
 
 		if (typeof errorData === 'string') {
-			errorMessage = errorData;
+			errorMessage = errorData.includes('<html')
+				? `Server error (${error.response.status}). Please try again.`
+				: errorData;
 		} else if (errorData.error) {
 			errorMessage = errorData.error;
+			if (errorData.details) {
+				const d = errorData.details;
+				if (typeof d === 'object' && d !== null) {
+					const first = Object.values(d).flat()[0];
+					if (first) errorMessage = Array.isArray(first) ? first[0] : String(first);
+				} else if (typeof d === 'string') {
+					errorMessage = d;
+				}
+			}
 		} else if (errorData.detail) {
 			errorMessage = errorData.detail;
 		} else if (typeof errorData === 'object') {
@@ -259,11 +270,8 @@ export const patchCurrentUser = async (payload) => {
 	return await makeApiRequest('PATCH', '/users/me/', payload);
 };
 
-export const fetchCompanyInventoriesDetailed = async () => {
-	const data = await makeApiRequest('GET', '/company/inventories/detailed/');
-	if (Array.isArray(data)) return data;
-	if (data && Array.isArray(data.results)) return data.results;
-	return [];
+export const fetchCompanyInventoriesDetailed = async (queryParams = {}) => {
+	return await makeApiRequest('GET', '/company/inventories/detailed/', null, queryParams);
 };
 
 export const fetchCompanyLowStockInventoriesDetailed = async () => {
@@ -512,7 +520,7 @@ export const fetchInventories = async () => {
 };
 
 export const createInventory = async (payload) => {
-	return await makeApiRequest('POST', '/inventories/', payload);
+	return await makeApiRequest('POST', '/company/inventories/detailed/', payload);
 };
 
 export const fetchWorkorders = async () => {

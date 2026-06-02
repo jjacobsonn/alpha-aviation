@@ -33,15 +33,26 @@ const Login = () => {
 	const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (!state.initialized) return;
+
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
-    if (accessToken && refreshToken && (state.user?.role || state.user?.isStaff || state.user?.isSuperuser)) {
-      const defaultPath = getDefaultRouteForUser(state.user);
-      if (defaultPath !== '/login' && location.pathname !== defaultPath) {
-        navigate(defaultPath, { replace: true });
-      }
+    if (!accessToken || !refreshToken || !state.isAuthenticated) return;
+
+    const user = state.user;
+    if (!user?.role && !user?.isStaff && !user?.isSuperuser) return;
+
+    const defaultPath = getDefaultRouteForUser({
+      company_role: user.role,
+      role: user.role,
+      is_staff: user.isStaff,
+      is_superuser: user.isSuperuser,
+    });
+    const onEntryRoute = location.pathname === '/login' || location.pathname === '/';
+    if (defaultPath !== '/login' && onEntryRoute && location.pathname !== defaultPath) {
+      navigate(defaultPath, { replace: true });
     }
-  }, [navigate, state.user, location.pathname]);
+  }, [navigate, state.initialized, state.isAuthenticated, state.user, location.pathname]);
 
 	const handleChange = (e) => {
 		setFormData({

@@ -23,9 +23,9 @@ import {
 	TableCell,
 	TableHead,
 	TableRow,
-	TableContainer,
 	TextField,
 	Typography,
+	Divider,
 } from '@mui/material';
 import {
 	deleteWorkorder,
@@ -41,17 +41,24 @@ import {
 	updateWorkorder,
 } from '../shared/Api';
 import { useAppContext } from '../context/AppContext';
+import ScrollableTableContainer from '../components/ScrollableTableContainer';
 import {
 	canDeleteWorkOrders,
 	canSuperviseMaintenance,
-	isMechanicRole,
+	canUpdateWorkOrders,
+	getEffectiveCompanyRole,
 	isPlatformAdmin,
+	allowedRolesForModule,
 } from '../shared/rbac';
 import {
 	companyFleetParts,
 	filterPartIdsForAircraft,
 	partsForWorkOrderAircraft,
 } from '../shared/workOrderParts';
+import {
+	formatActivitySummaryLines,
+	formatActivityTimestamp,
+} from '../shared/activitySummaryFormat';
 
 const WO_STATUS_OPTIONS = [
 	{ value: 'open', label: 'Open' },
@@ -124,21 +131,61 @@ function priorityColor(priority) {
 	return 'default';
 }
 
-const actionBtnSx = {
-	borderRadius: 999,
-	textTransform: 'none',
-	fontWeight: 600,
-	px: 1.5,
-	py: 0.45,
-	minHeight: 34,
-	width: '100%',
-};
-
 function profileDisplayName(u) {
 	if (!u) return '';
 	const fn = (u.first_name || '').trim();
 	const ln = (u.last_name || '').trim();
 	return `${fn} ${ln}`.trim() || u.username || String(u.id);
+}
+
+function WorkOrderActivityLog({ activities, emptyMessage = 'No activity recorded yet.' }) {
+	const items = Array.isArray(activities) ? activities : [];
+	if (!items.length) {
+		return (
+			<Typography variant="body2" color="text.secondary">
+				{emptyMessage}
+			</Typography>
+		);
+	}
+	return (
+		<Stack spacing={1}>
+			{items.map((a) => {
+				const changeLines = formatActivitySummaryLines(a.summary);
+				return (
+					<Box
+						key={a.id ?? `${a.created_at}-${a.summary}`}
+						sx={{
+							pl: 1.25,
+							py: 0.75,
+							borderLeft: '2px solid',
+							borderColor: 'primary.light',
+						}}
+					>
+						<Typography variant="body2" sx={{ fontWeight: 700 }}>
+							{a.actor_display || 'System'}
+						</Typography>
+						<Typography variant="caption" color="text.secondary" display="block">
+							{formatActivityTimestamp(a.created_at)}
+							{a.event_type ? ` · ${statusLabel(a.event_type)}` : ''}
+						</Typography>
+						{changeLines.length > 0 ? (
+							<Stack spacing={0.5} sx={{ mt: 0.5 }}>
+								{changeLines.map((line) => (
+									<Typography key={line} variant="body2" sx={{ lineHeight: 1.45 }}>
+										{line}
+									</Typography>
+								))}
+							</Stack>
+						) : (
+							<Typography variant="body2" sx={{ mt: 0.5 }}>
+								{a.summary || '—'}
+							</Typography>
+						)}
+					</Box>
+				);
+			})}
+		</Stack>
+	);
 }
 
 export default function WorkOrders() {
@@ -147,9 +194,14 @@ export default function WorkOrders() {
 	const { state } = useAppContext();
 	const platformAdmin = isPlatformAdmin(state.user);
 	const superviseMaintenance = canSuperviseMaintenance(state);
-	const mechanicRole = isMechanicRole(state.user);
-	const canEditWorkOrders = superviseMaintenance || mechanicRole || platformAdmin;
+	const canUpdateWo = canUpdateWorkOrders(state);
+	const canAssignWorkOrders = superviseMaintenance || platformAdmin;
 	const canDeleteWo = canDeleteWorkOrders(state);
+	const canAccessMaintenance = useMemo(() => {
+		if (platformAdmin && !state.viewAsUser) return true;
+		const role = getEffectiveCompanyRole(state);
+		return allowedRolesForModule('maintenance').includes(role);
+	}, [state, platformAdmin]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [workOrders, setWorkOrders] = useState([]);
@@ -165,6 +217,8 @@ export default function WorkOrders() {
 	const [assignUserId, setAssignUserId] = useState('');
 	const [assignPriority, setAssignPriority] = useState('medium');
 	const [editOpen, setEditOpen] = useState(false);
+	const [viewOpen, setViewOpen] = useState(false);
+	const [viewTarget, setViewTarget] = useState(null);
 	const [editTargetId, setEditTargetId] = useState(null);
 	const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -331,6 +385,12 @@ export default function WorkOrders() {
 		});
 	}, [normalized, activeStatus, search, platformAdmin, companyFilter, aircraftFilterFromQuery]);
 
+	useEffect(() => {
+		if (!viewOpen || viewTarget?.id == null) return;
+		const fresh = normalized.find((w) => Number(w.id) === Number(viewTarget.id));
+		if (fresh) setViewTarget(fresh);
+	}, [normalized, viewOpen, viewTarget?.id]);
+
 	const statusCounts = useMemo(() => {
 		const counts = { all: normalized.length, open: 0, in_progress: 0, awaiting_parts: 0, closed: 0 };
 		normalized.forEach((wo) => {
@@ -390,17 +450,18 @@ export default function WorkOrders() {
 		}
 	};
 
-	const quickStatus = async (wo, status) => {
-		setError('');
-		try {
-			await updateWorkorder(wo.id, { status });
-			await load();
-		} catch (e) {
-			setError(e?.message || 'Failed to update work order status.');
-		}
+	const openViewDialog = (wo) => {
+		setViewTarget(wo);
+		setViewOpen(true);
+	};
+
+	const closeViewDialog = () => {
+		setViewOpen(false);
+		setViewTarget(null);
 	};
 
 	const openEditDialog = (wo) => {
+		if (!canUpdateWo) return;
 		const raw = workOrders.find((w) => Number(w.id) === Number(wo.id)) || wo;
 		setEditTargetId(raw.id);
 		setEditForm(buildEditFormFromWorkOrder(raw));
@@ -455,17 +516,19 @@ export default function WorkOrders() {
 		const woParam = searchParams.get('wo');
 		if (isLoading || !woParam || !workOrders.length) return;
 		const woId = Number(woParam);
-		const wo = workOrders.find((w) => Number(w.id) === woId);
+		const wo = normalized.find((w) => Number(w.id) === woId);
 		if (!wo) return;
-		if (searchParams.get('edit') === '1' && canEditWorkOrders) {
+		if (searchParams.get('edit') === '1' && canUpdateWo) {
 			openEditDialog(wo);
+		} else {
+			openViewDialog(wo);
 		}
 		const next = new URLSearchParams(searchParams);
 		next.delete('wo');
 		next.delete('edit');
 		setSearchParams(next, { replace: true });
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isLoading, workOrders, searchParams]);
+	}, [isLoading, normalized, searchParams]);
 
 	const quickDelete = async (wo) => {
 		if (!canDeleteWo) {
@@ -500,7 +563,6 @@ export default function WorkOrders() {
 			wo.id,
 			`"${String(wo.title || '').replace(/"/g, '""')}"`,
 			`"${String(wo.aircraftLabel || '').replace(/"/g, '""')}"`,
-			`"${String(wo.companyName || '').replace(/"/g, '""')}"`,
 			`"${String(wo.assigneeLabel || '').replace(/"/g, '""')}"`,
 			wo.status || '',
 			wo.priority || '',
@@ -513,7 +575,6 @@ export default function WorkOrders() {
 			'id',
 			'title',
 			'aircraft',
-			'company',
 			'assignee',
 			'status',
 			'priority',
@@ -618,85 +679,92 @@ export default function WorkOrders() {
 								) : filtered.length === 0 ? (
 									<Typography color="text.secondary">No work orders match the current filters.</Typography>
 								) : (
-									<TableContainer sx={{ maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
-										<Table size="small" sx={{ minWidth: 1300, width: 'max-content', maxWidth: 'none' }}>
+									<ScrollableTableContainer minWidth={1080}>
+										<Table size="small">
 											<TableHead>
 												<TableRow>
-													<TableCell>ID</TableCell>
-												<TableCell>Parts</TableCell>
-													<TableCell>Aircraft</TableCell>
-													<TableCell>Company</TableCell>
-													<TableCell>Assignee</TableCell>
-													<TableCell>Status</TableCell>
-													<TableCell>Due</TableCell>
-													<TableCell>Priority</TableCell>
-													<TableCell>Updated</TableCell>
-												<TableCell>Description</TableCell>
-													<TableCell>Discrepancies</TableCell>
-													<TableCell>Actions</TableCell>
+													<TableCell sx={{ minWidth: 56 }}>ID</TableCell>
+													<TableCell sx={{ minWidth: 160 }}>Parts</TableCell>
+													<TableCell sx={{ minWidth: 120 }}>Aircraft</TableCell>
+													<TableCell sx={{ minWidth: 120 }}>Assignee</TableCell>
+													<TableCell sx={{ minWidth: 100 }}>Status</TableCell>
+													<TableCell sx={{ minWidth: 100 }}>Due</TableCell>
+													<TableCell sx={{ minWidth: 100 }}>Priority</TableCell>
+													<TableCell sx={{ minWidth: 172 }}>Updated</TableCell>
+													<TableCell sx={{ minWidth: 260, maxWidth: 400 }}>Description</TableCell>
+													<TableCell sx={{ minWidth: 88 }}>Discrepancies</TableCell>
+													<TableCell sx={{ minWidth: 200 }} align="right">Actions</TableCell>
 												</TableRow>
 											</TableHead>
 											<TableBody>
 												{pagedRows.map((wo) => (
-													<TableRow key={wo.id}>
+													<TableRow
+														key={wo.id}
+														hover
+														sx={{ cursor: 'pointer' }}
+														onClick={() => openViewDialog(wo)}
+													>
 														<TableCell>{wo.id}</TableCell>
-														<TableCell sx={{ minWidth: 240, maxWidth: 320, whiteSpace: 'normal' }}>{wo.partsSummary || '—'}</TableCell>
-														<TableCell sx={{ minWidth: 160 }}>{wo.aircraftLabel}</TableCell>
-														<TableCell sx={{ minWidth: 150 }}>
-															<Chip size="small" variant="outlined" label={wo.companyName || '—'} />
-														</TableCell>
-														<TableCell sx={{ minWidth: 150 }}>
+														<TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{wo.partsSummary || '—'}</TableCell>
+														<TableCell>{wo.aircraftLabel}</TableCell>
+														<TableCell>
 															<Chip size="small" label={wo.assigneeLabel} />
 														</TableCell>
-														<TableCell sx={{ minWidth: 120 }}><Chip size="small" label={statusLabel(wo.status)} /></TableCell>
-														<TableCell sx={{ minWidth: 120 }}>{wo.due_by || '—'}</TableCell>
-														<TableCell sx={{ minWidth: 120 }}>
+														<TableCell><Chip size="small" label={statusLabel(wo.status)} /></TableCell>
+														<TableCell>{wo.due_by || '—'}</TableCell>
+														<TableCell>
 															<Chip size="small" color={priorityColor(wo.priority)} label={statusLabel(wo.priority || 'medium')} />
 														</TableCell>
-														<TableCell sx={{ minWidth: 190 }}>{wo.updated_at ? new Date(wo.updated_at).toLocaleString() : '—'}</TableCell>
-														<TableCell sx={{ minWidth: 300, maxWidth: 420, whiteSpace: 'normal' }}>{wo.description || wo.title || '—'}</TableCell>
-														<TableCell sx={{ minWidth: 100 }}>{wo.discrepancyCount}</TableCell>
-														<TableCell sx={{ minWidth: 420 }}>
-															<Box
-																sx={{
-																	display: 'grid',
-																	gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-																	gap: 1,
-																	alignItems: 'stretch',
-																}}
-															>
-																<Button size="small" variant="contained" sx={actionBtnSx} onClick={() => navigate(`/maintenance?wo=${wo.id}`)}>View</Button>
+														<TableCell sx={{ whiteSpace: 'nowrap' }}>
+															{wo.updated_at ? new Date(wo.updated_at).toLocaleString() : '—'}
+														</TableCell>
+														<TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+															{wo.description || wo.title || '—'}
+														</TableCell>
+														<TableCell>{wo.discrepancyCount}</TableCell>
+														<TableCell align="right" onClick={(e) => e.stopPropagation()}>
+															<Stack direction="row" spacing={0.75} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
 																<Button
 																	size="small"
-																	variant="contained"
-																	sx={actionBtnSx}
-																	disabled={!canEditWorkOrders}
-																	onClick={() => openEditDialog(wo)}
+																	variant="outlined"
+																	onClick={() => openViewDialog(wo)}
 																>
-																	Edit
+																	View
 																</Button>
-																{superviseMaintenance ? (
-																	<Button size="small" variant="contained" sx={actionBtnSx} onClick={() => openAssignDialog(wo)}>Assign/Reassign</Button>
+																{canUpdateWo ? (
+																	<Button
+																		size="small"
+																		variant="outlined"
+																		onClick={() => openEditDialog(wo)}
+																	>
+																		Edit
+																	</Button>
 																) : null}
-																{wo.status === 'open' ? (
-																	<Button size="small" variant="contained" color="success" sx={actionBtnSx} onClick={() => quickStatus(wo, 'in_progress')}>Start</Button>
-																) : null}
-																{wo.status === 'in_progress' ? (
-																	<Button size="small" variant="contained" color="warning" sx={actionBtnSx} onClick={() => quickStatus(wo, 'awaiting_parts')}>Awaiting Parts</Button>
-																) : null}
-																{wo.status !== 'closed' ? (
-																	<Button size="small" variant="contained" color="secondary" sx={actionBtnSx} onClick={() => quickStatus(wo, 'closed')}>Close</Button>
+																{canAssignWorkOrders ? (
+																	<Button
+																		size="small"
+																		variant="outlined"
+																		onClick={() => openAssignDialog(wo)}
+																	>
+																		Assign
+																	</Button>
 																) : null}
 																{canDeleteWo ? (
-																	<Button size="small" variant="contained" color="error" sx={actionBtnSx} onClick={() => quickDelete(wo)}>Delete</Button>
+																	<Button
+																		size="small"
+																		color="error"
+																		onClick={() => quickDelete(wo)}
+																	>
+																		Delete
+																	</Button>
 																) : null}
-															</Box>
+															</Stack>
 														</TableCell>
 													</TableRow>
 												))}
 											</TableBody>
 										</Table>
-									</TableContainer>
+									</ScrollableTableContainer>
 								)}
 								{filtered.length > 0 ? (
 									<Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2 }}>
@@ -730,6 +798,68 @@ export default function WorkOrders() {
 						</Card>
 					</Grid>
 				</Grid>
+
+				<Dialog open={viewOpen} onClose={closeViewDialog} fullWidth maxWidth="sm">
+					<DialogTitle>
+						Work order
+						{viewTarget?.id != null ? ` #${viewTarget.id}` : ''}
+					</DialogTitle>
+					<DialogContent dividers>
+						{viewTarget ? (
+							<Stack spacing={2}>
+								<Stack spacing={1.5}>
+									<Typography variant="body2"><strong>Title:</strong> {viewTarget.title || '—'}</Typography>
+									<Typography variant="body2"><strong>Aircraft:</strong> {viewTarget.aircraftLabel || '—'}</Typography>
+									<Typography variant="body2"><strong>Assignee:</strong> {viewTarget.assigneeLabel || '—'}</Typography>
+									<Typography variant="body2"><strong>Status:</strong> {statusLabel(viewTarget.status)}</Typography>
+									<Typography variant="body2"><strong>Priority:</strong> {statusLabel(viewTarget.priority || 'medium')}</Typography>
+									<Typography variant="body2"><strong>Due:</strong> {viewTarget.due_by || '—'}</Typography>
+									<Typography variant="body2">
+										<strong>Last updated:</strong>{' '}
+										{viewTarget.updated_at ? new Date(viewTarget.updated_at).toLocaleString() : '—'}
+									</Typography>
+									<Typography variant="body2"><strong>Parts:</strong> {viewTarget.partsSummary || '—'}</Typography>
+									<Typography variant="body2"><strong>Discrepancies:</strong> {viewTarget.discrepancyCount}</Typography>
+									<Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+										<strong>Description:</strong> {viewTarget.description || '—'}
+									</Typography>
+								</Stack>
+								<Divider />
+								<Box>
+									<Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+										Activity log
+									</Typography>
+									<WorkOrderActivityLog activities={viewTarget.activities} />
+								</Box>
+							</Stack>
+						) : null}
+					</DialogContent>
+					<DialogActions>
+						{canAccessMaintenance && viewTarget ? (
+							<Button
+								onClick={() => {
+									closeViewDialog();
+									navigate(`/maintenance?wo=${viewTarget.id}`);
+								}}
+							>
+								Open in maintenance
+							</Button>
+						) : null}
+						<Box sx={{ flexGrow: 1 }} />
+						{canUpdateWo && viewTarget ? (
+							<Button
+								variant="outlined"
+								onClick={() => {
+									closeViewDialog();
+									openEditDialog(viewTarget);
+								}}
+							>
+								Edit
+							</Button>
+						) : null}
+						<Button variant="contained" onClick={closeViewDialog}>Close</Button>
+					</DialogActions>
+				</Dialog>
 
 				<Dialog open={editOpen} onClose={closeEditDialog} fullWidth maxWidth="sm">
 					<DialogTitle>
@@ -874,6 +1004,13 @@ export default function WorkOrders() {
 								onChange={(e) => setEditForm((s) => ({ ...s, description: e.target.value }))}
 								fullWidth
 							/>
+							<Divider sx={{ my: 0.5 }} />
+							<Box>
+								<Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+									Activity log
+								</Typography>
+								<WorkOrderActivityLog activities={editTargetWo?.activities} />
+							</Box>
 						</Stack>
 					</DialogContent>
 					<DialogActions>

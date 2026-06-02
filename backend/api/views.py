@@ -1,4 +1,4 @@
-from django.db.models import Count, F, IntegerField, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Count, F, IntegerField, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -10,6 +10,7 @@ from django.utils.dateparse import parse_datetime, parse_date
 from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import generics, permissions, status, viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -100,6 +101,17 @@ def build_user_me_response(user):
     if mechanic_info:
         data["ap_certificate_number"] = mechanic_info.AP_certificate_number
     return data
+
+
+def django_validation_error_response(exc, headline="Request could not be completed."):
+    """Turn model ValidationError into a JSON 400 (avoids HTML 500 in production)."""
+    details = getattr(exc, "message_dict", None) or getattr(exc, "messages", None)
+    payload = {"error": headline}
+    if details:
+        payload["details"] = details
+    else:
+        payload["error"] = str(exc) or headline
+    return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
 
 def _is_platform_admin(user):
@@ -966,13 +978,9 @@ def company_flight_request_view(request):
             status="pending approval",
         )
     except ValidationError as exc:
-        details = getattr(exc, "message_dict", None) or getattr(exc, "messages", None)
-        return Response(
-            {
-                "error": "Flight request could not be submitted.",
-                "details": details or str(exc),
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+        return django_validation_error_response(
+            exc,
+            headline="Flight request could not be submitted.",
         )
 
     log_flight_created(flight, request)
@@ -1022,19 +1030,25 @@ def company_flight_dispatch_view(request, pk):
             )
 
     before = snapshot_flight(flight)
-    serializer = FlightSerializer(flight, data=data, partial=True)
-    serializer.is_valid(raise_exception=True)
-    inst = serializer.save()
-    new_status = data.get("status")
-    if new_status == "approved" and inst.dispatcher_id is None:
-        inst.dispatcher = request.user
-        inst.save(update_fields=["dispatcher"])
-    inst = Flight.objects.select_related(
-        "aircraft", "primary_pilot", "secondary_pilot", "company"
-    ).get(pk=inst.pk)
-    log_flight_updated(inst, before, snapshot_flight(inst), request)
-    out = flights_with_activities_queryset().get(pk=inst.pk)
-    return Response(FlightSerializer(out).data)
+    try:
+        serializer = FlightSerializer(flight, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        inst = serializer.save()
+        new_status = data.get("status")
+        if new_status == "approved" and inst.dispatcher_id is None:
+            inst.dispatcher = request.user
+            inst.save(update_fields=["dispatcher"])
+        inst = Flight.objects.select_related(
+            "aircraft", "primary_pilot", "secondary_pilot", "company"
+        ).get(pk=inst.pk)
+        log_flight_updated(inst, before, snapshot_flight(inst), request)
+        out = flights_with_activities_queryset().get(pk=inst.pk)
+        return Response(FlightSerializer(out).data)
+    except ValidationError as exc:
+        headline = "Flight could not be updated."
+        if data.get("status") == "approved":
+            headline = "Flight could not be approved."
+        return django_validation_error_response(exc, headline=headline)
 
 
 #endpoint for company's inventories
@@ -1118,15 +1132,70 @@ def company_role_view(request):
 
 
 
+INVENTORY_LIST_ORDERING = {
+    "newest": "-id",
+    "oldest": "id",
+    "part_number_asc": "part__part_number",
+    "part_number_desc": "-part__part_number",
+}
+
+
+class InventoryPartsPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+def _inventory_list_summary(qs):
+    """Aggregate stats for the current filtered inventory queryset."""
+    agg = qs.aggregate(
+        total_lines=Count("id"),
+        total_units=Coalesce(Sum("quantity"), 0),
+    )
+    low_stock = qs.filter(stock_alert__gt=0, quantity__lte=F("stock_alert")).count()
+    in_stock_lines = qs.filter(quantity__gt=0).count()
+    return {
+        "total_lines": agg["total_lines"] or 0,
+        "total_units_on_hand": int(agg["total_units"] or 0),
+        "low_stock_count": low_stock,
+        "parts_in_stock_count": in_stock_lines,
+    }
+
+
+def _apply_inventory_list_filters(request, qs):
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        qs = qs.filter(
+            Q(part__part_number__icontains=q)
+            | Q(part__name__icontains=q)
+            | Q(part__description__icontains=q)
+            | Q(shop_location__icontains=q)
+        )
+
+    status_filter = (request.GET.get("status") or "").strip()
+    if status_filter == "low_stock":
+        qs = qs.filter(stock_alert__gt=0, quantity__lte=F("stock_alert"))
+    elif status_filter == "in_stock":
+        qs = qs.filter(quantity__gt=0)
+    elif status_filter == "out_of_stock":
+        qs = qs.filter(quantity=0)
+
+    ordering_key = (request.GET.get("ordering") or "newest").strip()
+    order_by = INVENTORY_LIST_ORDERING.get(ordering_key, INVENTORY_LIST_ORDERING["newest"])
+    return qs.order_by(order_by, "id")
+
+
 class CompanyInventoryListView(generics.ListCreateAPIView):
     """
     List and create inventory records for the authenticated user's company.
+    Paginated; supports q, status, and ordering (newest, oldest, part number).
     """
 
     serializer_class = InventorySerializer
     queryset = InventoryPart.objects.select_related("inventory__company", "part")
     permission_classes = [IsAuthenticated, IsCompanyMember, HasCompanyRole]
     allowed_roles = ["owner", "manager", "mechanic"]
+    pagination_class = InventoryPartsPagination
 
     def _company_or_bad_request(self):
         """
@@ -1145,7 +1214,16 @@ class CompanyInventoryListView(generics.ListCreateAPIView):
         _company, err = self._company_or_bad_request()
         if err is not None:
             return err
-        return super().list(request, *args, **kwargs)
+        qs = _apply_inventory_list_filters(request, self.filter_queryset(self.get_queryset()))
+        summary = _inventory_list_summary(qs)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
+            response.data["summary"] = summary
+            return response
+        serializer = self.get_serializer(qs, many=True)
+        return Response({"results": serializer.data, "count": qs.count(), "summary": summary})
 
     def create(self, request, *args, **kwargs):
         _company, err = self._company_or_bad_request()
@@ -1176,7 +1254,6 @@ class CompanyInventoryListView(generics.ListCreateAPIView):
                     Subquery(tracked_count, output_field=IntegerField()), 0
                 )
             )
-            .order_by("part__part_number")
         )
 
     def perform_create(self, serializer):

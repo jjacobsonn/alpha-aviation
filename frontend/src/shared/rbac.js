@@ -6,6 +6,15 @@ export const ROLE_DEFAULT_ROUTES = {
   dispatcher: "/dispatcher-dashboard",
 };
 
+/** Sidebar menu id for each role's home module (shown first in nav). */
+export const ROLE_HOME_MENU_IDS = {
+  owner: "management",
+  manager: "management",
+  mechanic: "maintenance",
+  pilot: "pilot-dashboard",
+  dispatcher: "dispatcher-dashboard",
+};
+
 // RBAC MVP matrix source for frontend route/menu access.
 export const MODULE_ALLOWED_ROLES = {
   fleet: ["owner", "manager", "dispatcher", "mechanic"],
@@ -16,8 +25,8 @@ export const MODULE_ALLOWED_ROLES = {
   // Mechanics: ops modules only — no Pilot / Dispatcher dashboards.
   // Pilots: no full dispatch board (requests/status live on Pilot page).
   dispatcherDashboard: ["owner", "manager", "dispatcher"],
-  // Pilots: own dashboard + schedule only — no Fleet/Parts/Maintenance/WO sidebar noise (MVP).
-  pilotDashboard: ["owner", "manager", "dispatcher", "pilot"],
+  // Owner/manager can open pilot dashboard for support; pilots only otherwise.
+  pilotDashboard: ["owner", "manager", "pilot"],
   calendar: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
   serviceHistory: ["owner", "manager", "dispatcher", "mechanic"],
   componentHistory: ["owner", "manager", "mechanic"],
@@ -69,10 +78,36 @@ export function isMechanicRole(user) {
   return r === "mechanic";
 }
 
+/** Update WO progress/status (mechanic, dispatcher, supervisors). */
+export function canUpdateWorkOrders(context) {
+  const viewAs = context?.viewAsUser;
+  const user = context?.user ?? context;
+  if (isPlatformAdmin(user) && !viewAs) return true;
+  const r = getEffectiveCompanyRole(context);
+  return r === "owner" || r === "manager" || r === "mechanic" || r === "dispatcher";
+}
+
 export function getDefaultRouteForUser(user) {
   if (isPlatformAdmin(user)) return "/site-admin";
   const role = user?.company_role || user?.role;
   return ROLE_DEFAULT_ROUTES[role] || "/login";
+}
+
+/** Menu item id to pin at the top of the sidebar for this role. */
+export function getRoleHomeMenuId(userOrContext) {
+  const role = getEffectiveCompanyRole(userOrContext);
+  return ROLE_HOME_MENU_IDS[role] || null;
+}
+
+/** Put the role's home module first; preserve relative order of everything else. */
+export function sortMenuItemsForRole(items, userOrContext) {
+  const homeId = getRoleHomeMenuId(userOrContext);
+  if (!homeId || !Array.isArray(items)) return items;
+  return [...items].sort((a, b) => {
+    if (a.id === homeId) return -1;
+    if (b.id === homeId) return 1;
+    return 0;
+  });
 }
 
 export function hasFrontendLanding(user) {

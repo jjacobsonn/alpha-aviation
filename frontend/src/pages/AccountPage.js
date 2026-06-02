@@ -358,24 +358,6 @@ export default function AccountPage() {
         </Card>
       ) : null}
 
-      <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: "action.hover" }}>
-        <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-            Notifications & preferences
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {platformAccount
-              ? "Platform operators: backlog items will add audit-friendly alerts here. Routine tenant flight and maintenance workflows continue to surface on each company’s dashboards."
-              : companyRole === "pilot"
-                ? "Pilot: request and assignment status stays on Pilot and Calendar. Later phases add email/app toggles plus certification reminders."
-                : companyRole === "dispatcher" || companyRole === "owner" || companyRole === "manager"
-                  ? "Dispatch and approval activity remains on Dispatcher and Fleet-related views; notification subscriptions are backlog."
-                  : companyRole === "mechanic"
-                    ? "Work orders and maintenance lists stay under Maintenance / Work Orders; optional alerts remain on the roadmap."
-                    : "Phase&nbsp;2 backlog covers in-app alerts, email subscriptions, certification reminders (1.3.2), and richer flight-status notifications alongside your dashboards."}
-          </Typography>
-        </CardContent>
-      </Card>
     </Box>
   );
 }

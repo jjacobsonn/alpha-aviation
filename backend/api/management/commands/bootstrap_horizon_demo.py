@@ -216,7 +216,7 @@ WORK_ORDER_PART_ASSIGNMENTS = {
 FLIGHT_SPECS = [
     ("HF101", "N46HF", "KBFI", "KPDX", 2, 1, "charter", "commercial", "scheduled"),
     ("HF102", "N350HF", "KPAE", "KBOI", 3, 1, "charter", "airline", "approved"),
-    ("HF103", "N350HF", "KBOI", "KPAE", 4, 2, "positioning", "airline", "pending approval"),
+    ("HF103", "N350HF", "KBOI", "KPAE", 4, 3, "positioning", "airline", "pending approval"),
     ("HF201", "N28HF", "KBFI", "KBFI", 1, 0, "training", "private", "approved"),
     ("HF202", "N172HF", "KBFI", "KUIL", 1, 0, "training", "private", "pending approval"),
     ("HF203", "N28HF", "KBFI", "KTIW", 5, 0, "training", "private", "approved"),

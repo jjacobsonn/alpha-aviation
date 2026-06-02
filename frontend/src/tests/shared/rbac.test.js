@@ -1,11 +1,15 @@
 import {
+  allowedRolesForModule,
   canDeleteWorkOrders,
   canEditServiceHistory,
   canSuperviseMaintenance,
+  canUpdateWorkOrders,
   getDefaultRouteForUser,
   getEffectiveCompanyRole,
+  getRoleHomeMenuId,
   hasFrontendLanding,
   isPlatformAdmin,
+  sortMenuItemsForRole,
 } from "../../shared/rbac";
 
 describe("RBAC role routing", () => {
@@ -60,5 +64,34 @@ describe("RBAC role routing", () => {
         viewAsUser: { role: "mechanic" },
       })
     ).toBe(false);
+  });
+
+  it("allows maintenance roles to update work orders", () => {
+    expect(canUpdateWorkOrders({ user: { company_role: "mechanic" } })).toBe(true);
+    expect(canUpdateWorkOrders({ user: { company_role: "dispatcher" } })).toBe(true);
+    expect(canUpdateWorkOrders({ user: { company_role: "manager" } })).toBe(true);
+    expect(canUpdateWorkOrders({ user: { company_role: "pilot" } })).toBe(false);
+  });
+
+  it("pins the role home menu item first", () => {
+    expect(getRoleHomeMenuId({ user: { company_role: "dispatcher" } })).toBe(
+      "dispatcher-dashboard"
+    );
+    const items = [
+      { id: "fleet", title: "Fleet" },
+      { id: "dispatcher-dashboard", title: "Dispatcher" },
+      { id: "calendar", title: "Calendar" },
+    ];
+    const sorted = sortMenuItemsForRole(items, { user: { company_role: "dispatcher" } });
+    expect(sorted.map((i) => i.id)).toEqual([
+      "dispatcher-dashboard",
+      "fleet",
+      "calendar",
+    ]);
+  });
+
+  it("does not allow dispatchers on pilot dashboard", () => {
+    expect(allowedRolesForModule("pilotDashboard")).not.toContain("dispatcher");
+    expect(allowedRolesForModule("pilotDashboard")).toContain("pilot");
   });
 });

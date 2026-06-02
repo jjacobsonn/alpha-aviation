@@ -648,8 +648,9 @@ class InventorySerializer(serializers.ModelSerializer):
 
     company = CompanySerializer(source="inventory.company", read_only=True)
     part = PartSerializer(read_only=True)
+    inventory = serializers.PrimaryKeyRelatedField(read_only=True)
     part_id = serializers.PrimaryKeyRelatedField(
-        source="part", queryset=Part.objects.all(), write_only=True, required=False
+        source="part", queryset=Part.objects.all(), write_only=True, required=True
     )
     # Read/write `in_stock` maps to model `quantity` for API compatibility.
     in_stock = serializers.IntegerField(source="quantity", required=False)

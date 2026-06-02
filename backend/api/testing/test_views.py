@@ -343,7 +343,58 @@ class TestCompanyFunctionViews:
         response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert isinstance(response.data, list)
+        assert isinstance(response.data.get("results"), list)
+        assert "count" in response.data
+
+    def test_company_inventory_detailed_pagination_and_ordering(
+        self, authenticated_client, sample_company, sample_aircraft, sample_user
+    ):
+        from api.models import Inventory, InventoryPart, Part
+
+        inv = Inventory.objects.get_or_create(company=sample_company)[0]
+        for i in range(3):
+            p = Part.objects.create(
+                aircraft=sample_aircraft,
+                part_number=f"PAG-{i}",
+                name=f"Paginated Part {i}",
+            )
+            InventoryPart.objects.create(
+                inventory=inv,
+                part=p,
+                quantity=i + 1,
+                stock_alert=1,
+            )
+        url = reverse("company_inventories_detailed")
+        newest = authenticated_client.get(url, {"page_size": 2, "ordering": "newest"})
+        assert newest.status_code == status.HTTP_200_OK
+        assert newest.data["count"] >= 3
+        assert len(newest.data["results"]) == 2
+        assert "summary" in newest.data
+        assert newest.data["results"][0]["id"] >= newest.data["results"][1]["id"]
+
+        oldest = authenticated_client.get(url, {"page_size": 2, "page": 2, "ordering": "oldest"})
+        assert oldest.status_code == status.HTTP_200_OK
+        assert len(oldest.data["results"]) >= 1
+
+    def test_company_inventory_detailed_create_without_inventory_field(
+        self, authenticated_client, sample_part
+    ):
+        """Inventory bucket is assigned server-side; clients send part_id only."""
+        from api.models import InventoryPart
+
+        url = reverse("company_inventories_detailed")
+        response = authenticated_client.post(
+            url,
+            {
+                "part_id": sample_part.id,
+                "in_stock": 3,
+                "stock_alert": 1,
+                "shop_location": "Shelf B",
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        assert InventoryPart.objects.filter(part_id=sample_part.id, quantity=3).exists()
 
 
 @pytest.mark.django_db
@@ -663,6 +714,140 @@ class TestCompanyFlightRequest:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "error" in response.data
+
+    def test_dispatcher_approve_with_open_work_order_returns_400(
+        self,
+        api_client,
+        sample_company,
+        sample_aircraft,
+        sample_pilot_profile,
+        sample_pilot,
+        sample_work_order,
+        django_user_model,
+    ):
+        sample_work_order.status = "open"
+        sample_work_order.save(update_fields=["status"])
+
+        from api.models import Flight
+
+        departure = timezone.now() + timedelta(days=3)
+        arrival = departure + timedelta(hours=2)
+        flight = Flight.objects.create(
+            company=sample_company,
+            aircraft=sample_aircraft,
+            origin="KBFI",
+            destination="KPAE",
+            departure_time=departure,
+            arrival_time=arrival,
+            primary_pilot=sample_pilot_profile,
+            status="pending approval",
+        )
+
+        dispatcher = django_user_model.objects.create_user(
+            username="dispatch.approve.test",
+            password="pass",
+            company=sample_company,
+            company_role="dispatcher",
+        )
+        api_client.force_authenticate(user=dispatcher)
+        url = reverse("company-flight-dispatch", kwargs={"pk": flight.id})
+        response = api_client.patch(url, {"status": "approved"}, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.data
+        assert "error" in response.data
+        flight.refresh_from_db()
+        assert flight.status == "pending approval"
+
+    def test_dispatcher_can_approve_when_aircraft_is_clear(
+        self,
+        api_client,
+        sample_company,
+        sample_aircraft,
+        sample_pilot_profile,
+        sample_pilot,
+        sample_work_order,
+        django_user_model,
+    ):
+        sample_work_order.status = "closed"
+        sample_work_order.save(update_fields=["status"])
+
+        from api.models import Flight
+
+        departure = timezone.now() + timedelta(days=3)
+        arrival = departure + timedelta(hours=2)
+        flight = Flight.objects.create(
+            company=sample_company,
+            aircraft=sample_aircraft,
+            origin="KBFI",
+            destination="KPAE",
+            departure_time=departure,
+            arrival_time=arrival,
+            primary_pilot=sample_pilot_profile,
+            status="pending approval",
+        )
+
+        dispatcher = django_user_model.objects.create_user(
+            username="dispatch.approve.ok",
+            password="pass",
+            company=sample_company,
+            company_role="dispatcher",
+        )
+        api_client.force_authenticate(user=dispatcher)
+        url = reverse("company-flight-dispatch", kwargs={"pk": flight.id})
+        response = api_client.patch(url, {"status": "approved"}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert response.data["status"] == "approved"
+
+    def test_dispatcher_can_approve_when_secondary_pilot_has_lower_certificate(
+        self,
+        api_client,
+        sample_company,
+        sample_aircraft,
+        sample_pilot_profile,
+        sample_pilot_profile_secondary,
+        sample_pilot,
+        sample_pilot_secondary,
+        sample_work_order,
+        django_user_model,
+    ):
+        """Primary must meet pilot_requirement; SIC cert level is not enforced."""
+        sample_work_order.status = "closed"
+        sample_work_order.save(update_fields=["status"])
+        sample_pilot.pilot_certificate = "commercial"
+        sample_pilot.save(update_fields=["pilot_certificate"])
+        sample_pilot_secondary.pilot_certificate = "student"
+        sample_pilot_secondary.save(update_fields=["pilot_certificate"])
+
+        from api.models import Flight
+
+        departure = timezone.now() + timedelta(days=4)
+        arrival = departure + timedelta(hours=2)
+        flight = Flight.objects.create(
+            company=sample_company,
+            aircraft=sample_aircraft,
+            origin="KBFI",
+            destination="KPAE",
+            departure_time=departure,
+            arrival_time=arrival,
+            primary_pilot=sample_pilot_profile,
+            secondary_pilot=sample_pilot_profile_secondary,
+            pilot_requirement="commercial",
+            status="pending approval",
+        )
+
+        dispatcher = django_user_model.objects.create_user(
+            username="dispatch.sic.test",
+            password="pass",
+            company=sample_company,
+            company_role="dispatcher",
+        )
+        api_client.force_authenticate(user=dispatcher)
+        url = reverse("company-flight-dispatch", kwargs={"pk": flight.id})
+        response = api_client.patch(url, {"status": "approved"}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert response.data["status"] == "approved"
 
 
 @pytest.mark.django_db

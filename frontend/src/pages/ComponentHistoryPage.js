@@ -44,7 +44,7 @@ import {
   downloadComponentHistoryExport,
   fetchCompanies,
   fetchCompanyAircrafts,
-  fetchCompanyInventoriesDetailed,
+  fetchParts,
   fetchComponentHistoryDetail,
   fetchComponentHistorySearch,
 } from "../shared/Api";
@@ -359,22 +359,18 @@ export default function ComponentHistoryPage() {
   }, [statsRefreshKey]);
 
   useEffect(() => {
-    fetchCompanyInventoriesDetailed()
+    fetchParts()
       .then((data) => {
-        const byId = new Map();
-        (Array.isArray(data) ? data : []).forEach((inv) => {
-          const p = inv?.part;
-          if (p?.id && !byId.has(p.id)) {
-            byId.set(p.id, {
+        const list = Array.isArray(data) ? data : [];
+        setCatalogParts(
+          list
+            .map((p) => ({
               id: p.id,
               part_number: p.part_number || "",
               name: p.name || "",
-            });
-          }
-        });
-        setCatalogParts([...byId.values()].sort((a, b) =>
-          a.part_number.localeCompare(b.part_number)
-        ));
+            }))
+            .sort((a, b) => a.part_number.localeCompare(b.part_number))
+        );
       })
       .catch(() => setCatalogParts([]));
   }, [statsRefreshKey]);
@@ -825,16 +821,24 @@ export default function ComponentHistoryPage() {
                             />
                           </Stack>
                         </Box>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<DownloadIcon />}
-                          onClick={handleExport}
-                          disabled={exporting}
-                          sx={{ alignSelf: "flex-start", flexShrink: 0 }}
-                        >
-                          Export CSV
-                        </Button>
+                        <Stack direction="row" spacing={1} sx={{ alignSelf: "flex-start", flexShrink: 0 }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setSelectedId(null)}
+                          >
+                            Close
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<DownloadIcon />}
+                            onClick={handleExport}
+                            disabled={exporting}
+                          >
+                            Export CSV
+                          </Button>
+                        </Stack>
                       </Stack>
 
                       <LifeLimitSummary component={header} />

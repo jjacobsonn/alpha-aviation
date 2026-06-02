@@ -364,16 +364,16 @@ export default function DispatcherDashboard() {
               ) : pending.length === 0 ? (
                 <Typography color="text.secondary">No requests awaiting approval.</Typography>
               ) : (
-                <ScrollableTableContainer minWidth={1180}>
+                <ScrollableTableContainer minWidth={860} fill>
                 <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ minWidth: 110 }}>Status</TableCell>
-                      <TableCell sx={{ minWidth: 90 }}>Flight #</TableCell>
-                      <TableCell sx={{ minWidth: 120 }}>Aircraft</TableCell>
-                      <TableCell sx={{ minWidth: 360 }}>Route</TableCell>
-                      <TableCell sx={{ minWidth: 160 }}>Departure</TableCell>
-                      <TableCell align="right" sx={{ minWidth: 200 }}>Actions</TableCell>
+                      <TableCell sx={{ width: '12%' }}>Status</TableCell>
+                      <TableCell sx={{ width: '10%' }}>Flight #</TableCell>
+                      <TableCell sx={{ width: '18%' }}>Aircraft</TableCell>
+                      <TableCell sx={{ width: '16%' }}>Route</TableCell>
+                      <TableCell sx={{ width: '22%' }}>Departure</TableCell>
+                      <TableCell align="right" sx={{ width: '22%' }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -387,11 +387,11 @@ export default function DispatcherDashboard() {
                         <TableCell>
                           {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
                         </TableCell>
-                        <TableCell sx={{ minWidth: 360, whiteSpace: "nowrap" }}>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.departure_time)}</TableCell>
-                        <TableCell align="right" sx={{ minWidth: 200 }} onClick={(e) => e.stopPropagation()}>
+                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                           <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="nowrap">
                             <Button
                               size="small"
@@ -459,17 +459,17 @@ export default function DispatcherDashboard() {
                   </Box>
                 </Stack>
               </Stack>
-              <ScrollableTableContainer minWidth={1320}>
+              <ScrollableTableContainer minWidth={980} fill>
               <Table size="small" sx={{ '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ minWidth: 110 }}>Status</TableCell>
-                    <TableCell sx={{ minWidth: 90 }}>Flight #</TableCell>
-                    <TableCell sx={{ minWidth: 120 }}>Aircraft</TableCell>
-                    <TableCell sx={{ minWidth: 360 }}>Route</TableCell>
-                    <TableCell sx={{ minWidth: 160 }}>Departure</TableCell>
-                    <TableCell sx={{ minWidth: 160 }}>Arrival</TableCell>
-                    <TableCell align="right" sx={{ minWidth: 180 }}>Actions</TableCell>
+                    <TableCell sx={{ width: '10%' }}>Status</TableCell>
+                    <TableCell sx={{ width: '9%' }}>Flight #</TableCell>
+                    <TableCell sx={{ width: '16%' }}>Aircraft</TableCell>
+                    <TableCell sx={{ width: '14%' }}>Route</TableCell>
+                    <TableCell sx={{ width: '18%' }}>Departure</TableCell>
+                    <TableCell sx={{ width: '18%' }}>Arrival</TableCell>
+                    <TableCell align="right" sx={{ width: '15%' }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -496,12 +496,12 @@ export default function DispatcherDashboard() {
                         <TableCell>
                           {f.aircraft_name || formatAircraftRef(f.aircraft) || "—"}
                         </TableCell>
-                        <TableCell sx={{ minWidth: 360, whiteSpace: "nowrap" }}>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
                           {(f.origin || "—") + " → " + (f.destination || "—")}
                         </TableCell>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.departure_time)}</TableCell>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDt(f.arrival_time)}</TableCell>
-                        <TableCell align="right" sx={{ minWidth: 180 }} onClick={(e) => e.stopPropagation()}>
+                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                           <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="nowrap">
                             <Button size="small" variant="outlined" onClick={() => openEdit(f)}>
                               Edit

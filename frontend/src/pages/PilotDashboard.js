@@ -44,6 +44,10 @@ import {
   updateDiscrepancy,
 } from "../shared/Api";
 import { formatAircraftRef } from "../shared/aircraftDisplay";
+import {
+  formatActivitySummaryLines,
+  formatActivityTimestamp,
+} from "../shared/activitySummaryFormat";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import { useAppContext } from "../context/AppContext";
 import { isPlatformAdmin } from "../shared/rbac";
@@ -142,12 +146,7 @@ function toId(v) {
 }
 
 function formatEditedAt(value) {
-  if (!value) return "";
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return String(value);
-  }
+  return formatActivityTimestamp(value);
 }
 
 function refIdString(ref) {
@@ -195,7 +194,9 @@ function PilotEditActivityList({ activities, emptyMessage }) {
   }
   return (
     <Stack spacing={1}>
-      {items.map((a) => (
+      {items.map((a) => {
+        const changeLines = formatActivitySummaryLines(a.summary);
+        return (
         <Box
           key={a.id ?? `${a.created_at}-${a.summary}`}
           sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}
@@ -206,11 +207,22 @@ function PilotEditActivityList({ activities, emptyMessage }) {
           <Typography variant="caption" color="text.secondary" display="block">
             {formatEditedAt(a.created_at)}
           </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            {a.summary || "—"}
-          </Typography>
+          {changeLines.length > 0 ? (
+            <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+              {changeLines.map((line) => (
+                <Typography key={line} variant="body2" sx={{ lineHeight: 1.45 }}>
+                  {line}
+                </Typography>
+              ))}
+            </Stack>
+          ) : (
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              {a.summary || "—"}
+            </Typography>
+          )}
         </Box>
-      ))}
+        );
+      })}
     </Stack>
   );
 }

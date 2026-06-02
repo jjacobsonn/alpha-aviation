@@ -14,21 +14,30 @@ jest.mock('../../context/AppContext', () => ({
 }));
 
 jest.mock('../../shared/Api', () => ({
-	fetchCompanyInventoriesDetailed: jest.fn().mockResolvedValue([
-		{
-			id: 10,
-			in_stock: 5,
-			stock_alert: 2,
-			shop_location: 'Shelf A',
-			part: {
-				id: 1,
-				part_number: 'PN-100',
-				name: 'Test Part',
-				description: 'Desc',
+	fetchCompanyInventoriesDetailed: jest.fn().mockResolvedValue({
+		count: 1,
+		results: [
+			{
+				id: 10,
+				in_stock: 5,
+				stock_alert: 2,
+				shop_location: 'Shelf A',
+				part: {
+					id: 1,
+					part_number: 'PN-100',
+					name: 'Test Part',
+					description: 'Desc',
+				},
+				tracked_units_count: 0,
 			},
-			tracked_units_count: 0,
+		],
+		summary: {
+			total_lines: 1,
+			low_stock_count: 0,
+			parts_in_stock_count: 1,
+			total_units_on_hand: 5,
 		},
-	]),
+	}),
 	fetchCompanyWorkorders: jest.fn().mockResolvedValue([]),
 	fetchCompanyAircrafts: jest.fn().mockResolvedValue([]),
 	deleteInventory: jest.fn(),
@@ -38,17 +47,13 @@ jest.mock('../../shared/Api', () => ({
 	updatePart: jest.fn(),
 }));
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import PartsPage from '../../pages/PartsPage';
-import * as Api from '../../shared/Api';
-
-jest.mock('../../shared/Api', () => ({
-	fetchCompanyInventoriesDetailed: jest.fn(),
-	fetchCompanyWorkorders: jest.fn(),
-	updateInventory: jest.fn(),
-	deleteInventory: jest.fn(),
-	updatePart: jest.fn(),
-}));
+import {
+	fetchCompanyAircrafts,
+	fetchCompanyInventoriesDetailed,
+	fetchCompanyWorkorders,
+} from '../../shared/Api';
 
 jest.mock('@mui/material', () => {
 	const actual = jest.requireActual('@mui/material');
@@ -59,8 +64,41 @@ jest.mock('@mui/material', () => {
 });
 
 describe('PartsPage', () => {
-	it('renders high-level page elements', () => {
+	beforeEach(() => {
+		fetchCompanyInventoriesDetailed.mockResolvedValue({
+			count: 1,
+			results: [
+				{
+					id: 10,
+					in_stock: 5,
+					stock_alert: 2,
+					shop_location: 'Shelf A',
+					part: {
+						id: 1,
+						part_number: 'PN-100',
+						name: 'Test Part',
+						description: 'Desc',
+					},
+					tracked_units_count: 0,
+				},
+			],
+			summary: {
+				total_lines: 1,
+				low_stock_count: 0,
+				parts_in_stock_count: 1,
+				total_units_on_hand: 5,
+			},
+		});
+		fetchCompanyWorkorders.mockResolvedValue([]);
+		fetchCompanyAircrafts.mockResolvedValue([]);
+	});
+
+	it('renders high-level page elements', async () => {
 		render(<PartsPage />);
+
+		await waitFor(() => {
+			expect(screen.getByText('PN-100')).toBeInTheDocument();
+		});
 
 		expect(screen.getByText('Parts in Stock')).toBeInTheDocument();
 		expect(screen.getByText('Low Stock Alert')).toBeInTheDocument();

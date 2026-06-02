@@ -4,6 +4,7 @@ Component history (Phase 2 — 3.3.2): P/N and S/N search, timeline, audit CSV e
 
 import csv
 from io import StringIO
+import re
 
 from django.db.models import Count, Q
 from django.http import HttpResponse
@@ -23,6 +24,16 @@ from .serializers import (
     InstalledComponentListSerializer,
 )
 from .views import get_request_company, _is_platform_admin
+
+
+def _safe_export_filename_part(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    # Keep header-safe filename tokens only.
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", text)
+    cleaned = cleaned.strip("-.")
+    return cleaned
 
 
 def _resolve_component_history_company(request):
@@ -224,9 +235,11 @@ def component_history_export(request, pk):
             ]
         )
 
-    filename = f"component-{component.part_number}"
-    if component.serial_number:
-        filename += f"-{component.serial_number}"
+    part_token = _safe_export_filename_part(component.part_number) or str(component.id)
+    filename = f"component-{part_token}"
+    serial_token = _safe_export_filename_part(component.serial_number)
+    if serial_token:
+        filename += f"-{serial_token}"
     filename += ".csv"
 
     response = HttpResponse(buffer.getvalue(), content_type="text/csv")

@@ -38,7 +38,9 @@ import { ACTION_TYPES } from "../context/AppContext";
 import {
   allowedRolesForModule,
   getDefaultRouteForUser,
+  getEffectiveCompanyRole,
   isPlatformAdmin,
+  sortMenuItemsForRole,
 } from "../shared/rbac";
 
 const drawerWidthExpanded = 260;
@@ -97,7 +99,7 @@ function NavigationDrawer() {
 
   const role = state.user?.role;
   const platformAdmin = isPlatformAdmin(state.user);
-  const effectiveRole = role;
+  const effectiveRole = getEffectiveCompanyRole(state);
 
   const allMenuItems = [
     {
@@ -131,6 +133,14 @@ function NavigationDrawer() {
       color: "#00695c",
       allowedRoles: ["manager"],
       to: "/admin/companies",
+    },
+    {
+      id: "dispatcher-dashboard",
+      title: "Dispatcher",
+      icon: <DashboardIcon />,
+      color: "#00897b",
+      allowedRoles: allowedRolesForModule("dispatcherDashboard"),
+      to: "/dispatcher-dashboard",
     },
     {
       id: "fleet",
@@ -187,14 +197,6 @@ function NavigationDrawer() {
       to: "/pilot-dashboard",
     },
     {
-      id: "dispatcher-dashboard",
-      title: "Dispatcher",
-      icon: <DashboardIcon />,
-      color: "#00897b",
-      allowedRoles: allowedRolesForModule("dispatcherDashboard"),
-      to: "/dispatcher-dashboard",
-    },
-    {
       id: "calendar",
       title: "Calendar",
       icon: <CalendarMonthIcon />,
@@ -204,13 +206,16 @@ function NavigationDrawer() {
     },
   ];
 
-  const menuItems = allMenuItems.filter((item) => {
+  const menuItems = sortMenuItemsForRole(
+    allMenuItems.filter((item) => {
     if (item.onlyPlatformAdmin && !platformAdmin) return false;
     if (platformAdmin) return true;
     if (!item.allowedRoles || item.allowedRoles.length === 0) return true;
     if (!effectiveRole) return false;
     return item.allowedRoles.includes(effectiveRole);
-  });
+    }),
+    state
+  );
 
   return (
     <Drawer

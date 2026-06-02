@@ -56,6 +56,13 @@ export const PARTS_STATUS_FILTERS = [
 	{ value: 'out_of_stock', label: 'Out of stock' },
 ];
 
+export const PARTS_SORT_OPTIONS = [
+	{ value: 'newest', label: 'Newest first' },
+	{ value: 'oldest', label: 'Oldest first' },
+	{ value: 'part_number_asc', label: 'Part number (A–Z)' },
+	{ value: 'part_number_desc', label: 'Part number (Z–A)' },
+];
+
 export const TOOLS_STATUS_FILTERS = [
 	{ value: 'all', label: 'All' },
 	{ value: 'overdue', label: 'Overdue' },

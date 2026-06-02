@@ -87,6 +87,29 @@ describe('Login page', () => {
 		});
 	});
 
+	test('navigates to dispatcher dashboard for dispatcher role', async () => {
+		const user = userEvent.setup();
+		loginUser.mockResolvedValue({});
+		fetchCurrentUser.mockResolvedValue({
+			id: 3,
+			username: 'sarah.mitchell',
+			company_role: 'dispatcher',
+		});
+
+		renderLogin();
+
+		const usernameInput = screen.getByRole('textbox', { name: /username/i });
+		const passwordInput = Array.from(document.querySelectorAll('input')).find(inp => inp.type === 'password');
+		
+		await user.type(usernameInput, 'sarah.mitchell');
+		await user.type(passwordInput, 'password123');
+		await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+		await waitFor(() => {
+			expect(mockNavigate).toHaveBeenCalledWith('/dispatcher-dashboard', { replace: true });
+		});
+	});
+
 	test('displays error message on failed login', async () => {
 		const user = userEvent.setup();
 		loginUser.mockRejectedValue(new Error('Invalid credentials'));
@@ -108,7 +131,11 @@ describe('Login page', () => {
 		localStorage.setItem('accessToken', 'token');
 		localStorage.setItem('refreshToken', 'refresh');
 
-		renderLogin({ user: { role: 'owner', is_staff: false } });
+		renderLogin({
+			user: { role: 'owner', isStaff: false },
+			initialized: true,
+			isAuthenticated: true,
+		});
 
 		expect(mockNavigate).toHaveBeenCalledWith('/management', { replace: true });
 	});

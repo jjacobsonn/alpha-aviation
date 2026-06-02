@@ -184,7 +184,7 @@ FLIGHT_SPECS = [
     ("CAS102", "N55CAS", "KUAO", "KPDX", 3, 0, "training", "private", "approved"),
     ("CAS103", "N88CAS", "KPDX", "KPDX", 4, 1, "training", "commercial", "approved"),
     ("CAS104", "N88CAS", "KPDX", "KONP", 5, 1, "charter", "commercial", "scheduled"),
-    ("CAS105", "N55CAS", "KPDX", "KTTD", 7, 0, "charter", "commercial", "pending approval"),
+    ("CAS105", "N55CAS", "KPDX", "KTTD", 7, 0, "charter", "private", "pending approval"),
     ("CAS106", "N88CAS", "KONP", "KPDX", 8, 1, "charter", "commercial", "approved"),
 ]
 

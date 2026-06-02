@@ -836,7 +836,7 @@ class Flight(models.Model):
             errors["arrival_time"] = "Arrival time cannot be before departure time"
 
         # --- Pilot validation ---
-        def check_pilot(pilot, field_name):
+        def check_pilot(pilot, field_name, require_flight_cert):
             if not pilot:
                 return
 
@@ -855,16 +855,21 @@ class Flight(models.Model):
             if not pilot.pilot_info.medically_cleared_until or pilot.pilot_info.medically_cleared_until < self.arrival_time.date():
                 errors[field_name] = f"{pilot.first_name} is not medically cleared"
 
-            if not pilot.pilot_info.is_certified(self.pilot_requirement):
-                errors[field_name] = f"{pilot.first_name} is not certified for this flight"
+            if require_flight_cert and not pilot.pilot_info.is_certified(self.pilot_requirement):
+                held = pilot.pilot_info.pilot_certificate or "none"
+                errors[field_name] = (
+                    f"{pilot.first_name} is not certified for this flight "
+                    f"({self.pilot_requirement} required; holds {held})"
+                )
 
         # Prevent same pilot
         if self.primary_pilot and self.secondary_pilot:
             if self.primary_pilot == self.secondary_pilot:
                 errors["secondary_pilot"] = "Secondary pilot cannot be the same as primary"
 
-        check_pilot(self.primary_pilot, "primary_pilot")
-        check_pilot(self.secondary_pilot, "secondary_pilot")
+        check_pilot(self.primary_pilot, "primary_pilot", require_flight_cert=True)
+        # SIC may hold a lower certificate; primary must satisfy pilot_requirement.
+        check_pilot(self.secondary_pilot, "secondary_pilot", require_flight_cert=False)
 
         # Pilot requests stay pending until dispatch approves; only enforce
         # scheduling constraints (WO blocks, conflicts, hobbs) on real bookings.
