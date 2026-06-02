@@ -6,8 +6,15 @@ function makeItems(count) {
 }
 
 describe("useTablePagination", () => {
+  test("defaults to five rows per page", () => {
+    const { result } = renderHook(() => useTablePagination(makeItems(12));
+    expect(result.current.pageSize).toBe(5);
+    expect(result.current.pageCount).toBe(3);
+    expect(result.current.pagedItems).toHaveLength(5);
+  });
+
   test("returns a single page when items fit", () => {
-    const { result } = renderHook(() => useTablePagination(makeItems(5), { pageSize: 10 }));
+    const { result } = renderHook(() => useTablePagination(makeItems(5), { pageSize: 5 }));
     expect(result.current.total).toBe(5);
     expect(result.current.pageCount).toBe(1);
     expect(result.current.pagedItems).toHaveLength(5);

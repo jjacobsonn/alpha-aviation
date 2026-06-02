@@ -27,8 +27,14 @@ import { useEffect, useMemo, useState } from "react";
 import StatCard from "../components/StatCard";
 import ScrollableTableContainer from "../components/ScrollableTableContainer";
 import TablePaginationBar from "../components/TablePaginationBar";
+import SiteAdminSectionHeader from "../components/SiteAdminSectionHeader";
 import DeleteConfirmationDialog from "../components/DeleteConfirmationDialog";
 import { useTablePagination } from "../shared/useTablePagination";
+import {
+  siteAdminActionButtonsSx,
+  siteAdminDeleteButtonSx,
+  siteAdminTableSx,
+} from "../shared/siteAdminTableStyles";
 import { aircraftRefId, formatAircraftRef } from "../shared/aircraftDisplay";
 import {
   companyRoleLabel,
@@ -302,14 +308,14 @@ export default function SiteAdminPortal() {
     return map;
   }, [aircraft]);
 
-  const companiesPagination = useTablePagination(companies, { pageSize: 15 });
-  const usersPagination = useTablePagination(profiles, { pageSize: 15 });
-  const aircraftPagination = useTablePagination(aircraft, { pageSize: 15 });
-  const flightsPagination = useTablePagination(flights, { pageSize: 15 });
-  const partsPagination = useTablePagination(parts, { pageSize: 15 });
-  const inventoriesPagination = useTablePagination(inventories, { pageSize: 15 });
-  const workordersPagination = useTablePagination(workorders, { pageSize: 15 });
-  const discrepanciesPagination = useTablePagination(discrepancies, { pageSize: 15 });
+  const companiesPagination = useTablePagination(companies);
+  const usersPagination = useTablePagination(profiles);
+  const aircraftPagination = useTablePagination(aircraft);
+  const flightsPagination = useTablePagination(flights);
+  const partsPagination = useTablePagination(parts);
+  const inventoriesPagination = useTablePagination(inventories);
+  const workordersPagination = useTablePagination(workorders);
+  const discrepanciesPagination = useTablePagination(discrepancies);
 
   const handleCreateCompany = async () => {
     if (!newCompanyName.trim()) {
@@ -925,8 +931,8 @@ export default function SiteAdminPortal() {
               <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary", mb: 1 }}>
                 Companies
               </Typography>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Name</TableCell>
@@ -963,7 +969,7 @@ export default function SiteAdminPortal() {
                 pageSize={companiesPagination.pageSize}
                 total={companiesPagination.total}
                 onPageChange={companiesPagination.setPage}
-                onPageSizeChange={companiesPagination.setPageSize}
+                alignWithActions
               />
               <Stack direction="row" spacing={1}>
                 <Button
@@ -981,16 +987,16 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
           <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
-                  Users
-                </Typography>
-                <Button variant="contained" onClick={() => handleOpenCreateUser()} sx={{ textTransform: "none", fontWeight: 600 }}>
-                  Create User
-                </Button>
-              </Stack>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <SiteAdminSectionHeader
+                title="Users"
+                action={
+                  <Button variant="contained" onClick={() => handleOpenCreateUser()} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Create User
+                  </Button>
+                }
+              />
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Username</TableCell>
@@ -998,7 +1004,7 @@ export default function SiteAdminPortal() {
                     <TableCell>Email</TableCell>
                     <TableCell>Role</TableCell>
                     <TableCell>Company</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1011,13 +1017,15 @@ export default function SiteAdminPortal() {
                       <TableCell>
                         {companies.find((c) => Number(c.id) === Number(u.company))?.name || "—"}
                       </TableCell>
-                      <TableCell>
-                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditUser(u)}>
-                          Edit
-                        </Button>
-                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteUser(u.id)}>
-                          Delete
-                        </Button>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" sx={siteAdminActionButtonsSx} onClick={() => handleOpenEditUser(u)}>
+                            Edit
+                          </Button>
+                          <Button size="small" sx={siteAdminDeleteButtonSx} onClick={() => handleDeleteUser(u.id)}>
+                            Delete
+                          </Button>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1030,7 +1038,7 @@ export default function SiteAdminPortal() {
                 pageSize={usersPagination.pageSize}
                 total={usersPagination.total}
                 onPageChange={usersPagination.setPage}
-                onPageSizeChange={usersPagination.setPageSize}
+                alignWithActions
               />
             </Stack>
           </CardContent>
@@ -1039,16 +1047,16 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
           <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
-                  Aircraft
-                </Typography>
-                <Button variant="contained" onClick={() => setCreateAircraftOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
-                  Create Aircraft
-                </Button>
-              </Stack>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <SiteAdminSectionHeader
+                title="Aircraft"
+                action={
+                  <Button variant="contained" onClick={() => setCreateAircraftOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Create Aircraft
+                  </Button>
+                }
+              />
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Registration</TableCell>
@@ -1057,7 +1065,7 @@ export default function SiteAdminPortal() {
                     <TableCell>Engine</TableCell>
                     <TableCell>Year</TableCell>
                     <TableCell>Company</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1071,14 +1079,14 @@ export default function SiteAdminPortal() {
                       <TableCell>
                         {companies.find((c) => Number(c.id) === Number(a.company))?.name || "—"}
                       </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1}>
-                          <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditAircraft(a)}>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" sx={siteAdminActionButtonsSx} onClick={() => handleOpenEditAircraft(a)}>
                             Edit
                           </Button>
                           <Button
                             size="small"
-                            sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }}
+                            sx={siteAdminDeleteButtonSx}
                             onClick={() => handleDeleteAircraft(a.id)}
                           >
                             Delete
@@ -1096,7 +1104,7 @@ export default function SiteAdminPortal() {
                 pageSize={aircraftPagination.pageSize}
                 total={aircraftPagination.total}
                 onPageChange={aircraftPagination.setPage}
-                onPageSizeChange={aircraftPagination.setPageSize}
+                alignWithActions
               />
             </Stack>
           </CardContent>
@@ -1105,16 +1113,16 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
           <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
-                  Flights
-                </Typography>
-                <Button variant="contained" onClick={() => setCreateFlightOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
-                  Create Flight
-                </Button>
-              </Stack>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <SiteAdminSectionHeader
+                title="Flights"
+                action={
+                  <Button variant="contained" onClick={() => setCreateFlightOpen(true)} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Create Flight
+                  </Button>
+                }
+              />
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Flight #</TableCell>
@@ -1124,7 +1132,7 @@ export default function SiteAdminPortal() {
                     <TableCell>Destination</TableCell>
                     <TableCell>Departure</TableCell>
                     <TableCell>Approved</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1141,12 +1149,12 @@ export default function SiteAdminPortal() {
                       <TableCell>{f.destination || "—"}</TableCell>
                       <TableCell>{f.departure_time || "—"}</TableCell>
                       <TableCell>{f.approved ? "Yes" : "No"}</TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1}>
-                          <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditFlight(f)}>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" sx={siteAdminActionButtonsSx} onClick={() => handleOpenEditFlight(f)}>
                             Edit
                           </Button>
-                          <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteFlight(f.id)}>
+                          <Button size="small" sx={siteAdminDeleteButtonSx} onClick={() => handleDeleteFlight(f.id)}>
                             Delete
                           </Button>
                         </Stack>
@@ -1162,7 +1170,7 @@ export default function SiteAdminPortal() {
                 pageSize={flightsPagination.pageSize}
                 total={flightsPagination.total}
                 onPageChange={flightsPagination.setPage}
-                onPageSizeChange={flightsPagination.setPageSize}
+                alignWithActions
               />
             </Stack>
           </CardContent>
@@ -1171,22 +1179,22 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
           <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
-                  Parts
-                </Typography>
-                <Button variant="contained" onClick={handleOpenCreatePart} sx={{ textTransform: "none", fontWeight: 600 }}>
-                  Create Part
-                </Button>
-              </Stack>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <SiteAdminSectionHeader
+                title="Parts"
+                action={
+                  <Button variant="contained" onClick={handleOpenCreatePart} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Create Part
+                  </Button>
+                }
+              />
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>P/N</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell>Aircraft</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1197,9 +1205,11 @@ export default function SiteAdminPortal() {
                       <TableCell>
                         {p.aircraft_name || formatAircraftRef(p.aircraft, aircraftLookup)}
                       </TableCell>
-                      <TableCell>
-                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditPart(p)}>Edit</Button>
-                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeletePart(p.id)}>Delete</Button>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" sx={siteAdminActionButtonsSx} onClick={() => handleOpenEditPart(p)}>Edit</Button>
+                          <Button size="small" sx={siteAdminDeleteButtonSx} onClick={() => handleDeletePart(p.id)}>Delete</Button>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1212,7 +1222,7 @@ export default function SiteAdminPortal() {
                 pageSize={partsPagination.pageSize}
                 total={partsPagination.total}
                 onPageChange={partsPagination.setPage}
-                onPageSizeChange={partsPagination.setPageSize}
+                alignWithActions
               />
             </Stack>
           </CardContent>
@@ -1221,16 +1231,16 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
           <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
-                  Inventory Lines
-                </Typography>
-                <Button variant="contained" onClick={handleOpenCreateInventoryLine} sx={{ textTransform: "none", fontWeight: 600 }}>
-                  Add Inventory Line
-                </Button>
-              </Stack>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <SiteAdminSectionHeader
+                title="Inventory Lines"
+                action={
+                  <Button variant="contained" onClick={handleOpenCreateInventoryLine} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Add Inventory Line
+                  </Button>
+                }
+              />
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Company</TableCell>
@@ -1238,7 +1248,7 @@ export default function SiteAdminPortal() {
                     <TableCell>In Stock</TableCell>
                     <TableCell>Stock Alert</TableCell>
                     <TableCell>Location</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1249,9 +1259,11 @@ export default function SiteAdminPortal() {
                       <TableCell>{inv?.in_stock ?? "—"}</TableCell>
                       <TableCell>{inv?.stock_alert ?? "—"}</TableCell>
                       <TableCell>{inv?.shop_location || "—"}</TableCell>
-                      <TableCell>
-                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditInventoryLine(inv)}>Edit</Button>
-                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteInventoryLine(inv.id)}>Delete</Button>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" sx={siteAdminActionButtonsSx} onClick={() => handleOpenEditInventoryLine(inv)}>Edit</Button>
+                          <Button size="small" sx={siteAdminDeleteButtonSx} onClick={() => handleDeleteInventoryLine(inv.id)}>Delete</Button>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1264,7 +1276,7 @@ export default function SiteAdminPortal() {
                 pageSize={inventoriesPagination.pageSize}
                 total={inventoriesPagination.total}
                 onPageChange={inventoriesPagination.setPage}
-                onPageSizeChange={inventoriesPagination.setPageSize}
+                alignWithActions
               />
             </Stack>
           </CardContent>
@@ -1273,16 +1285,16 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, borderRadius: 2 }}>
           <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
-                  Work Orders
-                </Typography>
-                <Button variant="contained" onClick={handleOpenCreateWorkorder} sx={{ textTransform: "none", fontWeight: 600 }}>
-                  Create Work Order
-                </Button>
-              </Stack>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <SiteAdminSectionHeader
+                title="Work Orders"
+                action={
+                  <Button variant="contained" onClick={handleOpenCreateWorkorder} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Create Work Order
+                  </Button>
+                }
+              />
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>ID</TableCell>
@@ -1290,7 +1302,7 @@ export default function SiteAdminPortal() {
                     <TableCell>Status</TableCell>
                     <TableCell>Aircraft</TableCell>
                     <TableCell>Due</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1301,9 +1313,11 @@ export default function SiteAdminPortal() {
                       <TableCell>{wo.status || "—"}</TableCell>
                       <TableCell>{formatAircraftRef(wo.aircraft, aircraftLookup)}</TableCell>
                       <TableCell>{wo.due_by || "—"}</TableCell>
-                      <TableCell>
-                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
-                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteWorkorder(wo.id)}>Delete</Button>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" sx={siteAdminActionButtonsSx} onClick={() => handleOpenEditWorkorder(wo)}>Edit</Button>
+                          <Button size="small" sx={siteAdminDeleteButtonSx} onClick={() => handleDeleteWorkorder(wo.id)}>Delete</Button>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1316,7 +1330,7 @@ export default function SiteAdminPortal() {
                 pageSize={workordersPagination.pageSize}
                 total={workordersPagination.total}
                 onPageChange={workordersPagination.setPage}
-                onPageSizeChange={workordersPagination.setPageSize}
+                alignWithActions
               />
             </Stack>
           </CardContent>
@@ -1325,16 +1339,16 @@ export default function SiteAdminPortal() {
         <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", mt: 3, mb: 3, borderRadius: 2 }}>
           <CardContent sx={{ pb: 0 }}>
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
-                  Discrepancies
-                </Typography>
-                <Button variant="contained" onClick={handleOpenCreateDiscrepancy} sx={{ textTransform: "none", fontWeight: 600 }}>
-                  Create Discrepancy
-                </Button>
-              </Stack>
-              <ScrollableTableContainer minWidth={960}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+              <SiteAdminSectionHeader
+                title="Discrepancies"
+                action={
+                  <Button variant="contained" onClick={handleOpenCreateDiscrepancy} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Create Discrepancy
+                  </Button>
+                }
+              />
+              <ScrollableTableContainer fill minWidth={720}>
+                <Table size="small" sx={siteAdminTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>ID</TableCell>
@@ -1342,7 +1356,7 @@ export default function SiteAdminPortal() {
                     <TableCell>ATA</TableCell>
                     <TableCell>Aircraft</TableCell>
                     <TableCell>Reporter</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1355,9 +1369,11 @@ export default function SiteAdminPortal() {
                       <TableCell>
                         {resolvePersonDisplay(d.reporter, d.reporter_name) || "—"}
                       </TableCell>
-                      <TableCell>
-                        <Button size="small" sx={{ background: '#FF4C05', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
-                        <Button size="small" sx={{ background: '#D92B2B', borderRadius: '10px', color: 'white', margin: '1em', fontWeight: 700, boxShadow: 2 }} onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Button size="small" sx={siteAdminActionButtonsSx} onClick={() => handleOpenEditDiscrepancy(d)}>Edit</Button>
+                          <Button size="small" sx={siteAdminDeleteButtonSx} onClick={() => handleDeleteDiscrepancy(d.id)}>Delete</Button>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1370,7 +1386,7 @@ export default function SiteAdminPortal() {
                 pageSize={discrepanciesPagination.pageSize}
                 total={discrepanciesPagination.total}
                 onPageChange={discrepanciesPagination.setPage}
-                onPageSizeChange={discrepanciesPagination.setPageSize}
+                alignWithActions
               />
             </Stack>
           </CardContent>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
  * Client-side pagination for in-memory table data.
  * Resets to page 1 when the item list length changes.
  */
-export function useTablePagination(items, { pageSize: initialPageSize = 15, sortById = true } = {}) {
+export function useTablePagination(items, { pageSize: initialPageSize = 5, sortById = true } = {}) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
