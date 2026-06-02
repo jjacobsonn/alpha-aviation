@@ -153,7 +153,8 @@ class IsMechanicOrManager(BasePermission):
 class IsComponentHistoryReader(BasePermission):
     """
     Component history: read for owner/manager/mechanic; register (POST) for same roles
-    plus platform admins. Dispatchers are excluded (MVP matrix).
+    plus platform admins. PATCH (corrections) for owner/manager and platform admins.
+    Dispatchers are excluded (MVP matrix).
     """
 
     def has_permission(self, request, view):
@@ -161,9 +162,11 @@ class IsComponentHistoryReader(BasePermission):
         if not user or not user.is_authenticated:
             return False
         role = getattr(user, "company_role", None)
-        allowed = role in {"owner", "manager", "mechanic"} or _is_platform_admin(user)
+        read_allowed = role in {"owner", "manager", "mechanic"} or _is_platform_admin(user)
         if request.method in ("GET", "HEAD", "OPTIONS", "POST"):
-            return allowed
+            return read_allowed
+        if request.method in ("PATCH", "PUT"):
+            return role in {"owner", "manager"} or _is_platform_admin(user)
         return False
 
 

@@ -1046,6 +1046,15 @@ class TestComponentHistoryViews:
         assert csv_accept.status_code == status.HTTP_200_OK
         assert "text/csv" in csv_accept["Content-Type"]
 
+        patch_resp = authenticated_client.patch(
+            detail_url,
+            {"location": "Hangar audit test"},
+            format="json",
+        )
+        assert patch_resp.status_code == status.HTTP_200_OK
+        assert patch_resp.data["location"] == "Hangar audit test"
+        assert len(patch_resp.data.get("activities", [])) >= 1
+
 
 @pytest.mark.django_db
 class TestLaborEntries:

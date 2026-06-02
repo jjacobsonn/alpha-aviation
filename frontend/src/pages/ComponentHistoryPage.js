@@ -32,6 +32,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
+import EditIcon from "@mui/icons-material/Edit";
 import HistoryIcon from "@mui/icons-material/History";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
@@ -47,10 +48,12 @@ import {
   fetchParts,
   fetchComponentHistoryDetail,
   fetchComponentHistorySearch,
+  updateTrackedComponent,
+  updateComponentHistoryEvent,
 } from "../shared/Api";
 import useDebouncedValue from "../shared/useDebouncedValue";
 import { useAppContext } from "../context/AppContext";
-import { isPlatformAdmin } from "../shared/rbac";
+import { canEditComponentHistory, isPlatformAdmin } from "../shared/rbac";
 
 const TYPE_FILTERS = [
   { value: "all", label: "All types" },
@@ -95,6 +98,7 @@ const emptyRegisterForm = {
   limit_type: "hours",
   limit_value: "",
   used_value: "",
+  limit_due_date: "",
   installed_at: todayIsoDate(),
   initial_event_summary: "",
   notes: "",
@@ -121,60 +125,145 @@ function StatCard({ title, value, icon, color, loading }) {
   );
 }
 
-function ComponentTimeline({ events }) {
-  if (!events?.length) {
+function toDatetimeLocalValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocalValue(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function ComponentTimeline({ events, activities, canEdit, onEditEvent }) {
+  const items = useMemo(() => {
+    const rows = [];
+    (events || []).forEach((ev) => {
+      rows.push({ kind: "event", id: `ev-${ev.id}`, at: ev.occurred_at, data: ev });
+    });
+    (activities || []).forEach((act) => {
+      rows.push({ kind: "activity", id: `act-${act.id}`, at: act.created_at, data: act });
+    });
+    return rows.sort((a, b) => new Date(b.at) - new Date(a.at));
+  }, [events, activities]);
+
+  if (!items.length) {
     return (
       <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
         No events recorded yet.
       </Typography>
     );
   }
+
   return (
     <Stack spacing={1.5}>
-      {events.map((ev) => (
-        <Box
-          key={ev.id}
-          sx={{
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: "background.paper",
-            border: "1px solid",
-            borderColor: "divider",
-          }}
-        >
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 0.5 }}>
-            <Chip size="small" label={eventTypeLabel(ev.event_type)} color="primary" variant="outlined" />
-            <Typography variant="caption" color="text.secondary">
-              {formatDt(ev.occurred_at)}
-              {ev.actor_name ? ` · ${ev.actor_name}` : ""}
+      {items.map((item) => {
+        if (item.kind === "activity") {
+          const act = item.data;
+          return (
+            <Box
+              key={item.id}
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: "grey.50",
+                border: "1px dashed",
+                borderColor: "divider",
+              }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 0.5 }}>
+                <Chip size="small" label="Audit" variant="outlined" />
+                <Typography variant="caption" color="text.secondary">
+                  {formatDt(act.created_at)}
+                  {act.actor_name ? ` · ${act.actor_name}` : ""}
+                </Typography>
+              </Stack>
+              <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
+                {act.summary}
+              </Typography>
+            </Box>
+          );
+        }
+
+        const ev = item.data;
+        return (
+          <Box
+            key={item.id}
+            sx={{
+              p: 1.5,
+              borderRadius: 2,
+              bgcolor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              flexWrap="wrap"
+              justifyContent="space-between"
+              sx={{ mb: 0.5 }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                <Chip
+                  size="small"
+                  label={eventTypeLabel(ev.event_type)}
+                  color="primary"
+                  variant="outlined"
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {formatDt(ev.occurred_at)}
+                  {ev.actor_name ? ` · ${ev.actor_name}` : ""}
+                </Typography>
+              </Stack>
+              {canEdit ? (
+                <Button
+                  size="small"
+                  startIcon={<EditIcon />}
+                  onClick={() => onEditEvent(ev)}
+                  sx={{ textTransform: "none" }}
+                >
+                  Edit
+                </Button>
+              ) : null}
+            </Stack>
+            <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
+              {ev.summary || "—"}
             </Typography>
-          </Stack>
-          <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-            {ev.summary || "—"}
-          </Typography>
-          {(ev.aircraft_label || ev.work_order_label) && (
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-              {[ev.aircraft_label && `Aircraft: ${ev.aircraft_label}`, ev.work_order_label]
-                .filter(Boolean)
-                .join(" · ")}
-            </Typography>
-          )}
-        </Box>
-      ))}
+            {(ev.aircraft_label || ev.work_order_label) && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                {[ev.aircraft_label && `Aircraft: ${ev.aircraft_label}`, ev.work_order_label]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Typography>
+            )}
+          </Box>
+        );
+      })}
     </Stack>
   );
 }
 
-function LifeLimitSummary({ component }) {
+function LifeLimitSummary({ component, canEdit, onEdit }) {
   if (component.component_type !== "serialized" || !component.limit_type) {
     return null;
   }
 
+  const isCalendar = component.limit_type === "calendar";
   const limit = component.limit_value != null ? Number(component.limit_value) : null;
   const used = component.used_value != null ? Number(component.used_value) : 0;
   const remaining = component.remaining_value;
-  const pct =
-    limit != null && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : null;
+  const daysRemaining = component.calendar_days_remaining;
+  const pct = isCalendar
+    ? component.calendar_used_pct
+    : limit != null && limit > 0
+      ? Math.min(100, Math.round((used / limit) * 100))
+      : null;
 
   const limitLabel =
     component.limit_type === "calendar"
@@ -183,16 +272,64 @@ function LifeLimitSummary({ component }) {
         ? "Cycles"
         : "Hours";
 
+  const remainingColor =
+    isCalendar && daysRemaining != null
+      ? daysRemaining <= 0
+        ? "error.main"
+        : daysRemaining <= 30
+          ? "warning.main"
+          : "success.main"
+      : remaining != null && remaining <= 0
+        ? "error.main"
+        : "success.main";
+
   return (
     <Card variant="outlined" sx={{ bgcolor: "action.hover" }}>
       <CardContent>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-          Life limit — {limitLabel}
-        </Typography>
-        {component.limit_type === "calendar" ? (
-          <Typography variant="body2">
-            {component.limit_due_date ? `Next due: ${component.limit_due_date}` : "—"}
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+            Life limit — {limitLabel}
           </Typography>
+          {canEdit ? (
+            <Button size="small" startIcon={<EditIcon />} onClick={onEdit} sx={{ textTransform: "none" }}>
+              Edit
+            </Button>
+          ) : null}
+        </Stack>
+        {isCalendar ? (
+          <>
+            <Stack direction="row" spacing={2} sx={{ mb: 1 }} flexWrap="wrap">
+              <Typography variant="body2">
+                Due:{" "}
+                <strong>{component.limit_due_date || "Not set"}</strong>
+              </Typography>
+              {daysRemaining != null ? (
+                <Typography variant="body2" color={remainingColor}>
+                  {daysRemaining <= 0 ? (
+                    <>
+                      Overdue by <strong>{Math.abs(daysRemaining)}</strong> days
+                    </>
+                  ) : (
+                    <>
+                      Remaining: <strong>{daysRemaining}</strong> days
+                    </>
+                  )}
+                </Typography>
+              ) : component.limit_due_date ? null : (
+                <Typography variant="body2" color="warning.main">
+                  Add a due date to track calendar compliance.
+                </Typography>
+              )}
+            </Stack>
+            {pct != null ? (
+              <LinearProgress
+                variant="determinate"
+                value={pct}
+                color={pct >= 90 ? "error" : pct >= 75 ? "warning" : "primary"}
+                sx={{ height: 8, borderRadius: 1 }}
+              />
+            ) : null}
+          </>
         ) : (
           <>
             <Stack direction="row" spacing={2} sx={{ mb: 1 }} flexWrap="wrap">
@@ -201,7 +338,7 @@ function LifeLimitSummary({ component }) {
                 {limit != null ? ` / ${limit}` : ""}
               </Typography>
               {remaining != null ? (
-                <Typography variant="body2" color={remaining <= 0 ? "error.main" : "success.main"}>
+                <Typography variant="body2" color={remainingColor}>
                   Remaining: <strong>{Math.max(0, remaining)}</strong>
                 </Typography>
               ) : null}
@@ -249,6 +386,15 @@ export default function ComponentHistoryPage() {
   const [aircraft, setAircraft] = useState([]);
   const [catalogParts, setCatalogParts] = useState([]);
   const [statsRefreshKey, setStatsRefreshKey] = useState(0);
+  const [editComponentOpen, setEditComponentOpen] = useState(false);
+  const [editComponentForm, setEditComponentForm] = useState({});
+  const [editComponentBusy, setEditComponentBusy] = useState(false);
+  const [editEventOpen, setEditEventOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [editEventForm, setEditEventForm] = useState({});
+  const [editEventBusy, setEditEventBusy] = useState(false);
+
+  const canEdit = canEditComponentHistory(state);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -422,6 +568,85 @@ export default function ComponentHistoryPage() {
     }
   };
 
+  const openEditComponent = () => {
+    const c = detail || header;
+    if (!c) return;
+    setEditComponentForm({
+      location: c.location || "",
+      aircraft: c.aircraft ? String(c.aircraft) : "",
+      limit_type: c.limit_type || "hours",
+      limit_value: c.limit_value != null ? String(c.limit_value) : "",
+      used_value: c.used_value != null ? String(c.used_value) : "0",
+      limit_due_date: c.limit_due_date || "",
+      notes: c.notes || "",
+    });
+    setEditComponentOpen(true);
+  };
+
+  const handleSaveComponentEdit = async () => {
+    if (!selectedId) return;
+    setEditComponentBusy(true);
+    setError("");
+    try {
+      const payload = {
+        location: editComponentForm.location?.trim() || "",
+        notes: editComponentForm.notes?.trim() || "",
+        limit_type: editComponentForm.limit_type || "",
+        aircraft: editComponentForm.aircraft ? Number(editComponentForm.aircraft) : null,
+      };
+      if (editComponentForm.limit_type === "calendar") {
+        payload.limit_due_date = editComponentForm.limit_due_date || null;
+        payload.limit_value = editComponentForm.limit_value || null;
+        payload.used_value = "0";
+      } else {
+        payload.limit_value = editComponentForm.limit_value || null;
+        payload.used_value = editComponentForm.used_value || "0";
+        payload.limit_due_date = null;
+      }
+      const data = await updateTrackedComponent(selectedId, payload);
+      setDetail(data);
+      setEditComponentOpen(false);
+      await loadSearch();
+    } catch (e) {
+      setError(e?.message || "Could not save component changes.");
+    } finally {
+      setEditComponentBusy(false);
+    }
+  };
+
+  const openEditEvent = (ev) => {
+    setEditingEvent(ev);
+    setEditEventForm({
+      event_type: ev.event_type || "note",
+      occurred_at: toDatetimeLocalValue(ev.occurred_at),
+      summary: ev.summary || "",
+      aircraft: ev.aircraft ? String(ev.aircraft) : "",
+    });
+    setEditEventOpen(true);
+  };
+
+  const handleSaveEventEdit = async () => {
+    if (!selectedId || !editingEvent?.id) return;
+    setEditEventBusy(true);
+    setError("");
+    try {
+      const payload = {
+        event_type: editEventForm.event_type,
+        summary: editEventForm.summary?.trim() || "",
+        occurred_at: fromDatetimeLocalValue(editEventForm.occurred_at),
+        aircraft: editEventForm.aircraft ? Number(editEventForm.aircraft) : null,
+      };
+      const data = await updateComponentHistoryEvent(selectedId, editingEvent.id, payload);
+      setDetail(data);
+      setEditEventOpen(false);
+      setEditingEvent(null);
+    } catch (e) {
+      setError(e?.message || "Could not save timeline entry.");
+    } finally {
+      setEditEventBusy(false);
+    }
+  };
+
   const handleRegister = async () => {
     setRegisterBusy(true);
     setError("");
@@ -445,10 +670,16 @@ export default function ComponentHistoryPage() {
       if (registerForm.aircraft) {
         payload.aircraft = Number(registerForm.aircraft);
       }
-      if (registerForm.is_serialized && registerForm.limit_value) {
+      if (registerForm.is_serialized && registerForm.limit_type) {
         payload.limit_type = registerForm.limit_type;
-        payload.limit_value = registerForm.limit_value;
-        payload.used_value = registerForm.used_value || "0";
+        if (registerForm.limit_type === "calendar") {
+          payload.limit_due_date = registerForm.limit_due_date || null;
+          payload.limit_value = registerForm.limit_value || "365";
+          payload.used_value = "0";
+        } else if (registerForm.limit_value) {
+          payload.limit_value = registerForm.limit_value;
+          payload.used_value = registerForm.used_value || "0";
+        }
       }
       const created = await createTrackedComponent(payload);
       setRegisterOpen(false);
@@ -846,14 +1077,23 @@ export default function ComponentHistoryPage() {
                         </Stack>
                       </Stack>
 
-                      <LifeLimitSummary component={header} />
+                      <LifeLimitSummary
+                        component={header}
+                        canEdit={canEdit}
+                        onEdit={openEditComponent}
+                      />
 
                       <Divider />
 
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                         Timeline
                       </Typography>
-                      <ComponentTimeline events={detail?.events} />
+                      <ComponentTimeline
+                        events={detail?.events}
+                        activities={detail?.activities}
+                        canEdit={canEdit}
+                        onEditEvent={openEditEvent}
+                      />
                     </Stack>
                   ) : (
                     <Typography color="text.secondary">Component not found.</Typography>
@@ -973,22 +1213,52 @@ export default function ComponentHistoryPage() {
                   <MenuItem value="cycles">Cycles</MenuItem>
                   <MenuItem value="calendar">Calendar</MenuItem>
                 </TextField>
-                <Stack direction="row" spacing={2}>
-                  <TextField
-                    label="Limit"
-                    type="number"
-                    value={registerForm.limit_value}
-                    onChange={(e) => setRegisterForm((s) => ({ ...s, limit_value: e.target.value }))}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Used so far"
-                    type="number"
-                    value={registerForm.used_value}
-                    onChange={(e) => setRegisterForm((s) => ({ ...s, used_value: e.target.value }))}
-                    fullWidth
-                  />
-                </Stack>
+                {registerForm.limit_type === "calendar" ? (
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Due date"
+                      type="date"
+                      required
+                      InputLabelProps={{ shrink: true }}
+                      value={registerForm.limit_due_date}
+                      onChange={(e) =>
+                        setRegisterForm((s) => ({ ...s, limit_due_date: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                    <TextField
+                      label="Interval (days)"
+                      type="number"
+                      helperText="For progress bar (e.g. 365 annual)"
+                      value={registerForm.limit_value}
+                      onChange={(e) =>
+                        setRegisterForm((s) => ({ ...s, limit_value: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  </Stack>
+                ) : (
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Limit"
+                      type="number"
+                      value={registerForm.limit_value}
+                      onChange={(e) =>
+                        setRegisterForm((s) => ({ ...s, limit_value: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                    <TextField
+                      label="Used so far"
+                      type="number"
+                      value={registerForm.used_value}
+                      onChange={(e) =>
+                        setRegisterForm((s) => ({ ...s, used_value: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  </Stack>
+                )}
               </>
             ) : null}
             <TextField
@@ -1022,6 +1292,180 @@ export default function ComponentHistoryPage() {
             onClick={handleRegister}
           >
             {registerBusy ? "Saving…" : "Register"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={editComponentOpen}
+        onClose={() => !editComponentBusy && setEditComponentOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Edit component record</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Changes are logged in the timeline audit trail with your name.
+            </Typography>
+            <TextField
+              label="Location"
+              value={editComponentForm.location || ""}
+              onChange={(e) => setEditComponentForm((s) => ({ ...s, location: e.target.value }))}
+              fullWidth
+            />
+            <TextField
+              select
+              label="Aircraft"
+              value={editComponentForm.aircraft || ""}
+              onChange={(e) => setEditComponentForm((s) => ({ ...s, aircraft: e.target.value }))}
+              fullWidth
+            >
+              <MenuItem value="">Not on an aircraft</MenuItem>
+              {aircraft.map((a) => (
+                <MenuItem key={a.id} value={String(a.id)}>
+                  {a.registration_number} — {a.model}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Life limit type"
+              value={editComponentForm.limit_type || "hours"}
+              onChange={(e) => setEditComponentForm((s) => ({ ...s, limit_type: e.target.value }))}
+              fullWidth
+            >
+              <MenuItem value="hours">Hours</MenuItem>
+              <MenuItem value="cycles">Cycles</MenuItem>
+              <MenuItem value="calendar">Calendar</MenuItem>
+            </TextField>
+            {editComponentForm.limit_type === "calendar" ? (
+              <>
+                <TextField
+                  label="Due date"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={editComponentForm.limit_due_date || ""}
+                  onChange={(e) =>
+                    setEditComponentForm((s) => ({ ...s, limit_due_date: e.target.value }))
+                  }
+                  fullWidth
+                />
+                <TextField
+                  label="Interval (days)"
+                  type="number"
+                  value={editComponentForm.limit_value || ""}
+                  onChange={(e) =>
+                    setEditComponentForm((s) => ({ ...s, limit_value: e.target.value }))
+                  }
+                  fullWidth
+                />
+              </>
+            ) : (
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="Limit"
+                  type="number"
+                  value={editComponentForm.limit_value || ""}
+                  onChange={(e) =>
+                    setEditComponentForm((s) => ({ ...s, limit_value: e.target.value }))
+                  }
+                  fullWidth
+                />
+                <TextField
+                  label="Used"
+                  type="number"
+                  value={editComponentForm.used_value || ""}
+                  onChange={(e) =>
+                    setEditComponentForm((s) => ({ ...s, used_value: e.target.value }))
+                  }
+                  fullWidth
+                />
+              </Stack>
+            )}
+            <TextField
+              label="Notes"
+              multiline
+              minRows={2}
+              value={editComponentForm.notes || ""}
+              onChange={(e) => setEditComponentForm((s) => ({ ...s, notes: e.target.value }))}
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditComponentOpen(false)} disabled={editComponentBusy}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSaveComponentEdit} disabled={editComponentBusy}>
+            {editComponentBusy ? "Saving…" : "Save"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={editEventOpen}
+        onClose={() => !editEventBusy && setEditEventOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Edit timeline entry</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Corrections appear in the audit trail below with your name.
+            </Typography>
+            <TextField
+              select
+              label="Event type"
+              value={editEventForm.event_type || "note"}
+              onChange={(e) => setEditEventForm((s) => ({ ...s, event_type: e.target.value }))}
+              fullWidth
+            >
+              <MenuItem value="install">Installed</MenuItem>
+              <MenuItem value="removal">Removed</MenuItem>
+              <MenuItem value="inspection">Inspection</MenuItem>
+              <MenuItem value="work_order">Work order</MenuItem>
+              <MenuItem value="note">Note</MenuItem>
+            </TextField>
+            <TextField
+              label="Date & time"
+              type="datetime-local"
+              InputLabelProps={{ shrink: true }}
+              value={editEventForm.occurred_at || ""}
+              onChange={(e) => setEditEventForm((s) => ({ ...s, occurred_at: e.target.value }))}
+              fullWidth
+            />
+            <TextField
+              label="Summary"
+              multiline
+              minRows={3}
+              value={editEventForm.summary || ""}
+              onChange={(e) => setEditEventForm((s) => ({ ...s, summary: e.target.value }))}
+              fullWidth
+            />
+            <TextField
+              select
+              label="Aircraft"
+              value={editEventForm.aircraft || ""}
+              onChange={(e) => setEditEventForm((s) => ({ ...s, aircraft: e.target.value }))}
+              fullWidth
+            >
+              <MenuItem value="">—</MenuItem>
+              {aircraft.map((a) => (
+                <MenuItem key={a.id} value={String(a.id)}>
+                  {a.registration_number}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditEventOpen(false)} disabled={editEventBusy}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSaveEventEdit} disabled={editEventBusy}>
+            {editEventBusy ? "Saving…" : "Save"}
           </Button>
         </DialogActions>
       </Dialog>

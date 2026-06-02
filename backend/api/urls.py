@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .labor_views import work_order_labor_entries, work_order_labor_entry_detail
 from .component_history_views import (
     component_history_detail,
+    component_history_event_update,
     component_history_export,
     component_history_list,
 )
@@ -178,6 +179,11 @@ urlpatterns = [
         "history/components/<int:pk>/export/",
         component_history_export,
         name="component-history-export",
+    ),
+    path(
+        "history/components/<int:pk>/events/<int:event_id>/",
+        component_history_event_update,
+        name="component-history-event-update",
     ),
     path(
         "workorders/<int:work_order_pk>/labor-entries/",

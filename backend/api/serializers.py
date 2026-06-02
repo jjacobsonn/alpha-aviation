@@ -21,6 +21,7 @@ from .models import (
     InventoryPart,
     InstalledComponent,
     ComponentEvent,
+    ComponentHistoryActivity,
     LaborEntry,
 )
 from .maintenance_activity import (
@@ -960,6 +961,8 @@ def company_catalog_parts_qs(company):
 class InstalledComponentListSerializer(serializers.ModelSerializer):
     aircraft_label = serializers.SerializerMethodField()
     remaining_value = serializers.SerializerMethodField()
+    calendar_days_remaining = serializers.SerializerMethodField()
+    calendar_used_pct = serializers.SerializerMethodField()
     event_count = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -979,6 +982,8 @@ class InstalledComponentListSerializer(serializers.ModelSerializer):
             "used_value",
             "remaining_value",
             "limit_due_date",
+            "calendar_days_remaining",
+            "calendar_used_pct",
             "installed_at",
             "event_count",
         ]
@@ -994,6 +999,37 @@ class InstalledComponentListSerializer(serializers.ModelSerializer):
     def get_remaining_value(self, obj):
         rem = obj.remaining_value
         return rem
+
+    def get_calendar_days_remaining(self, obj):
+        return obj.calendar_days_remaining
+
+    def get_calendar_used_pct(self, obj):
+        return obj.calendar_used_pct
+
+
+class ComponentHistoryActivitySerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComponentHistoryActivity
+        fields = [
+            "id",
+            "created_at",
+            "event_type",
+            "summary",
+            "actor_name",
+            "component_event",
+        ]
+
+    def _profile_name(self, profile):
+        if not profile:
+            return ""
+        fn = (profile.first_name or "").strip()
+        ln = (profile.last_name or "").strip()
+        return f"{fn} {ln}".strip() or (profile.username or "")
+
+    def get_actor_name(self, obj):
+        return self._profile_name(obj.actor)
 
 
 class ComponentEventSerializer(serializers.ModelSerializer):
@@ -1127,4 +1163,57 @@ class InstalledComponentCreateSerializer(serializers.ModelSerializer):
             data["aircraft"] = part.aircraft
 
         return data
+
+
+class InstalledComponentUpdateSerializer(serializers.ModelSerializer):
+    """Supervisor corrections to a tracked component record."""
+
+    class Meta:
+        model = InstalledComponent
+        fields = [
+            "location",
+            "aircraft",
+            "limit_type",
+            "limit_value",
+            "used_value",
+            "limit_due_date",
+            "notes",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        company = self.context.get("company")
+        if company is not None:
+            self.fields["aircraft"].queryset = Aircraft.objects.filter(company=company)
+
+    def validate(self, data):
+        company = self.context.get("company")
+        aircraft = data.get("aircraft")
+        if aircraft and company and aircraft.company_id != company.id:
+            raise serializers.ValidationError(
+                {"aircraft": "Aircraft must belong to your company."}
+            )
+        limit_type = data.get("limit_type", getattr(self.instance, "limit_type", ""))
+        if limit_type == InstalledComponent.LimitType.CALENDAR:
+            due = data.get("limit_due_date", getattr(self.instance, "limit_due_date", None))
+            if due is None and "limit_due_date" in data:
+                raise serializers.ValidationError(
+                    {"limit_due_date": "Due date is required for calendar life limits."}
+                )
+        return data
+
+
+class ComponentEventUpdateSerializer(serializers.ModelSerializer):
+    """Supervisor corrections to a timeline entry."""
+
+    class Meta:
+        model = ComponentEvent
+        fields = ["event_type", "occurred_at", "summary", "aircraft", "work_order"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        company = self.context.get("company")
+        if company is not None:
+            self.fields["aircraft"].queryset = Aircraft.objects.filter(company=company)
+            self.fields["work_order"].queryset = WorkOrder.objects.filter(company=company)
 

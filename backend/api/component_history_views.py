@@ -17,11 +17,20 @@ from .csv_response import csv_attachment_response, csv_cell, safe_csv_filename_p
 from .models import Company, ComponentEvent, InstalledComponent
 from .renderers import CSVRenderer
 from .permissions import IsComponentHistoryReader
+from .component_history_activity import (
+    log_component_updated,
+    log_event_updated,
+    snapshot_component,
+    snapshot_event,
+)
 from .serializers import (
     ComponentEventSerializer,
+    ComponentEventUpdateSerializer,
+    ComponentHistoryActivitySerializer,
     InstalledComponentCreateSerializer,
     InstalledComponentDetailSerializer,
     InstalledComponentListSerializer,
+    InstalledComponentUpdateSerializer,
 )
 from .views import get_request_company, _is_platform_admin
 
@@ -147,7 +156,16 @@ def component_history_list(request):
     )
 
 
-@api_view(["GET"])
+def _component_detail_payload(component):
+    data = InstalledComponentDetailSerializer(component).data
+    data["events"] = ComponentEventSerializer(component.events.all(), many=True).data
+    data["activities"] = ComponentHistoryActivitySerializer(
+        component.activities.all()[:100], many=True
+    ).data
+    return data
+
+
+@api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated, IsComponentHistoryReader])
 def component_history_detail(request, pk):
     company, qs = _company_components_qs(request)
@@ -160,17 +178,96 @@ def component_history_detail(request, pk):
         return Response({"error": "Component not found"}, status=status.HTTP_404_NOT_FOUND)
 
     component = (
-        qs.prefetch_related("events__aircraft", "events__work_order", "events__actor")
+        qs.prefetch_related(
+            "events__aircraft",
+            "events__work_order",
+            "events__actor",
+            "activities__actor",
+        )
         .filter(pk=pk)
         .first()
     )
     if component is None:
         return Response({"error": "Component not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    data = InstalledComponentDetailSerializer(component).data
-    events = component.events.all()
-    data["events"] = ComponentEventSerializer(events, many=True).data
-    return Response(data)
+    if request.method == "PATCH":
+        company = _resolve_component_history_company(request)
+        if company is None:
+            return Response(
+                {"error": "No company context for this update."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        before = snapshot_component(component)
+        serializer = InstalledComponentUpdateSerializer(
+            component,
+            data=request.data,
+            partial=True,
+            context={"request": request, "company": company},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        component.refresh_from_db()
+        after = snapshot_component(component)
+        log_component_updated(component, before, after, request)
+        return Response(_component_detail_payload(component))
+
+    return Response(_component_detail_payload(component))
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated, IsComponentHistoryReader])
+def component_history_event_update(request, pk, event_id):
+    company, qs = _company_components_qs(request)
+    if company is None and not getattr(request.user, "is_staff", False):
+        return Response(
+            {"error": "User does not have an associated company"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if qs is None:
+        return Response({"error": "Component not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    component = qs.filter(pk=pk).first()
+    if component is None:
+        return Response({"error": "Component not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    event = (
+        ComponentEvent.objects.filter(component=component, pk=event_id)
+        .select_related("aircraft", "work_order", "actor")
+        .first()
+    )
+    if event is None:
+        return Response({"error": "Timeline entry not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    company = _resolve_component_history_company(request)
+    if company is None:
+        return Response(
+            {"error": "No company context for this update."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    before = snapshot_event(event)
+    serializer = ComponentEventUpdateSerializer(
+        event,
+        data=request.data,
+        partial=True,
+        context={"request": request, "company": company},
+    )
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    event.refresh_from_db()
+    after = snapshot_event(event)
+    log_event_updated(event, before, after, request)
+
+    component = (
+        qs.prefetch_related(
+            "events__aircraft",
+            "events__work_order",
+            "events__actor",
+            "activities__actor",
+        )
+        .get(pk=pk)
+    )
+    return Response(_component_detail_payload(component))
 
 
 @api_view(["GET"])

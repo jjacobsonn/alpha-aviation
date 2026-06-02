@@ -323,6 +323,18 @@ export const fetchComponentHistoryDetail = async (id) => {
 	return await makeApiRequest('GET', `/history/components/${id}/`);
 };
 
+export const updateTrackedComponent = async (id, payload) => {
+	return await makeApiRequest('PATCH', `/history/components/${id}/`, payload);
+};
+
+export const updateComponentHistoryEvent = async (componentId, eventId, payload) => {
+	return await makeApiRequest(
+		'PATCH',
+		`/history/components/${componentId}/events/${eventId}/`,
+		payload
+	);
+};
+
 export const downloadComponentHistoryExport = async (id) =>
 	downloadCsvFromApi(`/history/components/${id}/export/`, {
 		fallbackFilename: `component-${id}.csv`,

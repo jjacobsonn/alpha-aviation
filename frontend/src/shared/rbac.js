@@ -15,6 +15,9 @@ export const ROLE_HOME_MENU_IDS = {
   dispatcher: "dispatcher-dashboard",
 };
 
+/** Platform admins: Site Admin is the primary sidebar entry. */
+export const PLATFORM_ADMIN_HOME_MENU_ID = "site-admin";
+
 // RBAC MVP matrix source for frontend route/menu access.
 export const MODULE_ALLOWED_ROLES = {
   fleet: ["owner", "manager", "dispatcher", "mechanic"],
@@ -95,8 +98,17 @@ export function getDefaultRouteForUser(user) {
 
 /** Menu item id to pin at the top of the sidebar for this role. */
 export function getRoleHomeMenuId(userOrContext) {
+  const user = userOrContext?.user ?? userOrContext;
+  if (isPlatformAdmin(user)) {
+    return PLATFORM_ADMIN_HOME_MENU_ID;
+  }
   const role = getEffectiveCompanyRole(userOrContext);
   return ROLE_HOME_MENU_IDS[role] || null;
+}
+
+/** Owner/manager (and platform admin) may correct component history records. */
+export function canEditComponentHistory(context) {
+  return canSuperviseMaintenance(context);
 }
 
 /** Put the role's home module first; preserve relative order of everything else. */

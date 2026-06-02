@@ -717,10 +717,82 @@ class InstalledComponent(models.Model):
 
     @property
     def remaining_value(self):
+        if self.limit_type == self.LimitType.CALENDAR:
+            days = self.calendar_days_remaining
+            return float(days) if days is not None else None
         if self.limit_value is None:
             return None
         used = self.used_value or 0
         return float(self.limit_value) - float(used)
+
+    @property
+    def calendar_days_remaining(self):
+        if self.limit_type != self.LimitType.CALENDAR or not self.limit_due_date:
+            return None
+        from django.utils import timezone
+
+        return (self.limit_due_date - timezone.localdate()).days
+
+    @property
+    def calendar_interval_days(self):
+        if self.limit_type != self.LimitType.CALENDAR:
+            return None
+        if self.limit_value is not None:
+            return max(1, int(float(self.limit_value)))
+        if self.installed_at and self.limit_due_date:
+            return max(1, (self.limit_due_date - self.installed_at).days)
+        return 365
+
+    @property
+    def calendar_used_pct(self):
+        if self.limit_type != self.LimitType.CALENDAR:
+            return None
+        remaining = self.calendar_days_remaining
+        interval = self.calendar_interval_days
+        if remaining is None or not interval:
+            return None
+        used_days = interval - remaining
+        return min(100, max(0, round(100 * used_days / interval)))
+
+
+class ComponentHistoryActivity(models.Model):
+    """Audit trail for component history corrections."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+
+    component = models.ForeignKey(
+        InstalledComponent, on_delete=models.CASCADE, related_name="activities"
+    )
+    component_event = models.ForeignKey(
+        "ComponentEvent",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="activities",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="component_history_activities",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(
+        max_length=32,
+        choices=EventType.choices,
+        default=EventType.UPDATED,
+    )
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"COMP#{self.component_id} {self.event_type} @ {self.created_at}"
 
 
 class ComponentEvent(models.Model):

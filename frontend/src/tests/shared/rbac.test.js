@@ -73,6 +73,17 @@ describe("RBAC role routing", () => {
     expect(canUpdateWorkOrders({ user: { company_role: "pilot" } })).toBe(false);
   });
 
+  it("pins site admin first for platform admins", () => {
+    expect(getRoleHomeMenuId({ user: { is_staff: true } })).toBe("site-admin");
+    const items = [
+      { id: "management", title: "Management" },
+      { id: "site-admin", title: "Site Admin" },
+      { id: "fleet", title: "Fleet" },
+    ];
+    const sorted = sortMenuItemsForRole(items, { user: { is_staff: true } });
+    expect(sorted[0].id).toBe("site-admin");
+  });
+
   it("pins the role home menu item first", () => {
     expect(getRoleHomeMenuId({ user: { company_role: "dispatcher" } })).toBe(
       "dispatcher-dashboard"
