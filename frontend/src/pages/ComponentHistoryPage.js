@@ -16,7 +16,6 @@ import {
   FormControlLabel,
   Grid,
   LinearProgress,
-  Menu,
   MenuItem,
   Stack,
   Switch,
@@ -33,7 +32,6 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
-import EditIcon from "@mui/icons-material/Edit";
 import HistoryIcon from "@mui/icons-material/History";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import PrecisionManufacturingIcon from "@mui/icons-material/PrecisionManufacturing";
@@ -361,17 +359,11 @@ export default function ComponentHistoryPage() {
   const [aircraft, setAircraft] = useState([]);
   const [catalogParts, setCatalogParts] = useState([]);
   const [statsRefreshKey, setStatsRefreshKey] = useState(0);
-  const [editComponentOpen, setEditComponentOpen] = useState(false);
-  const [editComponentForm, setEditComponentForm] = useState({});
-  const [editComponentBusy, setEditComponentBusy] = useState(false);
-  const [editEventOpen, setEditEventOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState(null);
-  const [editEventForm, setEditEventForm] = useState({});
-  const [editEventBusy, setEditEventBusy] = useState(false);
-  const [timelineMenuAnchor, setTimelineMenuAnchor] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [editBusy, setEditBusy] = useState(false);
 
   const canEdit = canEditComponentHistory(state);
-  const timelineEvents = detail?.events || [];
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -545,10 +537,19 @@ export default function ComponentHistoryPage() {
     }
   };
 
-  const openEditComponent = () => {
-    const c = detail || header;
+  const timelineFieldsFromEvent = (ev) => ({
+    timeline_event_id: ev?.id != null ? String(ev.id) : "",
+    event_type: ev?.event_type || "note",
+    occurred_at: toDatetimeLocalValue(ev?.occurred_at),
+    summary: ev?.summary || "",
+    event_aircraft: ev?.aircraft ? String(ev.aircraft) : "",
+  });
+
+  const openEdit = () => {
+    const c = detail;
     if (!c) return;
-    setEditComponentForm({
+    const events = c.events || [];
+    setEditForm({
       location: c.location || "",
       aircraft: c.aircraft ? String(c.aircraft) : "",
       limit_type: c.limit_type || "hours",
@@ -556,71 +557,58 @@ export default function ComponentHistoryPage() {
       used_value: c.used_value != null ? String(c.used_value) : "0",
       limit_due_date: c.limit_due_date || "",
       notes: c.notes || "",
+      ...timelineFieldsFromEvent(events[0]),
     });
-    setEditComponentOpen(true);
+    setEditOpen(true);
   };
 
-  const handleSaveComponentEdit = async () => {
+  const handleTimelineEventPick = (eventId) => {
+    const ev = (detail?.events || []).find((e) => String(e.id) === String(eventId));
+    setEditForm((prev) => ({
+      ...prev,
+      ...timelineFieldsFromEvent(ev),
+    }));
+  };
+
+  const handleSaveEdit = async () => {
     if (!selectedId) return;
-    setEditComponentBusy(true);
+    setEditBusy(true);
     setError("");
     try {
-      const payload = {
-        location: editComponentForm.location?.trim() || "",
-        notes: editComponentForm.notes?.trim() || "",
-        limit_type: editComponentForm.limit_type || "",
-        aircraft: editComponentForm.aircraft ? Number(editComponentForm.aircraft) : null,
+      const componentPayload = {
+        location: editForm.location?.trim() || "",
+        notes: editForm.notes?.trim() || "",
+        limit_type: editForm.limit_type || "",
+        aircraft: editForm.aircraft ? Number(editForm.aircraft) : null,
       };
-      if (editComponentForm.limit_type === "calendar") {
-        payload.limit_due_date = editComponentForm.limit_due_date || null;
-        payload.limit_value = editComponentForm.limit_value || null;
-        payload.used_value = "0";
+      if (editForm.limit_type === "calendar") {
+        componentPayload.limit_due_date = editForm.limit_due_date || null;
+        componentPayload.limit_value = editForm.limit_value || null;
+        componentPayload.used_value = "0";
       } else {
-        payload.limit_value = editComponentForm.limit_value || null;
-        payload.used_value = editComponentForm.used_value || "0";
-        payload.limit_due_date = null;
+        componentPayload.limit_value = editForm.limit_value || null;
+        componentPayload.used_value = editForm.used_value || "0";
+        componentPayload.limit_due_date = null;
       }
-      const data = await updateTrackedComponent(selectedId, payload);
+
+      let data = await updateTrackedComponent(selectedId, componentPayload);
+
+      if (editForm.timeline_event_id) {
+        data = await updateComponentHistoryEvent(selectedId, editForm.timeline_event_id, {
+          event_type: editForm.event_type,
+          summary: editForm.summary?.trim() || "",
+          occurred_at: fromDatetimeLocalValue(editForm.occurred_at),
+          aircraft: editForm.event_aircraft ? Number(editForm.event_aircraft) : null,
+        });
+      }
+
       setDetail(data);
-      setEditComponentOpen(false);
+      setEditOpen(false);
       await loadSearch();
     } catch (e) {
-      setError(e?.message || "Could not save component changes.");
+      setError(e?.message || "Could not save changes.");
     } finally {
-      setEditComponentBusy(false);
-    }
-  };
-
-  const openEditEvent = (ev) => {
-    setEditingEvent(ev);
-    setEditEventForm({
-      event_type: ev.event_type || "note",
-      occurred_at: toDatetimeLocalValue(ev.occurred_at),
-      summary: ev.summary || "",
-      aircraft: ev.aircraft ? String(ev.aircraft) : "",
-    });
-    setEditEventOpen(true);
-  };
-
-  const handleSaveEventEdit = async () => {
-    if (!selectedId || !editingEvent?.id) return;
-    setEditEventBusy(true);
-    setError("");
-    try {
-      const payload = {
-        event_type: editEventForm.event_type,
-        summary: editEventForm.summary?.trim() || "",
-        occurred_at: fromDatetimeLocalValue(editEventForm.occurred_at),
-        aircraft: editEventForm.aircraft ? Number(editEventForm.aircraft) : null,
-      };
-      const data = await updateComponentHistoryEvent(selectedId, editingEvent.id, payload);
-      setDetail(data);
-      setEditEventOpen(false);
-      setEditingEvent(null);
-    } catch (e) {
-      setError(e?.message || "Could not save timeline entry.");
-    } finally {
-      setEditEventBusy(false);
+      setEditBusy(false);
     }
   };
 
@@ -1042,44 +1030,9 @@ export default function ComponentHistoryPage() {
                           sx={{ alignSelf: "flex-start", flexShrink: 0, justifyContent: "flex-end" }}
                         >
                           {canEdit ? (
-                            <>
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<EditIcon />}
-                                onClick={openEditComponent}
-                                sx={{ textTransform: "none" }}
-                              >
-                                Edit record
-                              </Button>
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<EditIcon />}
-                                disabled={!timelineEvents.length}
-                                onClick={(e) => setTimelineMenuAnchor(e.currentTarget)}
-                                sx={{ textTransform: "none" }}
-                              >
-                                Edit timeline
-                              </Button>
-                              <Menu
-                                anchorEl={timelineMenuAnchor}
-                                open={Boolean(timelineMenuAnchor)}
-                                onClose={() => setTimelineMenuAnchor(null)}
-                              >
-                                {timelineEvents.map((ev) => (
-                                  <MenuItem
-                                    key={ev.id}
-                                    onClick={() => {
-                                      setTimelineMenuAnchor(null);
-                                      openEditEvent(ev);
-                                    }}
-                                  >
-                                    {eventTypeLabel(ev.event_type)} · {formatDt(ev.occurred_at)}
-                                  </MenuItem>
-                                ))}
-                              </Menu>
-                            </>
+                            <Button variant="outlined" size="small" onClick={openEdit}>
+                              Edit
+                            </Button>
                           ) : null}
                           <Button
                             variant="outlined"
@@ -1314,28 +1267,32 @@ export default function ComponentHistoryPage() {
       </Dialog>
 
       <Dialog
-        open={editComponentOpen}
-        onClose={() => !editComponentBusy && setEditComponentOpen(false)}
+        open={editOpen}
+        onClose={() => !editBusy && setEditOpen(false)}
         fullWidth
-        maxWidth="sm"
+        maxWidth="md"
       >
-        <DialogTitle>Edit component record</DialogTitle>
+        <DialogTitle>Edit Component Record</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              Changes are logged in the timeline audit trail with your name.
+              Changes are logged in the audit trail with your name.
+            </Typography>
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Component
             </Typography>
             <TextField
               label="Location"
-              value={editComponentForm.location || ""}
-              onChange={(e) => setEditComponentForm((s) => ({ ...s, location: e.target.value }))}
+              value={editForm.location || ""}
+              onChange={(e) => setEditForm((s) => ({ ...s, location: e.target.value }))}
               fullWidth
             />
             <TextField
               select
               label="Aircraft"
-              value={editComponentForm.aircraft || ""}
-              onChange={(e) => setEditComponentForm((s) => ({ ...s, aircraft: e.target.value }))}
+              value={editForm.aircraft || ""}
+              onChange={(e) => setEditForm((s) => ({ ...s, aircraft: e.target.value }))}
               fullWidth
             >
               <MenuItem value="">Not on an aircraft</MenuItem>
@@ -1345,144 +1302,143 @@ export default function ComponentHistoryPage() {
                 </MenuItem>
               ))}
             </TextField>
-            <TextField
-              select
-              label="Life limit type"
-              value={editComponentForm.limit_type || "hours"}
-              onChange={(e) => setEditComponentForm((s) => ({ ...s, limit_type: e.target.value }))}
-              fullWidth
-            >
-              <MenuItem value="hours">Hours</MenuItem>
-              <MenuItem value="cycles">Cycles</MenuItem>
-              <MenuItem value="calendar">Calendar</MenuItem>
-            </TextField>
-            {editComponentForm.limit_type === "calendar" ? (
+            {detail?.component_type === "serialized" ? (
               <>
                 <TextField
-                  label="Due date"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  value={editComponentForm.limit_due_date || ""}
-                  onChange={(e) =>
-                    setEditComponentForm((s) => ({ ...s, limit_due_date: e.target.value }))
-                  }
+                  select
+                  label="Life limit type"
+                  value={editForm.limit_type || "hours"}
+                  onChange={(e) => setEditForm((s) => ({ ...s, limit_type: e.target.value }))}
                   fullWidth
-                />
-                <TextField
-                  label="Interval (days)"
-                  type="number"
-                  value={editComponentForm.limit_value || ""}
-                  onChange={(e) =>
-                    setEditComponentForm((s) => ({ ...s, limit_value: e.target.value }))
-                  }
-                  fullWidth
-                />
+                >
+                  <MenuItem value="hours">Hours</MenuItem>
+                  <MenuItem value="cycles">Cycles</MenuItem>
+                  <MenuItem value="calendar">Calendar</MenuItem>
+                </TextField>
+                {editForm.limit_type === "calendar" ? (
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Due date"
+                      type="date"
+                      InputLabelProps={{ shrink: true }}
+                      value={editForm.limit_due_date || ""}
+                      onChange={(e) => setEditForm((s) => ({ ...s, limit_due_date: e.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      label="Interval (days)"
+                      type="number"
+                      value={editForm.limit_value || ""}
+                      onChange={(e) => setEditForm((s) => ({ ...s, limit_value: e.target.value }))}
+                      fullWidth
+                    />
+                  </Stack>
+                ) : (
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Limit"
+                      type="number"
+                      value={editForm.limit_value || ""}
+                      onChange={(e) => setEditForm((s) => ({ ...s, limit_value: e.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      label="Used"
+                      type="number"
+                      value={editForm.used_value || ""}
+                      onChange={(e) => setEditForm((s) => ({ ...s, used_value: e.target.value }))}
+                      fullWidth
+                    />
+                  </Stack>
+                )}
               </>
-            ) : (
-              <Stack direction="row" spacing={2}>
-                <TextField
-                  label="Limit"
-                  type="number"
-                  value={editComponentForm.limit_value || ""}
-                  onChange={(e) =>
-                    setEditComponentForm((s) => ({ ...s, limit_value: e.target.value }))
-                  }
-                  fullWidth
-                />
-                <TextField
-                  label="Used"
-                  type="number"
-                  value={editComponentForm.used_value || ""}
-                  onChange={(e) =>
-                    setEditComponentForm((s) => ({ ...s, used_value: e.target.value }))
-                  }
-                  fullWidth
-                />
-              </Stack>
-            )}
+            ) : null}
             <TextField
               label="Notes"
               multiline
               minRows={2}
-              value={editComponentForm.notes || ""}
-              onChange={(e) => setEditComponentForm((s) => ({ ...s, notes: e.target.value }))}
+              value={editForm.notes || ""}
+              onChange={(e) => setEditForm((s) => ({ ...s, notes: e.target.value }))}
               fullWidth
             />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditComponentOpen(false)} disabled={editComponentBusy}>
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={handleSaveComponentEdit} disabled={editComponentBusy}>
-            {editComponentBusy ? "Saving…" : "Save"}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
-      <Dialog
-        open={editEventOpen}
-        onClose={() => !editEventBusy && setEditEventOpen(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Edit timeline entry</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Corrections appear in the audit trail below with your name.
+            <Divider />
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Timeline entry
             </Typography>
-            <TextField
-              select
-              label="Event type"
-              value={editEventForm.event_type || "note"}
-              onChange={(e) => setEditEventForm((s) => ({ ...s, event_type: e.target.value }))}
-              fullWidth
-            >
-              <MenuItem value="install">Installed</MenuItem>
-              <MenuItem value="removal">Removed</MenuItem>
-              <MenuItem value="inspection">Inspection</MenuItem>
-              <MenuItem value="work_order">Work order</MenuItem>
-              <MenuItem value="note">Note</MenuItem>
-            </TextField>
-            <TextField
-              label="Date & time"
-              type="datetime-local"
-              InputLabelProps={{ shrink: true }}
-              value={editEventForm.occurred_at || ""}
-              onChange={(e) => setEditEventForm((s) => ({ ...s, occurred_at: e.target.value }))}
-              fullWidth
-            />
-            <TextField
-              label="Summary"
-              multiline
-              minRows={3}
-              value={editEventForm.summary || ""}
-              onChange={(e) => setEditEventForm((s) => ({ ...s, summary: e.target.value }))}
-              fullWidth
-            />
-            <TextField
-              select
-              label="Aircraft"
-              value={editEventForm.aircraft || ""}
-              onChange={(e) => setEditEventForm((s) => ({ ...s, aircraft: e.target.value }))}
-              fullWidth
-            >
-              <MenuItem value="">—</MenuItem>
-              {aircraft.map((a) => (
-                <MenuItem key={a.id} value={String(a.id)}>
-                  {a.registration_number}
-                </MenuItem>
-              ))}
-            </TextField>
+            {(detail?.events || []).length ? (
+              <>
+                <TextField
+                  select
+                  label="Entry to edit"
+                  value={editForm.timeline_event_id || ""}
+                  onChange={(e) => handleTimelineEventPick(e.target.value)}
+                  fullWidth
+                >
+                  {(detail?.events || []).map((ev) => (
+                    <MenuItem key={ev.id} value={String(ev.id)}>
+                      {eventTypeLabel(ev.event_type)} · {formatDt(ev.occurred_at)}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Event type"
+                  value={editForm.event_type || "note"}
+                  onChange={(e) => setEditForm((s) => ({ ...s, event_type: e.target.value }))}
+                  fullWidth
+                >
+                  <MenuItem value="install">Installed</MenuItem>
+                  <MenuItem value="removal">Removed</MenuItem>
+                  <MenuItem value="inspection">Inspection</MenuItem>
+                  <MenuItem value="work_order">Work order</MenuItem>
+                  <MenuItem value="note">Note</MenuItem>
+                </TextField>
+                <TextField
+                  label="Date & time"
+                  type="datetime-local"
+                  InputLabelProps={{ shrink: true }}
+                  value={editForm.occurred_at || ""}
+                  onChange={(e) => setEditForm((s) => ({ ...s, occurred_at: e.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  label="Summary"
+                  multiline
+                  minRows={3}
+                  value={editForm.summary || ""}
+                  onChange={(e) => setEditForm((s) => ({ ...s, summary: e.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  select
+                  label="Event aircraft"
+                  value={editForm.event_aircraft || ""}
+                  onChange={(e) => setEditForm((s) => ({ ...s, event_aircraft: e.target.value }))}
+                  fullWidth
+                >
+                  <MenuItem value="">—</MenuItem>
+                  {aircraft.map((a) => (
+                    <MenuItem key={a.id} value={String(a.id)}>
+                      {a.registration_number}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No timeline entries yet.
+              </Typography>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditEventOpen(false)} disabled={editEventBusy}>
+          <Button onClick={() => setEditOpen(false)} disabled={editBusy}>
             Cancel
           </Button>
-          <Button variant="contained" onClick={handleSaveEventEdit} disabled={editEventBusy}>
-            {editEventBusy ? "Saving…" : "Save"}
+          <Button variant="contained" onClick={handleSaveEdit} disabled={editBusy}>
+            {editBusy ? "Saving…" : "Save Changes"}
           </Button>
         </DialogActions>
       </Dialog>
