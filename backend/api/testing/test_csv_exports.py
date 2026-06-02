@@ -31,6 +31,20 @@ class TestCsvExportEndpoints:
             assert "text/csv" in response["Content-Type"]
             assert b"," in response.content or response.content
 
+    def test_csv_export_utf8_bom_and_no_placeholder_dash_mojibake(
+        self, authenticated_client, sample_installed_component
+    ):
+        url = reverse(
+            "component-history-export",
+            kwargs={"pk": sample_installed_component.id},
+        )
+        response = authenticated_client.get(url, HTTP_ACCEPT="text/csv")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.content.startswith(b"\xef\xbb\xbf")
+        text = response.content.decode("utf-8-sig")
+        assert "\u2014" not in text  # no em dash placeholders
+        assert "Limit value" in text
+
     def test_csv_renderer_registered_on_export_view(self):
         from api.component_history_views import component_history_export
 

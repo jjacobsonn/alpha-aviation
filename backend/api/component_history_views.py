@@ -13,7 +13,7 @@ from rest_framework.decorators import api_view, permission_classes, renderer_cla
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .csv_response import csv_attachment_response, safe_csv_filename_part
+from .csv_response import csv_attachment_response, csv_cell, safe_csv_filename_part
 from .models import Company, ComponentEvent, InstalledComponent
 from .renderers import CSVRenderer
 from .permissions import IsComponentHistoryReader
@@ -196,18 +196,18 @@ def component_history_export(request, pk):
     writer.writerow(["Exported at", timezone.now().isoformat()])
     writer.writerow(["Part number", component.part_number])
     writer.writerow(["Part name", component.part_name])
-    writer.writerow(["Serial number", component.serial_number or "—"])
-    writer.writerow(["Type", component.component_type])
+    writer.writerow(["Serial number", csv_cell(component.serial_number)])
+    writer.writerow(["Type", csv_cell(component.component_type)])
     tail = ""
     if component.aircraft:
         tail = component.aircraft.registration_number or ""
-    writer.writerow(["Current aircraft", tail or "—"])
-    writer.writerow(["Location", component.location or "—"])
-    writer.writerow(["Limit type", component.limit_type or "—"])
-    writer.writerow(["Limit value", component.limit_value or "—"])
-    writer.writerow(["Used", component.used_value or "—"])
-    writer.writerow(["Remaining", component.remaining_value if component.remaining_value is not None else "—"])
-    writer.writerow(["Limit due date", component.limit_due_date or "—"])
+    writer.writerow(["Current aircraft", csv_cell(tail)])
+    writer.writerow(["Location", csv_cell(component.location)])
+    writer.writerow(["Limit type", csv_cell(component.limit_type)])
+    writer.writerow(["Limit value", csv_cell(component.limit_value)])
+    writer.writerow(["Used", csv_cell(component.used_value)])
+    writer.writerow(["Remaining", csv_cell(component.remaining_value)])
+    writer.writerow(["Limit due date", csv_cell(component.limit_due_date)])
     writer.writerow([])
     writer.writerow(["Event date", "Type", "Aircraft", "Work order", "Summary"])
 
