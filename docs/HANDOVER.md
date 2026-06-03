@@ -6,10 +6,10 @@ Use this page when onboarding a new team or transferring the project. All projec
 
 | Service | URL |
 |---------|-----|
-| Web app | https://alpha-aviation-web-production.up.railway.app/ |
-| API | https://alpha-aviation-production.up.railway.app/api/ |
-| Django admin | https://alpha-aviation-production.up.railway.app/admin/ |
-| Site Admin (SPA) | https://alpha-aviation-web-production.up.railway.app/site-admin |
+| Web app | https://alpha-aviation-web-production-3763.up.railway.app/ |
+| API | https://alpha-aviation-api-production-03c8.up.railway.app/api/ |
+| Django admin | https://alpha-aviation-api-production-03c8.up.railway.app/admin/ |
+| Site Admin (SPA) | https://alpha-aviation-web-production-3763.up.railway.app/site-admin |
 
 Demo credentials and tenant walkthrough: [../README.md](../README.md#demo-credentials).
 

@@ -84,6 +84,6 @@ Historical / planning context (may not match current code):
 
 Production runs on **Railway** (see root [README.md](../README.md) for demo credentials):
 
-- Web: [alpha-aviation-web-production.up.railway.app](https://alpha-aviation-web-production.up.railway.app/)
-- API: [alpha-aviation-production.up.railway.app/api/](https://alpha-aviation-production.up.railway.app/api/)
-- Admin: [alpha-aviation-production.up.railway.app/admin/](https://alpha-aviation-production.up.railway.app/admin/)
+- Web: [alpha-aviation-web-production-3763.up.railway.app](https://alpha-aviation-web-production-3763.up.railway.app/)
+- API: [alpha-aviation-api-production-03c8.up.railway.app/api/](https://alpha-aviation-api-production-03c8.up.railway.app/api/)
+- Admin: [alpha-aviation-api-production-03c8.up.railway.app/admin/](https://alpha-aviation-api-production-03c8.up.railway.app/admin/)

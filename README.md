@@ -42,10 +42,10 @@ Production is hosted on **Railway**. Demo data (Horizon + Cascade tenants) is se
 
 | | URL |
 |---|-----|
-| **App (login)** | **[https://alpha-aviation-web-production.up.railway.app/](https://alpha-aviation-web-production.up.railway.app/)** |
-| API | [https://alpha-aviation-production.up.railway.app/api/](https://alpha-aviation-production.up.railway.app/api/) |
-| Django admin | [https://alpha-aviation-production.up.railway.app/admin/](https://alpha-aviation-production.up.railway.app/admin/) |
-| Site Admin (SPA) | [https://alpha-aviation-web-production.up.railway.app/site-admin](https://alpha-aviation-web-production.up.railway.app/site-admin) |
+| **App (login)** | **[https://alpha-aviation-web-production-3763.up.railway.app/](https://alpha-aviation-web-production-3763.up.railway.app/)** |
+| API | [https://alpha-aviation-api-production-03c8.up.railway.app/api/](https://alpha-aviation-api-production-03c8.up.railway.app/api/) |
+| Django admin | [https://alpha-aviation-api-production-03c8.up.railway.app/admin/](https://alpha-aviation-api-production-03c8.up.railway.app/admin/) |
+| Site Admin (SPA) | [https://alpha-aviation-web-production-3763.up.railway.app/site-admin](https://alpha-aviation-web-production-3763.up.railway.app/site-admin) |
 
 ---
 
