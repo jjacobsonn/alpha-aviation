@@ -26,6 +26,7 @@ Demo credentials and tenant walkthrough: [../README.md](../README.md#demo-creden
 | If you need… | Start here |
 |--------------|------------|
 | Local setup & env vars | [setup/DEVELOPMENT.md](setup/DEVELOPMENT.md) |
+| What not to commit (secrets, locks) | [setup/GIT_AND_SECRETS.md](setup/GIT_AND_SECRETS.md) |
 | Deploy / Railway config | [deployment/RAILWAY.md](deployment/RAILWAY.md) |
 | Roles & permissions | [rbac/RBAC_MVP_MATRIX.md](rbac/RBAC_MVP_MATRIX.md) |
 | Data model | [architecture/models_documentation.md](architecture/models_documentation.md) |
