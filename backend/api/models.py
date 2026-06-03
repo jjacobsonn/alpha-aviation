@@ -310,19 +310,18 @@ class Company(models.Model):
         return data
     
     def get_uptime_downtime(self):
+        """Per-aircraft uptime keyed by tail number (readable on charts)."""
         data = {}
-        for aircraft in self.aircraft.all():
-            if aircraft.model not in data:
-                total_seconds = (timezone.now() - aircraft.created_at).total_seconds()
-                total_hours = round(total_seconds / 3600, 2)
-                down_hours = round(float(aircraft.calculate_downtime()), 2)
-                data[aircraft.model] = {
-                    'total_time_hours': total_hours,
-                    'down_time_hours': down_hours,
-                }
-            else:
-                data[aircraft.model]['total_time_hours'] += round((timezone.now() - aircraft.created_at).total_seconds() / 3600, 2)
-                data[aircraft.model]['down_time_hours'] += round(float(aircraft.calculate_downtime()), 2)
+        for aircraft in self.aircraft.order_by('registration_number'):
+            total_seconds = (timezone.now() - aircraft.created_at).total_seconds()
+            total_hours = round(total_seconds / 3600, 2)
+            down_hours = round(float(aircraft.calculate_downtime()), 2)
+            tail = (aircraft.registration_number or '').strip() or f'Aircraft {aircraft.id}'
+            data[tail] = {
+                'total_time_hours': total_hours,
+                'down_time_hours': down_hours,
+                'model': aircraft.model or '',
+            }
         return data
 
 
