@@ -200,7 +200,7 @@ Add `allowedRolesForModule('tools')` usage in `App.js` and `NavigationDrawer.js`
 
 ### 7. Docs cross-links
 
-- Add section to `PHASE2_ACCEPTANCE_CRITERIA.md` (optional) or link here from Phase 2 doc  
+- Add section to [PHASE2_ACCEPTANCE_CRITERIA.md](PHASE2_ACCEPTANCE_CRITERIA.md) (optional) or link here from Phase 2 doc  
 - No API contract changes required for MVP
 
 ---

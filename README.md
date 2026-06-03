@@ -126,7 +126,7 @@ Aircraft: **N55CAS** (172S), **N88CAS** (SR22T).
 
 ## How to run locally
 
-One-time setup: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+One-time setup: [docs/setup/DEVELOPMENT.md](docs/setup/DEVELOPMENT.md).
 
 ```bash
 npm install          # repo root — installs concurrently
@@ -157,14 +157,15 @@ Commands are idempotent (safe to run again before a demo).
 
 ## Deployment
 
-Production runs on **Railway**: PostgreSQL, API (`Dockerfile.railway-api`), and web (`frontend/Dockerfile`). Connect the GitHub repo and set `REACT_APP_API_URL` on the web service to the API public URL + `/api`.
+Production runs on **Railway**: PostgreSQL, API (`Dockerfile.railway-api`), and web (`frontend/Dockerfile`). See [docs/deployment/RAILWAY.md](docs/deployment/RAILWAY.md).
 
 ## Documentation
 
 | Doc | Purpose |
 |-----|---------|
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local DB, env vars, testing API + UI |
-| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/HANDOVER.md](docs/HANDOVER.md) | Onboarding guide and doc map |
+| [docs/setup/DEVELOPMENT.md](docs/setup/DEVELOPMENT.md) | Local DB, env vars, testing API + UI |
+| [docs/README.md](docs/README.md) | Full documentation index |
 
 ## License
 

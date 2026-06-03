@@ -1,5 +1,7 @@
 # Work Orders Page
 
+See also: [work_order_flow.md](work_order_flow.md) — end-to-end discrepancy → work order → closure flow.
+
 ## Purpose
 
 The Work Orders page provides a focused operations view for work-order management while the Maintenance page remains a mixed view (work orders + discrepancies).

@@ -209,7 +209,7 @@
 
 ## Tool & Equipment Calibration
 
-**Surface:** `/parts?tab=tools` — **Calibrated tools** tab on Parts (`ToolsCalibrationPanel`). Legacy `/tools` redirects here. Criteria: `docs/features/TOOL_CALIBRATION_TRACKING.md` (TEC-001–TEC-008).
+**Surface:** `/parts?tab=tools` — **Calibrated tools** tab on Parts (`ToolsCalibrationPanel`). Legacy `/tools` redirects here. Criteria: [TOOL_CALIBRATION_TRACKING.md](TOOL_CALIBRATION_TRACKING.md) (TEC-001–TEC-008).
 
 | ID | Status |
 |----|--------|
@@ -243,6 +243,6 @@
 | Tools & calibration | `/parts?tab=tools` (redirect from `/tools`) |
 | Site search | Ctrl+K (any authenticated layout) |
 
-**Detailed implementation notes:** `docs/features/PHASE2_MVP.md`
+**Detailed implementation notes:** [PHASE2_MVP.md](PHASE2_MVP.md)
 
-**Production go-live (separate from this checklist):** [docs/operations/PRODUCTION_READINESS_ROADMAP.md](docs/operations/PRODUCTION_READINESS_ROADMAP.md)
+**Production go-live (separate from this checklist):** [../operations/PRODUCTION_READINESS_ROADMAP.md](../operations/PRODUCTION_READINESS_ROADMAP.md)

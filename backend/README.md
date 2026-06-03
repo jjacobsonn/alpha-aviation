@@ -1,34 +1,34 @@
 # Backend
 
-## Directory structure
+Django 5 + Django REST Framework API for Alpha Aviation. Poetry manages Python dependencies.
 
+## Layout
+
+| Path | Purpose |
+|------|---------|
+| `api/` | Models, serializers, views, permissions, migrations |
+| `api/management/commands/` | Custom management commands (`seed`, demo bootstraps) |
+| `api/testing/` | Pytest suite |
+| `config/` | Django settings and URL routing |
+| `bin/` | Server start script |
+
+## Commands
+
+```bash
+poetry install
+poetry run python manage.py runserver
+poetry run python manage.py migrate
+poetry run python manage.py test
+python -m pytest api/testing -q
 ```
-api/
-    management/
-        commands/
-    migrations/
-    testing/
-bin/
-config/
-profile_pics/
-src/
-```
 
-### `api/`
-Django database API module
+## Documentation
 
-#### `api/management/commands/`
-* Contains custom Django management commands, including `seed`. See the [seed command guide](..\docs\seed_db.md)
-
-#### `api/migrations/`
-* Stores all Django schema migrations. See the [Django migration documentation](https://docs.djangoproject.com/en/6.0/topics/migrations/)
-
-#### `api/testing/`
-* API unit tests with pytest. See the [testing documentation](api/testing/README.md)
-
-### `bin/`
-Contains a shell script for starting the backend server
-
-### `config/`
-Django project configuration files
-
+| Topic | Doc |
+|-------|-----|
+| Local setup | [docs/setup/DEVELOPMENT.md](../docs/setup/DEVELOPMENT.md) |
+| API reference | [docs/architecture/APIContract.md](../docs/architecture/APIContract.md) |
+| Models | [docs/architecture/models_documentation.md](../docs/architecture/models_documentation.md) |
+| Seed command | [docs/operations/seed_db.md](../docs/operations/seed_db.md) |
+| Backend tests | [docs/testing/backend/README.md](../docs/testing/backend/README.md) |
+| Full index | [docs/README.md](../docs/README.md) |

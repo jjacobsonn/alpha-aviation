@@ -34,7 +34,7 @@ $env:CI = 'true'; npm test -- --coverage --watchAll=false
 - `components/LandingPage.test.js` (LandingPage.js component is currently unused)
 - `components/FleetStatusPanel.test.js` (FleetStatusPanel.js component is currently unused)
 
-> For more details, see the [frontend test report](../frontend/src/tests/FrontendTests_5-18-26.md)
+> For more details, see the [frontend test report](frontend/FrontendTests_5-28-26.md)
 
 ---
 
@@ -66,7 +66,7 @@ python -m pytest --cov=api --cov-report=term-missing api/testing -q
 
 - Two tests currently fail due to a missing django admin site register (see the backend test report)
 
-> For more details, see the [backend test report](../backend/api/testing/BackendTests_5-18-26.md).
+> For more details, see the [backend test report](backend/BackendTests_5-28-26.md).
 
 ---
 
@@ -97,4 +97,4 @@ npm run test:e2e:headed
 
 - Currently none
 
-> For more details, see the [end-to-end test README](../e2e/README.md).
+> For more details, see the [end-to-end test guide](e2e.md).

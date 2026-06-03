@@ -2,7 +2,7 @@
 
 **Generated:** May 2026  
 **Scope:** Read-only inventory and pre-delivery audit (no code changes).  
-**Related:** [PRODUCTION_READINESS_ROADMAP.md](./PRODUCTION_READINESS_ROADMAP.md), [RBAC_MVP_MATRIX.md](../rbac/RBAC_MVP_MATRIX.md), [PHASE2_ACCEPTANCE_CRITERIA.md](../../PHASE2_ACCEPTANCE_CRITERIA.md)
+**Related:** [PRODUCTION_READINESS_ROADMAP.md](./PRODUCTION_READINESS_ROADMAP.md), [RBAC_MVP_MATRIX.md](../rbac/RBAC_MVP_MATRIX.md), [PHASE2_ACCEPTANCE_CRITERIA.md](../features/PHASE2_ACCEPTANCE_CRITERIA.md)
 
 ---
 
@@ -37,7 +37,7 @@
 
 | Path | Status | Notes |
 |------|--------|-------|
-| `/` | Active | Monorepo root (`package.json`, `README.md`, `PHASE2_ACCEPTANCE_CRITERIA.md`) |
+| `/` | Active | Monorepo root (`package.json`, `README.md`, `docs/`) |
 | `/backend` | Active | Django 5 + DRF API |
 | `/frontend` | Active | React 19 + CRA + MUI |
 | `/docs` | Active | Architecture, RBAC, deployment, Phase 2 |
@@ -274,7 +274,8 @@ See [B. Endpoint inventory](#b-endpoint-inventory) for full list.
 | `docs/rbac/*` | Active (some gaps noted in matrix) |
 | `docs/operations/PRODUCTION_READINESS_ROADMAP.md` | Active (checklist) |
 | `docs/architecture/APIContract.md` | Possibly active (may drift from code) |
-| `PHASE2_ACCEPTANCE_CRITERIA.md` | Active (23/24 criteria met) |
+| `docs/testing/*` | Active (QA reports, suite overviews) |
+| `docs/features/PHASE2_ACCEPTANCE_CRITERIA.md` | Active (23/24 criteria met) |
 | `scripts/test-backend.sh` | Active (manual smoke) |
 | Root `npm run dev` | Active |
 
@@ -300,7 +301,10 @@ alpha-aviation/
 │   ├── operations/             # this file
 │   ├── rbac/
 │   ├── reference/
-│   └── setup/
+│   ├── setup/
+│   ├── testing/                # test reports and suite docs
+│   ├── HANDOVER.md
+│   └── README.md
 ├── frontend/
 │   ├── public/
 │   └── src/

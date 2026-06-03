@@ -44,7 +44,7 @@
 - **Algorithms/Logic**: Client-side route transitions (SPA), request interceptor to attach bearer token, response interceptor queue for concurrent token refresh retries, reducer-based state transitions.
 - **State Management**: React Context + useReducer for global app state; local component state for page-level forms and filters; persistent auth state via local storage.
 - Token handling: the frontend stores `accessToken` and `refreshToken` in `localStorage` and uses an axios request/response interceptor to attach the bearer token, queue concurrent requests while a refresh is in progress, automatically POST to `/auth/token/refresh/` to rotate tokens, and force a logout on refresh failure.
-- Also see: [Frontend documentation](..\frontend\README.md)
+- Also see: [Frontend documentation](../../frontend/README.md), [Development setup](../setup/DEVELOPMENT.md)
 
 ### API/application
 - **Responsibilities**: Provides Django REST API endpoints for authentication, domain resources, and company-scoped operations.
@@ -86,7 +86,7 @@
   - `POST /auth/logout/` — request `{refresh}`; server blacklists the refresh token.
   Tokens are rotated and refresh tokens are blacklisted on rotation (see backend `SIMPLE_JWT` settings in `backend/config/settings.py`).
 - **Platform-admin tenant selection header**: Platform admins may set `X-Company-Id` to select a tenant context for scoped queries; many endpoints honor this header (the frontend sets `X-Company-Id` when `adminCompanyId` is present in local storage).
-- Also see: [RBAC Plan](RBAC_PLAN.md), [Superuser and admins](SUPERUSER_AND_ADMINS.md), [Role dashboard roadmap](ROLE_DASHBOARD_ROADMAP.md)
+- Also see: [RBAC Plan](../rbac/RBAC_Plan.md), [Superuser and admins](../rbac/SUPERUSER_AND_ADMINS.md), [Role dashboard roadmap](../rbac/ROLE_DASHBOARD_ROADMAP.md)
 
 ### Data persistence
 - **Responsibilities**: Persists and queries application data, enforces schema constraints, and manages schema evolution through migrations.
@@ -109,7 +109,7 @@
 - **Data Structures**: Service configuration for three deployable units (static site, web service, database), environment variable maps, and SPA rewrite rules.
 - **Algorithms/Logic**: Separation of build-time and runtime steps, startup migration/static workflow, and frontend/backend origin coordination with CORS.
 - **State Management**: Runtime services are mostly stateless; persistent application data state lives in PostgreSQL; deployment configuration state is managed by the hosting platform.
-- Also see: [Deployment documentation](DEPLOYMENT.md), [Merge guide](MERGE_GUIDE.md)
+- Also see: [Deployment documentation](../deployment/DEPLOYMENT.md), [Merge guide](../operations/MERGE_GUIDE.md)
 
 ---
 
@@ -142,7 +142,7 @@
   - `WorkOrder` and `Part` are many-to-many through `WorkOrderPart`, which stores required quantities.
   - `Discrepancy` can optionally point to a `WorkOrder` when a defect is being worked.
   - `Flight` points to two pilot users and optionally a dispatcher; model validation enforces company membership, pilot role, medical clearance, and certificate level.
-- **Migration Strategy**: This project uses Django [migrations](..\backend\api\migrations) to manage the relational database schema. Check the official [Django migrations documentation](https://docs.djangoproject.com/en/6.0/topics/migrations/) for more information. Also see the project's [seed command documentation](seed_db.md) for information on seeding the database with dummy testing data.
+- **Migration Strategy**: This project uses Django [migrations](../../backend/api/migrations) to manage the relational database schema. Check the official [Django migrations documentation](https://docs.djangoproject.com/en/6.0/topics/migrations/) for more information. Also see the project's [seed command documentation](../operations/seed_db.md) for information on seeding the database with dummy testing data.
 
 Note: the backend runs with `TIME_ZONE = 'UTC'` and `USE_TZ = True` — timestamps are stored/timezone-aware in UTC and some endpoints make timezone-aware conversions for datetimes.
 

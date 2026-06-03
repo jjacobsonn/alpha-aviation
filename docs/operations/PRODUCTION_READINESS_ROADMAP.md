@@ -8,7 +8,7 @@
 
 ## Purpose
 
-`PHASE2_ACCEPTANCE_CRITERIA.md` (repo root) tracks **feature delivery** for Phase 2. It is **not** a production go-live checklist.
+`docs/features/PHASE2_ACCEPTANCE_CRITERIA.md` tracks **feature delivery** for Phase 2. It is **not** a production go-live checklist.
 
 This document defines the **ordered work** required to reach production readiness for a **hosted multi-tenant web application**. Complete each phase and its exit criteria before treating the next phase as done.
 
@@ -18,7 +18,7 @@ This document defines the **ordered work** required to reach production readines
 
 | Doc | Role |
 |-----|------|
-| [PHASE2_ACCEPTANCE_CRITERIA.md](../../PHASE2_ACCEPTANCE_CRITERIA.md) | Feature checklist (23/24 MVP items) |
+| [PHASE2_ACCEPTANCE_CRITERIA.md](../features/PHASE2_ACCEPTANCE_CRITERIA.md) | Feature checklist (23/24 MVP items) |
 | [features/PHASE2_MVP.md](../features/PHASE2_MVP.md) | Phase 2 implementation notes |
 | [rbac/RBAC_MVP_MATRIX.md](../rbac/RBAC_MVP_MATRIX.md) | RBAC source of truth |
 | [deployment/DEPLOYMENT.md](../deployment/DEPLOYMENT.md) | Render deploy runbook |
