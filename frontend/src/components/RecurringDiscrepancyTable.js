@@ -1,88 +1,116 @@
 import React, { useState, useEffect } from 'react';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, Box } from '@mui/material';
+import {
+	Box,
+	Card,
+	CardContent,
+	CircularProgress,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+	Typography,
+} from '@mui/material';
 import { makeApiRequest } from '../shared/Api';
+import ScrollableTableContainer from './ScrollableTableContainer';
 
-// Fetch recurring discrepancies from the management dashboard endpoint
 const fetchRecurringDiscrepancies = async () => {
-    try {
-        const response = await makeApiRequest('GET', '/management/dashboard/');
-        // Defensive: handle both possible spellings ("recuring" and "recurring")
-        return (
-            response.aircraft_analytics?.recuring_discrepancies ||
-            response.aircraft_analytics?.recurring_discrepancies ||
-            {}
-        );
-    } catch (error) {
-        console.error('Error fetching recurring discrepancies:', error);
-        return {};
-    }
+	try {
+		const response = await makeApiRequest('GET', '/management/dashboard/');
+		return (
+			response.aircraft_analytics?.recuring_discrepancies ||
+			response.aircraft_analytics?.recurring_discrepancies ||
+			{}
+		);
+	} catch (error) {
+		console.error('Error fetching recurring discrepancies:', error);
+		return {};
+	}
 };
-// RecurringDiscrepancyTable component displays recurring discrepancy trends from the dashboard
+
 export default function RecurringDiscrepancyTable() {
-    const [discrepancyData, setDiscrepancyData] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+	const [discrepancyData, setDiscrepancyData] = useState({});
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(null);
 
-    useEffect(() => {
-        fetchRecurringDiscrepancies()
-            .then(data => {
-                setDiscrepancyData(data);
-                setLoading(false);
-            })
-            .catch(err => {
-                setError('Failed to load recurring discrepancies.');
-                setLoading(false);
-            });
-    }, []);
+	useEffect(() => {
+		fetchRecurringDiscrepancies()
+			.then((data) => {
+				setDiscrepancyData(data);
+				setLoading(false);
+			})
+			.catch(() => {
+				setError('Failed to load recurring discrepancies.');
+				setLoading(false);
+			});
+	}, []);
 
-    if (loading) {
-        return <Typography sx={{ p: 2 }}>Loading discrepancy trends...</Typography>;
-    }
-    if (error) {
-        return <Typography color="error" sx={{ p: 2 }}>{error}</Typography>;
-    }
+	const dataRows = Object.entries(discrepancyData);
 
-    // Convert the dictionary object into a mappable array
-    const dataRows = Object.entries(discrepancyData);
+	return (
+		<Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', width: '100%' }}>
+			<CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+				<Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.6 }}>
+					Recurring discrepancies
+				</Typography>
+				<Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+					ATA codes that repeat across the fleet
+				</Typography>
 
-    return (
-        <TableContainer component={Paper} sx={{ boxShadow: 2, borderRadius: 2, my: 2 }}>
-            <Table>
-                <TableHead sx={{ bgcolor: 'action.hover' }}>
-                    <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>ATA Code</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Component</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Frequency</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Tail IDs Affected</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {dataRows.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={4} align="center">No recurring trends detected.</TableCell>
-                        </TableRow>
-                    ) : (
-                        dataRows.map(([ataCode, valueArray]) => {
-                            // Deconstruct the array structure: [frequency, [tail_ids]]
-                            const frequency = valueArray[0];
-                            const tailNumbers = valueArray[1];
+				{loading ? (
+					<Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+						<CircularProgress color="primary" size={28} />
+					</Box>
+				) : error ? (
+					<Typography color="error">{error}</Typography>
+				) : (
+					<ScrollableTableContainer fill minWidth={640}>
+						<Table
+							size="small"
+							sx={{
+								'& .MuiTableCell-head': { bgcolor: 'action.hover', fontWeight: 700 },
+								'& .MuiTableCell-root': { borderColor: 'divider' },
+							}}
+						>
+							<TableHead>
+								<TableRow>
+									<TableCell sx={{ width: '18%' }}>ATA code</TableCell>
+									<TableCell sx={{ width: '22%' }}>Component</TableCell>
+									<TableCell sx={{ width: '12%' }}>Frequency</TableCell>
+									<TableCell>Tail IDs affected</TableCell>
+								</TableRow>
+							</TableHead>
+							<TableBody>
+								{dataRows.length === 0 ? (
+									<TableRow>
+										<TableCell colSpan={4} align="center">
+											No recurring trends detected.
+										</TableCell>
+									</TableRow>
+								) : (
+									dataRows.map(([ataCode, valueArray]) => {
+										const frequency = valueArray[0];
+										const tailNumbers = valueArray[1];
 
-                            return (
-                                <TableRow key={ataCode} sx={{ '&:hover': { bgcolor: 'action.selected' } }}>
-                                    {/* Column 1: The Key (ATA Code) */}
-                                    <TableCell sx={{ fontWeight: 'medium' }}>{ataCode}</TableCell>
-                                    {/* Column 2: Kept blank until we can get part names*/}
-                                    <TableCell color="text.secondary"><em>—</em></TableCell>
-                                    {/* Column 3: The first index in the array */}
-                                    <TableCell>{frequency}</TableCell>
-                                    {/* Column 4: The nested array inside index 1 */}
-                                    <TableCell>{Array.isArray(tailNumbers) ? tailNumbers.join(', ') : tailNumbers}</TableCell>
-                                </TableRow>
-                            );
-                        })
-                    )}
-                </TableBody>
-            </Table>
-        </TableContainer>
-    );
+										return (
+											<TableRow key={ataCode} hover>
+												<TableCell sx={{ fontWeight: 600 }}>{ataCode}</TableCell>
+												<TableCell color="text.secondary">
+													<em>—</em>
+												</TableCell>
+												<TableCell>{frequency}</TableCell>
+												<TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+													{Array.isArray(tailNumbers) ? tailNumbers.join(', ') : tailNumbers}
+												</TableCell>
+											</TableRow>
+										);
+									})
+								)}
+							</TableBody>
+						</Table>
+					</ScrollableTableContainer>
+				)}
+			</CardContent>
+		</Card>
+	);
 }

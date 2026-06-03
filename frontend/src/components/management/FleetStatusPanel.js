@@ -152,7 +152,7 @@ export default function FleetStatusPanel({ aircraft, openWoByAircraft, loading }
 				<Stack
 					direction={{ xs: 'column', md: 'row' }}
 					spacing={1.5}
-					sx={{ mb: 2 }}
+					sx={{ mb: 2, width: '100%' }}
 					alignItems={{ xs: 'stretch', md: 'center' }}
 				>
 					<TextField
@@ -160,7 +160,7 @@ export default function FleetStatusPanel({ aircraft, openWoByAircraft, loading }
 						placeholder="Search tail or model…"
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
-						sx={{ flex: 1, minWidth: { md: 200 } }}
+						sx={{ flex: 1, minWidth: { md: 200 }, maxWidth: { md: 'none' } }}
 						InputProps={{
 							startAdornment: (
 								<InputAdornment position="start">
@@ -169,34 +169,40 @@ export default function FleetStatusPanel({ aircraft, openWoByAircraft, loading }
 							),
 						}}
 					/>
-					<TextField
-						select
-						size="small"
-						label="Status"
-						value={filterKey}
-						onChange={(e) => setFilterKey(e.target.value)}
-						sx={{ minWidth: { md: 200 } }}
+					<Stack
+						direction={{ xs: 'column', sm: 'row' }}
+						spacing={1.5}
+						sx={{ ml: { md: 'auto' }, flexShrink: 0 }}
 					>
-						{FILTER_OPTIONS.map((opt) => (
-							<MenuItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</MenuItem>
-						))}
-					</TextField>
-					<TextField
-						select
-						size="small"
-						label="Sort"
-						value={sortKey}
-						onChange={(e) => setSortKey(e.target.value)}
-						sx={{ minWidth: { md: 220 } }}
-					>
-						{SORT_OPTIONS.map((opt) => (
-							<MenuItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</MenuItem>
-						))}
-					</TextField>
+						<TextField
+							select
+							size="small"
+							label="Status"
+							value={filterKey}
+							onChange={(e) => setFilterKey(e.target.value)}
+							sx={{ minWidth: { md: 200 } }}
+						>
+							{FILTER_OPTIONS.map((opt) => (
+								<MenuItem key={opt.value} value={opt.value}>
+									{opt.label}
+								</MenuItem>
+							))}
+						</TextField>
+						<TextField
+							select
+							size="small"
+							label="Sort"
+							value={sortKey}
+							onChange={(e) => setSortKey(e.target.value)}
+							sx={{ minWidth: { md: 220 } }}
+						>
+							{SORT_OPTIONS.map((opt) => (
+								<MenuItem key={opt.value} value={opt.value}>
+									{opt.label}
+								</MenuItem>
+							))}
+						</TextField>
+					</Stack>
 				</Stack>
 
 				{loading ? (
@@ -247,16 +253,27 @@ export default function FleetStatusPanel({ aircraft, openWoByAircraft, loading }
 						})}
 					</Stack>
 				) : (
-					<ScrollableTableContainer minWidth={720} sx={{ maxHeight: 360, overflowY: 'auto' }}>
-						<Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+					<ScrollableTableContainer fill minWidth={720} sx={{ maxHeight: 360, overflowY: 'auto' }}>
+						<Table
+							size="small"
+							stickyHeader
+							sx={{
+								'& .MuiTableCell-head': { bgcolor: 'action.hover', fontWeight: 700 },
+								'& .MuiTableCell-root': { borderColor: 'divider' },
+							}}
+						>
 							<TableHead>
 								<TableRow>
-									<TableCell>Tail</TableCell>
-									<TableCell>Model</TableCell>
-									<TableCell>Location</TableCell>
-									<TableCell>Status</TableCell>
-									<TableCell align="right">Open WOs</TableCell>
-									<TableCell align="right"> </TableCell>
+									<TableCell sx={{ width: '14%' }}>Tail</TableCell>
+									<TableCell sx={{ width: '22%' }}>Model</TableCell>
+									<TableCell sx={{ width: '22%' }}>Location</TableCell>
+									<TableCell sx={{ width: '18%' }}>Status</TableCell>
+									<TableCell align="right" sx={{ width: '12%' }}>
+										Open WOs
+									</TableCell>
+									<TableCell align="right" sx={{ width: '12%' }}>
+										{' '}
+									</TableCell>
 								</TableRow>
 							</TableHead>
 							<TableBody>
@@ -270,9 +287,15 @@ export default function FleetStatusPanel({ aircraft, openWoByAircraft, loading }
 											sx={{ cursor: 'pointer' }}
 											onClick={() => onRowGo(ac.id)}
 										>
-											<TableCell sx={{ fontWeight: 700 }}>{ac.registration_number || '—'}</TableCell>
-											<TableCell>{ac.model || '—'}</TableCell>
-											<TableCell>{ac.location || '—'}</TableCell>
+											<TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+												{ac.registration_number || '—'}
+											</TableCell>
+											<TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+												{ac.model || '—'}
+											</TableCell>
+											<TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+												{ac.location || '—'}
+											</TableCell>
 											<TableCell>
 												<Chip
 													size="small"

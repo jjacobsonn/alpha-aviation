@@ -29,6 +29,8 @@ import {
 	TableRow,
 	Link,
 	TextField,
+	alpha,
+	useTheme,
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -105,6 +107,7 @@ function maintenanceActionForActivity(item) {
 
 // Main Management dashboard component
 const Management = () => {
+	const theme = useTheme();
 	// Navigation and context
 	const navigate = useNavigate();
 	const { state } = useAppContext();
@@ -257,31 +260,40 @@ const Management = () => {
 				value: counts?.aircraft ?? '—',
 				trend: 'Live',
 				icon: <FlightTakeoffIcon sx={{ fontSize: 32 }} />, 
-				color: '#2B7FD4',
+				color: theme.palette.primary.main,
 			},
 			{
 				label: 'Pending Tasks',
 				value: pendingTasksCount,
 				trend: 'Open',
 				icon: <BuildIcon sx={{ fontSize: 32 }} />, 
-				color: '#FF9800',
+				color: theme.palette.warning.main,
 			},
 			{
 				label: 'Low Stock Items',
 				value: lowStockCount,
 				trend: lowStockCount > 0 ? 'Urgent' : 'OK',
 				icon: <WarningIcon sx={{ fontSize: 32 }} />, 
-				color: '#F44336',
+				color: theme.palette.error.main,
 			},
 			{
 				label: 'Completed Today',
 				value: completedTodayCount,
 				trend: completedTodayCount > 0 ? '+ done' : '—',
 				icon: <CheckCircleIcon sx={{ fontSize: 32 }} />, 
-				color: '#4CAF50',
+				color: theme.palette.success.main,
 			},
 		],
-		[counts?.aircraft, completedTodayCount, lowStockCount, pendingTasksCount]
+		[
+			counts?.aircraft,
+			completedTodayCount,
+			lowStockCount,
+			pendingTasksCount,
+			theme.palette.error.main,
+			theme.palette.primary.main,
+			theme.palette.success.main,
+			theme.palette.warning.main,
+		]
 	);
 
 	// Recent activity list (work orders and discrepancies, sorted by date)
@@ -516,7 +528,7 @@ const Management = () => {
 							mb: 4,
 							border: '1px solid',
 							borderColor: 'divider',
-							background: 'linear-gradient(135deg, #2B7FD408 0%, #ffffff 100%)',
+							background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, ${theme.palette.background.paper} 100%)`,
 						}}
 					>
 						<CardContent sx={{ p: 3 }}>
@@ -524,8 +536,8 @@ const Management = () => {
 								<Stack direction="row" spacing={2} alignItems="center">
 									<Box
 										sx={{
-											bgcolor: '#2B7FD415',
-											color: '#2B7FD4',
+											bgcolor: alpha(theme.palette.primary.main, 0.1),
+											color: 'primary.main',
 											p: 1.5,
 											borderRadius: 2,
 											display: 'flex',
@@ -556,7 +568,7 @@ const Management = () => {
 										component={RouterLink}
 										to="/parts"
 										startIcon={<Inventory2OutlinedIcon />}
-										sx={{ bgcolor: '#2B7FD4', '&:hover': { bgcolor: '#1f5fa8' } }}
+										color="primary"
 									>
 										Inventory & parts
 									</Button>
@@ -710,15 +722,25 @@ const Management = () => {
 									No users in this company yet.
 								</Typography>
 							) : (
-								<ScrollableTableContainer minWidth={720}>
-								<Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+								<ScrollableTableContainer fill minWidth={720}>
+								<Table
+									size="small"
+									sx={{
+										'& .MuiTableCell-head': { bgcolor: 'action.hover', fontWeight: 700 },
+										'& .MuiTableCell-root': { borderColor: 'divider' },
+									}}
+								>
 									<TableHead>
 										<TableRow>
-											<TableCell>Name</TableCell>
-											<TableCell>Username</TableCell>
-											<TableCell>Role</TableCell>
+											<TableCell sx={{ width: '24%' }}>Name</TableCell>
+											<TableCell sx={{ width: '18%' }}>Username</TableCell>
+											<TableCell sx={{ width: '14%' }}>Role</TableCell>
 											<TableCell>Email</TableCell>
-											{canEditRoster ? <TableCell>Actions</TableCell> : null}
+											{canEditRoster ? (
+												<TableCell align="right" sx={{ width: '12%' }}>
+													Actions
+												</TableCell>
+											) : null}
 										</TableRow>
 									</TableHead>
 									<TableBody>
@@ -833,6 +855,21 @@ const Management = () => {
 						</CardContent>
 					</Card>
 				</Box>
+
+				<Box sx={{ mt: 5, mb: 4, width: '100%', minWidth: 0 }}>
+					<Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+						Fleet analytics
+					</Typography>
+					<Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+						Utilization, availability, and recurring maintenance patterns
+					</Typography>
+					<Stack spacing={2} sx={{ width: '100%' }}>
+						<RecurringDiscrepancyTable />
+						<FleetUtilizationGraph />
+						<AircraftUptimeDowntimeGraph />
+					</Stack>
+				</Box>
+
 				{/* Edit user dialog */}
 				<Dialog open={editUserOpen} onClose={closeEditUser} fullWidth maxWidth="sm">
 					<DialogTitle>Edit user</DialogTitle>
@@ -936,15 +973,6 @@ const Management = () => {
 						</Button>
 					</DialogActions>
 				</Dialog>
-				
-			{/* Recurring discrepancy trends table */}
-			<div className='recurring-discrepancy-section'>
-				<RecurringDiscrepancyTable />
-			</div>
-			<div className='fleet-utilization-section'>
-				<FleetUtilizationGraph />
-				<AircraftUptimeDowntimeGraph />
-			</div>
 
 				<Dialog open={createUserOpen} onClose={closeCreateUser} fullWidth maxWidth="sm">
 					<DialogTitle>Create user</DialogTitle>

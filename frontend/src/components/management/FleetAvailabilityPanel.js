@@ -20,13 +20,6 @@ import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
-/** Matches API fleet-availability segments + Management dashboard accents. */
-const FLEET_SEGMENT_FALLBACK = {
-	available: '#4CAF50',
-	in_maintenance: '#FF9800',
-	grounded: '#E53935',
-};
-
 const PRIO_LABELS = {
 	critical: 'Critical',
 	high: 'High',
@@ -34,9 +27,14 @@ const PRIO_LABELS = {
 	low: 'Low',
 };
 
-function segmentStyle(seg) {
-	const color = seg.color || FLEET_SEGMENT_FALLBACK[seg.key] || '#9e9e9e';
-	return { color, bg: `${color}15` };
+function segmentStyle(seg, theme) {
+	const fallbacks = {
+		available: theme.palette.success.main,
+		in_maintenance: theme.palette.warning.main,
+		grounded: theme.palette.error.main,
+	};
+	const color = seg.color || fallbacks[seg.key] || theme.palette.text.disabled;
+	return { color, bg: alpha(color, 0.12) };
 }
 
 function priorityColor(theme, key) {
@@ -303,6 +301,7 @@ function MetricTile({ label, value, sublabel, trend, trendTone, chip, href }) {
 }
 
 function FleetStatusStack({ segments, total, loading }) {
+	const theme = useTheme();
 	if (loading) {
 		return <Box sx={{ height: 12, borderRadius: 1, bgcolor: 'action.hover' }} />;
 	}
@@ -330,7 +329,7 @@ function FleetStatusStack({ segments, total, loading }) {
 			}}
 		>
 			{active.map((seg) => {
-				const { color } = segmentStyle(seg);
+				const { color } = segmentStyle(seg, theme);
 				const widthPct = (seg.count / total) * 100;
 				return (
 					<Box
@@ -557,7 +556,7 @@ export default function FleetAvailabilityPanel({ data, loading }) {
 							<FleetStatusStack segments={segments} total={total} loading={loading} />
 							<Stack spacing={1} sx={{ mt: 2 }}>
 								{segments.map((seg) => {
-									const { color, bg } = segmentStyle(seg);
+									const { color, bg } = segmentStyle(seg, theme);
 									const count = seg.count || 0;
 									const pct = pctOf(count, total);
 									return (
@@ -662,7 +661,7 @@ export default function FleetAvailabilityPanel({ data, loading }) {
 				</Grid>
 
 				{/*
-				 * Metrics: 1 col (xs) → 2 col (sm–lg) → 4 col (xl only).
+				 * Metrics: 1 col (xs) → 2 col (sm–md) → 4 col (lg+).
 				 * Stays readable in split-screen and tablet landscape.
 				 */}
 				<Box
@@ -671,7 +670,7 @@ export default function FleetAvailabilityPanel({ data, loading }) {
 						gridTemplateColumns: {
 							xs: 'minmax(0, 1fr)',
 							sm: 'repeat(2, minmax(0, 1fr))',
-							xl: 'repeat(4, minmax(0, 1fr))',
+							lg: 'repeat(4, minmax(0, 1fr))',
 						},
 						gap: { xs: 1.5, sm: 2 },
 						width: '100%',
