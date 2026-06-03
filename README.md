@@ -57,7 +57,6 @@
       </ul>
     </li>
     <li><a href="#live-application">Live Application</a></li>
-    <li><a href="#product-tour">Product Tour</a></li>
     <li><a href="#demo-credentials">Demo Credentials</a></li>
     <li>
       <a href="#getting-started">Getting Started</a>
@@ -87,19 +86,20 @@
 
 <br />
 
-There are many great README templates available on GitHub; however, I didn't find one that really suited my needs so I created this enhanced one. I want to create a README template so amazing that it'll be the last one you ever need -- I think this is it.
+**Alpha Aviation** is operations software for flight schools and charter operators — one place to run the fleet, schedule flights, track maintenance, and keep every role on the same page.
 
-Here's why:
+Most small and mid-size operators still juggle spreadsheets, email threads, and disconnected tools. Work orders live in one place, dispatch in another, and leadership only gets a clear picture after someone builds a report. Alpha Aviation replaces that friction with a single **multi-tenant** web app: each company gets its own aircraft, users, flights, and maintenance history, while a platform admin can oversee every tenant from **Site Admin**.
 
-* Your time should be focused on creating something amazing. A project that solves a problem and helps others
-* You shouldn't be doing the same tasks over and over like creating a README from scratch
-* You should implement DRY principles to the rest of your life 😄
+**What you get**
 
-Of course, no one template will serve all projects since your needs may be different. So I'll be adding more in the near future. You may also suggest changes by forking this repo and creating a pull request or opening an issue. Thanks to all the people who have contributed to expanding this template!
+* **Management dashboard** — fleet readiness, open work-order load, recurring discrepancy patterns, and roster visibility for owners and managers
+* **Dispatch & calendar** — company-wide flight list, approvals, and scheduling for dispatchers (owners use the same views; pilots see assigned flights on their portal)
+* **Maintenance hub** — discrepancies, work orders, parts, service history, and component tracking for mechanics and supervisors
+* **Fleet registry** — tail numbers, status, locations, and aircraft detail with open maintenance context
+* **Analytics** — maintenance trends, labor, and operational metrics for leadership
+* **Role-based access** — JWT auth with per-company roles (owner, manager, dispatcher, mechanic, pilot) so people only see what their job requires
 
-Use the [documentation index](docs/README.md) to get started with architecture, RBAC, and deployment guides.
-
-**Alpha Aviation** is a full-stack platform for flight schools and charter operators: a **Django REST API** and **React** SPA on **PostgreSQL**, with **JWT auth** and **role-based access** per company (tenant). Owners get fleet and work-order visibility; dispatchers run scheduling; pilots see assigned flights; mechanics manage discrepancies, parts, and service history; platform superusers operate cross-tenant **Site Admin**.
+Under the hood it is a **Django REST API** and **React** SPA on **PostgreSQL**, deployed as a modern full-stack product — not a README template. Explore the live app above, then use the [documentation index](docs/README.md) for architecture, RBAC, and deployment if you are contributing or running it locally.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -129,57 +129,6 @@ Hosted on **Railway** (personal portfolio environment).
 | API | [https://alpha-aviation-api-production-03c8.up.railway.app/api/](https://alpha-aviation-api-production-03c8.up.railway.app/api/) |
 | Django admin | [https://alpha-aviation-api-production-03c8.up.railway.app/admin/](https://alpha-aviation-api-production-03c8.up.railway.app/admin/) |
 | Site Admin (SPA) | [https://alpha-aviation-web-production-3763.up.railway.app/site-admin](https://alpha-aviation-web-production-3763.up.railway.app/site-admin) |
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-## Product Tour
-
-Screenshots below map to **role-based workflows**. Add PNGs under `docs/images/screenshots/` (see [capture guide](docs/images/screenshots/README.md)).
-
-### Management & analytics — owner / manager
-
-| | |
-|---|---|
-| ![Management dashboard](docs/images/screenshots/01-management-dashboard.png) | **Management dashboard** — fleet availability, KPI cards with trends, open work orders by priority, drill-down to fleet and work orders. |
-| ![Analytics workspace](docs/images/screenshots/05-analytics.png) | **Analytics** (`/analytics`) — trends and operational metrics for leadership decisions. |
-
-**Try it:** `marcus.hale` → `/management`
-
-### Dispatch — scheduling & calendar
-
-| | |
-|---|---|
-| ![Dispatch calendar](docs/images/screenshots/02-dispatch-calendar.png) | **Dispatch calendar** — flight scheduling, approvals, and calendar-centric operations. |
-
-**Try it:** `sarah.mitchell` → `/calendar` or `/dispatcher-dashboard`
-
-### Maintenance & fleet — mechanics & operations
-
-| | |
-|---|---|
-| ![Work orders](docs/images/screenshots/03-work-orders.png) | **Work orders** (`/work-orders`) — status workflow, priority, parts summary, aviation maintenance tracking. |
-| ![Fleet](docs/images/screenshots/04-fleet.png) | **Fleet** (`/fleet`) — aircraft registry, status, and detail views across the company. |
-| ![Maintenance hub](docs/images/screenshots/07-maintenance.png) | **Maintenance** (`/maintenance`) — discrepancies and maintenance operations in one place. |
-
-**Try it:** `mike.torres` → `/work-orders` or `/maintenance`
-
-### Platform admin — multi-tenant
-
-| | |
-|---|---|
-| ![Site Admin](docs/images/screenshots/06-site-admin.png) | **Site Admin** (`/site-admin`) — companies, users, and aircraft across tenants (superuser). |
-
-**Try it:** `demo` → `/site-admin`
-
-### Pilot portal
-
-| | |
-|---|---|
-| ![Pilot dashboard](docs/images/screenshots/08-pilot-dashboard.png) | **Pilot dashboard** (`/pilot-dashboard`) — assigned flights and pilot-facing tools. |
-
-**Try it:** `james.rivera` → `/pilot-dashboard`
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
