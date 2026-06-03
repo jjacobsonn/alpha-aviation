@@ -264,10 +264,17 @@ const Maintenance = () => {
 	const [closeWoLaborHours, setCloseWoLaborHours] = useState('');
 	const [successMessage, setSuccessMessage] = useState('');
 	const aircraftFilterFromQuery = new URLSearchParams(location.search).get('aircraft') || '';
+	const ataFilterFromQuery = new URLSearchParams(location.search).get('ata') || '';
 
 	useEffect(() => {
 		setDidHandleDeepLink(false);
 	}, [location.search]);
+
+	useEffect(() => {
+		if (ataFilterFromQuery) {
+			setDiscSearch(ataFilterFromQuery);
+		}
+	}, [ataFilterFromQuery]);
 
 	const resetWorkorderFormForCreate = () =>
 		setWorkorderForm({

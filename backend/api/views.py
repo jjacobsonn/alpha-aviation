@@ -705,6 +705,7 @@ def management_dashboard_view(request):
                 "workorder_analytics": workorder_analytics,
                 "remaining_hobbs": remaining_hobbs,
                 "recuring_discrepancies": recuring_discrepancies,
+                "recurring_discrepancies": recuring_discrepancies,
                 "monthly_flight_hours": monthly_flight_hours,
                 "uptime_downtime": uptime_downtime,
             }

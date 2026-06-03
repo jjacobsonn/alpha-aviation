@@ -281,18 +281,57 @@ class Company(models.Model):
             remaining[aircraft.registration_number] = aircraft.remaining_hobbs()
         return remaining
     
-    #function to make a dictionary of all the ATA codes that the company workorders have had, with the number of times that ATA code has come up and the airplanes that it has come up on, returns a dictionary with the ATA code as the key and a tuple with the count and list of airplanes as the value.
     def get_company_recuring_workorders(self):
-        ata_codes = {}
-        discrepancies = Discrepancy.objects.filter(aircraft__company=self)
+        """
+        Recurring discrepancy patterns grouped by ATA chapter.
+        Returns a list (new) for dashboards; legacy consumers expected a dict keyed by ATA.
+        """
+        from collections import defaultdict
+
+        buckets = defaultdict(
+            lambda: {
+                "count": 0,
+                "tails": {},
+                "descriptions": [],
+                "discrepancy_ids": [],
+            }
+        )
+        discrepancies = (
+            Discrepancy.objects.filter(aircraft__company=self)
+            .select_related("aircraft")
+            .order_by("-date_reported")
+        )
         for discrepancy in discrepancies:
-            if discrepancy.ata_code in ata_codes:
-                ata_codes[discrepancy.ata_code][0] += 1
-                if not discrepancy.aircraft.registration_number in ata_codes[discrepancy.ata_code][1]:
-                    ata_codes[discrepancy.ata_code][1].append(discrepancy.aircraft.registration_number)
-            else:
-                ata_codes[discrepancy.ata_code] = [1, [discrepancy.aircraft.registration_number]]
-        return ata_codes
+            ata = (discrepancy.ata_code or "").strip()
+            if not ata:
+                continue
+            bucket = buckets[ata]
+            bucket["count"] += 1
+            tail = discrepancy.aircraft.registration_number
+            bucket["tails"][tail] = discrepancy.aircraft_id
+            if discrepancy.description:
+                bucket["descriptions"].append(discrepancy.description.strip())
+            bucket["discrepancy_ids"].append(discrepancy.id)
+
+        rows = []
+        for ata_code, bucket in buckets.items():
+            sample = bucket["descriptions"][0] if bucket["descriptions"] else ""
+            aircraft = [
+                {"id": aid, "registration_number": tail}
+                for tail, aid in sorted(bucket["tails"].items())
+            ]
+            rows.append(
+                {
+                    "ata_code": ata_code,
+                    "count": bucket["count"],
+                    "aircraft_tails": [a["registration_number"] for a in aircraft],
+                    "aircraft": aircraft,
+                    "sample_description": sample[:160],
+                    "discrepancy_ids": bucket["discrepancy_ids"],
+                }
+            )
+        rows.sort(key=lambda r: (-r["count"], r["ata_code"]))
+        return rows
     
     #function to get how many long(hours) each airplane has fiown in each month for the past year. returns a dictionary with the registration number as the key and a dictionary of month and hours as the value.
     def get_aircraft_monthly_flight_hours(self):
