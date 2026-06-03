@@ -68,6 +68,7 @@
     <li><a href="#repository-structure">Repository Structure</a></li>
     <li><a href="#deployment">Deployment</a></li>
     <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
     <li><a href="#documentation">Documentation</a></li>
     <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
@@ -99,13 +100,20 @@ Most small and mid-size operators still juggle spreadsheets, email threads, and 
 * **Analytics** — maintenance trends, labor, and operational metrics for leadership
 * **Role-based access** — JWT auth with per-company roles (owner, manager, dispatcher, mechanic, pilot) so people only see what their job requires
 
-Under the hood it is a **Django REST API** and **React** SPA on **PostgreSQL**, deployed as a modern full-stack product — not a README template. Explore the live app above, then use the [documentation index](docs/README.md) for architecture, RBAC, and deployment if you are contributing or running it locally.
+Under the hood it is a **Django REST API** and **React** SPA on **PostgreSQL**, deployed as a modern full-stack product. Explore the live app above, then use the [documentation index](docs/README.md) for architecture, RBAC, and deployment if you are running it locally.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Built With
 
-This section lists the major frameworks and libraries used to bootstrap the project.
+Alpha Aviation was built as a **production-style monorepo**: multi-tenant REST API, JWT-secured SPA, role-based modules (management, dispatch, maintenance, fleet, analytics, site admin), and Railway-hosted Docker deploys — not a starter kit.
+
+| Layer | What we shipped |
+|-------|------------------|
+| **Frontend** | React 19 SPA, Material UI 7, React Router 7, MUI X Charts, global search, responsive tables |
+| **API** | Django 5 + Django REST Framework, JWT auth, per-company RBAC, analytics and management dashboards |
+| **Data** | PostgreSQL 18, Poetry-managed Python deps, seeded demo tenants (Horizon & Cascade) |
+| **Ops** | Docker images, Gunicorn, Railway (API + web + Postgres), environment-based API URL for CRA builds |
 
 * [![React][React.js]][React-url]
 * [![Django][Django.com]][Django-url]
@@ -147,15 +155,6 @@ Hosted on **Railway** (personal portfolio environment).
 | **Access** | Superuser — all companies; not tied to one tenant |
 | **SPA** | Log in at the app URL → **Site Admin** (`/site-admin`) |
 | **Django** | Same credentials at `/admin/` |
-
-**Site Admin tips**
-
-- Companies table lists all tenants when the latest frontend is deployed.
-- To work inside **Cascade Air Services** as `demo`: set tenant context  
-  `localStorage.setItem('adminCompanyId', '2'); location.reload();`  
-  (use `1` for Horizon).
-- To see every company in the table:  
-  `localStorage.removeItem('adminCompanyId'); location.reload();`
 
 ### Demo 1 — Horizon Flight Services
 
@@ -264,24 +263,23 @@ Production uses **Railway**: PostgreSQL, API (`Dockerfile.railway-api` / `backen
 
 ---
 
-<!-- CONTRIBUTING -->
 ## Contributing
 
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag `enhancement`. Don't forget to give the project a star! Thanks again!
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Top contributors
+Thank you to the lovely team who helped develop this project and bring it together — your work on fleet operations, maintenance workflows, dispatch, and platform admin made Alpha Aviation what it is.
 
 <a href="https://github.com/jjacobsonn/alpha-aviation/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=jjacobsonn/alpha-aviation" alt="Contributors" />
 </a>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## License
+
+This portfolio repository is **proprietary**. Unauthorized copying, redistribution, or commercial use of the codebase, UI, or demo content is **not permitted** and may result in takedown and legal action.
+
+**Read the full terms:** [LICENSE.md](LICENSE.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -300,17 +298,15 @@ If you have a suggestion that would make this better, please fork the repo and c
 
 ---
 
-<!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-Thank you to the lovely team who helped develop this project and bring it together — your work on fleet operations, maintenance workflows, dispatch, and platform admin made Alpha Aviation what it is.
+**Product owner:** Jean Michel N'da (UVU) — product direction and stakeholder partnership.
 
-* [Django](https://www.djangoproject.com/)
-* [React](https://react.dev/)
-* [Material UI](https://mui.com/)
-* [Railway](https://railway.app/)
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — README structure inspiration
-* [contrib.rocks](https://contrib.rocks) — contributor avatars
+**Development:** Alpha Aviation **e2i** team — design, backend, frontend, and delivery of the operational platform.
+
+**Portfolio:** [Jackson Jacobson](https://github.com/jjacobsonn) — documentation, deployment, and public portfolio presentation of this repository.
+
+**Technologies:** [Django](https://www.djangoproject.com/) · [React](https://react.dev/) · [Material UI](https://mui.com/) · [PostgreSQL](https://www.postgresql.org/) · [Railway](https://railway.app/)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
