@@ -28,8 +28,8 @@ export const MODULE_ALLOWED_ROLES = {
   // Mechanics: ops modules only — no Pilot / Dispatcher dashboards.
   // Pilots: no full dispatch board (requests/status live on Pilot page).
   dispatcherDashboard: ["owner", "manager", "dispatcher"],
-  // Owner/manager can open pilot dashboard for support; pilots only otherwise.
-  pilotDashboard: ["owner", "manager", "pilot"],
+  // Pilots only — owners/managers use Dispatcher + Calendar for fleet flights.
+  pilotDashboard: ["manager", "pilot"],
   calendar: ["owner", "manager", "dispatcher", "mechanic", "pilot"],
   serviceHistory: ["owner", "manager", "dispatcher", "mechanic"],
   componentHistory: ["owner", "manager", "mechanic"],

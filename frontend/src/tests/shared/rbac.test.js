@@ -105,4 +105,9 @@ describe("RBAC role routing", () => {
     expect(allowedRolesForModule("pilotDashboard")).not.toContain("dispatcher");
     expect(allowedRolesForModule("pilotDashboard")).toContain("pilot");
   });
+
+  it("does not allow owners on pilot dashboard", () => {
+    expect(allowedRolesForModule("pilotDashboard")).not.toContain("owner");
+    expect(allowedRolesForModule("dispatcherDashboard")).toContain("owner");
+  });
 });
