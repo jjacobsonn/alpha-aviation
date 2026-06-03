@@ -121,11 +121,12 @@ const Login = () => {
 				>
 					<CardContent sx={{ p: 4 }}>
 						{/* Logo/Header */}
-						<Stack spacing={3} alignItems="center" sx={{ mb: 4 }}>
-							<img
-								src="/logo.png"
+						<Stack spacing={2} alignItems="center" sx={{ mb: 4 }}>
+							<Box
+								component="img"
+								src={`${process.env.PUBLIC_URL || ''}/logo.png`}
 								alt="Alpha Aviation"
-								style={{ height: 56, width: 56 }}
+								sx={{ width: 80, height: 80, display: 'block' }}
 							/>
 							<Typography variant="h4" sx={{ fontWeight: 700 }}>
 								Alpha Aviation
